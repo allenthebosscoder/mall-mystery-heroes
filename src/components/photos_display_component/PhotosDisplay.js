@@ -1,4 +1,4 @@
-import { Box, Heading, Image, Text } from "@chakra-ui/react";
+import { Box, Heading, Image } from "@chakra-ui/react";
 import { useContext, useEffect, useState } from "react";
 import { gameContext } from "../Contexts";
 import { fetchPhotosQueryByAscendingTimestampForRoom, killPlayerForRoom, updatePhotoStatusForRoom, fetchPlayerForRoom, updatePointsForPlayer, updateTargetsForPlayer, updateAssassinsForPlayer, remapPlayerAsTarget } from "../firebase_calls/dbCalls";
@@ -43,7 +43,7 @@ const PhotosDisplay = () => {
     
     const handlePass = async () => {
         if (unjudgedPhotos.length === 0) return;
-        const [currentPhoto, ...rest] = unjudgedPhotos;
+        const [currentPhoto] = unjudgedPhotos;
 
         const playerDoc = await fetchPlayerForRoom(currentPhoto.target, roomID);
         const originalPlayerData = playerDoc.data(); // contains score, targets, etc.
@@ -59,7 +59,7 @@ const PhotosDisplay = () => {
     
     const handleDeny = async () => {
         if (unjudgedPhotos.length === 0) return;
-        const [currentPhoto, ...rest] = unjudgedPhotos;
+        const [currentPhoto] = unjudgedPhotos;
     
         await updatePhotoStatusForRoom(roomID, currentPhoto.id, "denied");
         await addLog(
@@ -156,7 +156,6 @@ const styles = {
     photosBox: {
         w: '94%',
         h: '75%',
-        alignItems: 'center',
         textAlign: 'center',
         flexGrow: 1,
         display: 'flex',

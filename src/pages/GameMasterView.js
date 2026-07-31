@@ -4,12 +4,14 @@ import PlayersList from '../components/player_listing/PlayersList';
 import { useParams, 
          useLocation } from 'react-router-dom';
 import { HStack, Heading, VStack, Box, Divider} from '@chakra-ui/react';
+// eslint-disable-next-line no-unused-vars -- scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
 import TaskExecution from '../components/task_components/TaskExecution';
 import HeaderExecution from '../components/header_components/HeaderExecution';
 import Log from '../components/logs_components/Log';
 import UnmapPlayers from '../components/UnmapPlayers';
 import { fetchPlayersByStatusForRoom, fetchAllTasksForRoom, fetchAllLogsForRoom, updateLogsForRoom, updateIsAliveForPlayer } from '../components/firebase_calls/dbCalls';
 import RemapPlayerModal from '../components/RemapPlayerModal';
+// eslint-disable-next-line no-unused-vars -- taskContext is scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
 import { gameContext, taskContext, executionContext } from '../components/Contexts';
 import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
@@ -17,10 +19,10 @@ import PhotosDisplay from '../components/photos_display_component/PhotosDisplay'
 const GameMasterView = () => {
     const { roomID } = useParams(); 
     const { arrayOfPlayers } = useLocation().state || { arrayOfPlayers: [] };
-    const [arrayOfDeadPlayers, setArrayOfDeadPlayers] = useState([]);
+    const [, setArrayOfDeadPlayers] = useState([]);
     const [arrayOfAlivePlayers, setArrayOfAlivePlayers] = useState([]);
-    const [arrayOfTasks, setArrayOfTasks] = useState([]);    
-    const [completedTasks, setCompletedTasks] = useState([]);
+    const [, setArrayOfTasks] = useState([]);
+    const [, setCompletedTasks] = useState([]);
     const [logList, setLogList] = useState([]);
     const unmapPlayers = UnmapPlayers();
     const [newTargets, setNewTargets] = useState({});
@@ -51,7 +53,7 @@ const GameMasterView = () => {
             fetchTaskForRooms();
             fetchLogs();
         }
-        //eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomID]);
     
     //updates loglist with new log
@@ -93,6 +95,7 @@ const GameMasterView = () => {
     };
 
     //updates arrayOfTasks when new task is added to db
+    // eslint-disable-next-line no-unused-vars -- scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
     const handleNewTaskAdded = async (newTask) => {
         setArrayOfTasks(arrayOfTasks => [...arrayOfTasks, newTask]);
         await addLog("Added new task: " + newTask.title, 'yellow.400');
@@ -105,6 +108,7 @@ const GameMasterView = () => {
     }
 
     //removes player from alivePlayers and adds them to deadPlayers
+    // eslint-disable-next-line no-unused-vars -- never wired to any UI; kept as the counterpart to handlePlayerRevive.
     const handleUndoRevive = async (revivedPlayerName) => {
         setArrayOfDeadPlayers(arrayOfDeadPlayers => [...arrayOfDeadPlayers, revivedPlayerName]);
         setArrayOfAlivePlayers(arrayOfAlivePlayers.filter((name) => name !== revivedPlayerName));

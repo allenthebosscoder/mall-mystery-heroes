@@ -16,8 +16,8 @@ const PlayerList = ({ arrayOfPlayers }) => {
         </ListItem>
     );
 
-    let firstHalf = [];
-    let secondHalf = [];
+    const firstHalf = [];
+    const secondHalf = [];
     for (let i = 0; i < listOfNames.length; i++) {
         if (i % 2 === 0) {
             firstHalf.push(listOfNames[i]);

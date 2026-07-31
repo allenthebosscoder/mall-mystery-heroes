@@ -7,8 +7,7 @@ import {Input,
         NumberDecrementStepper,
         NumberIncrementStepper,
         NumberInputStepper,
-        Select,
-        Box
+        Select
     } from '@chakra-ui/react';
 import CreateAlert from '../CreateAlert';
 import { addTaskForRoom, checkForTaskDupesForRoom, fetchTaskIndexThenIncrement } from '../firebase_calls/dbCalls';
@@ -58,7 +57,7 @@ const TaskCreation = () => {
         const titleTrimmedLowerCase = TaskTitle.replace(/\s/g, '').toLowerCase();
         const taskIndex = await fetchTaskIndexThenIncrement(roomID);
 
-        let newTask = {
+        const newTask = {
             title: TaskTitle,
             titleTrimmedLowerCase: titleTrimmedLowerCase,
             description: TaskDescription,

@@ -44,7 +44,7 @@ const RemapPlayerModal = ({ newTargets, newAssassins, showRemapModal, onClose })
     }, [playerList]);
 
     const mappedPlayers = Object.entries(playerList)
-                                .filter(([player, targetList]) => targetList.length > 0)
+                                .filter(([, targetList]) => targetList.length > 0)
                                 .map(([player, targetList]) => ( 
                                     <Tr key = {player}>
                                         <Td>{player}</Td>

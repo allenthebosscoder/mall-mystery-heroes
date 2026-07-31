@@ -43,7 +43,7 @@ const Lobby = () => {
         if (roomID) {
             fetchPlayers();
         }
-        //eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomID]);
 
     //navigates to lobby

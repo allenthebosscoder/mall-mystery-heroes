@@ -1,11 +1,9 @@
-import { useContext } from 'react';
-import { fetchAlivePlayersByAscendAssassinsLengthForRoom, 
-         fetchAlivePlayersByAscendTargetsLengthForRoom, 
-         fetchPlayerForRoom, 
-         updateAssassinsForPlayer, 
-         updateTargetsForPlayer 
+import { fetchAlivePlayersByAscendAssassinsLengthForRoom,
+         fetchAlivePlayersByAscendTargetsLengthForRoom,
+         fetchPlayerForRoom,
+         updateAssassinsForPlayer,
+         updateTargetsForPlayer
     } from './firebase_calls/dbCalls';
-import CreateAlert from './CreateAlert';
 
 const RemapPlayers = (handleRemapping, createAlert) => {
     const tempNewTargets = {};
@@ -31,7 +29,7 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                     return createAlert('error', 'Error', 'Target Not Found', 1500);
                 }
                 const playerData = playerDoc.data();
-                let newTargetArray = [...playerData.targets];
+                const newTargetArray = [...playerData.targets];
                 
                 //finds possible targets for player
                 for (const possibleTarget of randomizedAlivePlayers) {
@@ -106,7 +104,7 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                     return createAlert('error', 'Error', 'Target Not Found', 1500);
                 }
                 const playerData = playerDoc.data();
-                let newAssassinArray = [...playerData.assassins];
+                const newAssassinArray = [...playerData.assassins];
 
                 //finds possible assassins for player
                 for (const possibleAssassin of randomizedAlivePlayers) {

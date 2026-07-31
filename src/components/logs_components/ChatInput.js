@@ -109,7 +109,7 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
     console.log("executing command: ", value);
 
     // parse command and args
-    const parts = value.match(/\/\S+|(\[[^\]]+\]|\S+)/g).map(s => s.replace(/[\[\]]/g, ''));
+    const parts = value.match(/\/\S+|(\[[^\]]+\]|\S+)/g).map(s => s.replace(/[[\]]/g, ''));
     if (!parts) return null;
 
     const commandLine = parts[0].toLowerCase();

@@ -34,7 +34,7 @@ const PlayersList = () => {
         // Clean up the subscription when the component unmounts
         return () => unsubscribe();
         // disabled next line because playerAlivePlayersQuery should not be in dependency array
-        // eslint-disable-next-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // creates an array of mapped players 
