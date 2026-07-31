@@ -21,7 +21,7 @@ Auth, Firestore, and Storage. There is no backend of our own.
 | [docs/game-flows.md](docs/game-flows.md)     | Sequence diagrams for hosting, killing, photo moderation, reviving        |
 | [docs/commands.md](docs/commands.md)         | The GM command bar reference                                              |
 | [docs/improvements.md](docs/improvements.md) | Known issues and prioritized backlog                                      |
-| [docs/testing.md](docs/testing.md)           | Proposed testing strategy and the refactors it depends on                 |
+| [docs/testing.md](docs/testing.md)           | Testing strategy — what is implemented, what the layers are, what is next |
 
 New to the codebase? Read `architecture.md`, then `data-model.md`. The data
 model is reconstructed from call sites and is not declared anywhere in code, so
@@ -64,10 +64,15 @@ npm run firebase:emulate   # terminal 1 — emulator suite
 npm start                  # terminal 2 — dev server on :3000
 ```
 
-**`npm start` always targets the emulators.** `src/utils/firebase.js` connects to
-local emulators whenever `NODE_ENV === 'development'`, and `react-scripts start`
-always sets that. There is no flag to point the dev server at the real project
-without editing that file.
+**`npm start` targets the emulators** because `.env.development` sets
+`REACT_APP_USE_EMULATORS=true`, and `react-scripts start` reads that file. To
+point the dev server at the real project instead, set the flag to anything else
+(or delete the line) — no code change needed.
+
+`npm run build` never reads `.env.development`, so a production bundle cannot
+carry the flag. Under `NODE_ENV=test` the flag is absent and
+`src/utils/firebaseEnv.js` throws rather than let a test run reach a live
+project. See [docs/testing.md](docs/testing.md).
 
 | Emulator    | Port           |
 | ----------- | -------------- |
@@ -106,10 +111,19 @@ Since the emulator starts empty, a local run needs an account created through
 | -------------------------- | ----------------------------------------------------------------- |
 | `npm start`                | Dev server on port 3000, wired to emulators                       |
 | `npm run build`            | Production bundle to `build/`, wired to the real project          |
-| `npm test`                 | `react-scripts test` — **no test files exist**, see below         |
+| `npm test`                 | Jest, configured in `jest.config.js`                              |
+| `npm run lint`             | ESLint, fails on any warning                                      |
+| `npm run lint:fix`         | ESLint with autofix                                               |
+| `npm run format`           | Prettier, rewrites files in place                                 |
+| `npm run format:check`     | Prettier in check mode, as CI runs it                             |
 | `npm run firebase:emulate` | Selects the `default` project alias and starts the emulator suite |
 
 Inside `functions/`: `npm run serve`, `npm run deploy`, `npm run logs`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions, the repo-specific rules
+worth knowing before you change anything, and what CI checks.
 
 ## Project layout
 
@@ -141,9 +155,9 @@ Worth knowing before you start changing things — all detailed in
 - **No route guards** — every route renders for signed-out visitors.
 - **All game logic is client-side.** Cloud Functions contains one echo stub.
   Scoring, kill validation, and target assignment all run in the browser.
-- **No tests**, despite a fully configured Jest + Testing Library harness. Note
-  that `npm test` does not even read the standalone `jest.config.js`.
+- **Test coverage is thin.** The harness is in place and CI runs it, but most of
+  the game logic is still untested — see [docs/testing.md](docs/testing.md).
 - **`.firebaserc` maps `dev` and `prod` to the same project.** There is no
   staging environment.
-- **Deployment is not captured here** — `firebase.json` has no `hosting` block
-  and there is no CI configuration.
+- **Deployment is not captured here** — `firebase.json` has no `hosting` block,
+  so how the built SPA reaches users is not reproducible from this repo.

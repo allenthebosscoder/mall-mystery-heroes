@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      # Runs the `unit` and `dom` Jest projects (see jest.config.js). No
+      # Firebase, no emulators, no network: src/utils/firebaseEnv.js refuses to
+      # initialize an SDK under NODE_ENV=test, so a test that accidentally
+      # imports the data layer fails loudly rather than writing to the live
+      # project. See docs/testing.md.
+      - name: Test
+        run: npm test -- --ci
+
+      # CRA promotes build warnings to errors when CI is set, which Actions
+      # sets by default. That is intentional here and matches --max-warnings=0.
+      #
+      # No REACT_APP_* vars are needed: webpack only inlines them, it does not
+      # execute the Firebase module, so a missing .env does not fail the build.
+      # (Verified by building with .env absent.) Note that `.env.development`
+      # is not read here either — a production bundle must never carry
+      # REACT_APP_USE_EMULATORS.
+      - name: Build
+        run: npm run build
