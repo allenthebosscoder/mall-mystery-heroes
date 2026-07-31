@@ -396,9 +396,9 @@ export const addPlayerForRoom = async (player, roomID) => {
         throw new Error('Player already exists');
     }
     //adds if not
-    addDoc(playerCollectionRef, {
+    return addDoc(playerCollectionRef, {
         name: player,
-        trimmedNameLowerCase: player.replace(/\s/g, '').toLowerCase(),
+        trimmedNameLowerCase: trimmedLowercaseName,
         isAlive: true,
         score: 10,
         targets: [],
@@ -406,13 +406,7 @@ export const addPlayerForRoom = async (player, roomID) => {
         assassins: [],
         assassinsLength: 0,
         openSeason: false,
-    })
-        .then((docRef) => {
-            console.log('Document written with ID: ', docRef.id);
-        })
-        .catch((error) => {
-            console.error('Error adding player: ', error);
-        });
+    });
 };
 
 //removes player from database

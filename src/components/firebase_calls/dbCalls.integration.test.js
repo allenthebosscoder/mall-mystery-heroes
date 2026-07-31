@@ -16,7 +16,7 @@ import {
     updatePointsForPlayer,
     updateTargetsForPlayer,
 } from './dbCalls';
-import { clearFirestore, seedRoom, shutdown, waitUntil } from '../../../test/emulatorHelpers';
+import { clearFirestore, seedRoom, shutdown } from '../../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
 
@@ -71,8 +71,28 @@ describe('addPlayerForRoom', () => {
 
         await addPlayerForRoom('Alice Smith', ROOM);
 
-        const doc = await waitUntil(() => fetchPlayerForRoom('Alice Smith', ROOM));
+        const doc = await fetchPlayerForRoom('Alice Smith', ROOM);
         expect(doc.data().trimmedNameLowerCase).toBe('alicesmith');
+    });
+
+    it('resolves with a reference to the document it created', async () => {
+        await seedRoom(ROOM, []);
+
+        const ref = await addPlayerForRoom('dana', ROOM);
+
+        expect(ref).toBeDefined();
+        expect(ref.id).toEqual(expect.any(String));
+    });
+
+    it('leaves no write in flight once it resolves', async () => {
+        // A write still pending here contends with the next test's emulator
+        // reset and stalls it for the full timeout.
+        await seedRoom(ROOM, []);
+
+        await addPlayerForRoom('erin', ROOM);
+        await clearFirestore();
+
+        expect(await fetchAllPlayersForRoom(ROOM)).toEqual([]);
     });
 
     it('rejects a duplicate that differs only by case and spacing', async () => {
@@ -86,7 +106,7 @@ describe('addPlayerForRoom', () => {
 
         await addPlayerForRoom('bob', ROOM);
 
-        const data = (await waitUntil(() => fetchPlayerForRoom('bob', ROOM))).data();
+        const data = (await fetchPlayerForRoom('bob', ROOM)).data();
         expect(data.score).toBe(10);
         expect(data.isAlive).toBe(true);
     });

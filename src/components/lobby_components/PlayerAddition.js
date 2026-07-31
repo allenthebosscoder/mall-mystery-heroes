@@ -26,7 +26,13 @@ const PlayerAddition = (props) => {
             await addPlayerForRoom(playerName, roomID);
         } catch (error) {
             console.error('Error adding player: ', error);
-            return createAlert('error', 'Error', 'name already exists', 1500);
+            // addPlayerForRoom now awaits its write, so a failed save reaches
+            // here too — not just the duplicate-name rejection.
+            const message =
+                error.message === 'Player already exists'
+                    ? 'name already exists'
+                    : 'could not add player, please try again';
+            return createAlert('error', 'Error', message, 1500);
         }
         setPlayerName('');
         if (onPlayerAdded) onPlayerAdded(playerName);

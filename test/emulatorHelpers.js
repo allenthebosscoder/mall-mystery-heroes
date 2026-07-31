@@ -23,26 +23,6 @@ export const clearFirestore = async () => {
 export const shutdown = () => terminate(db);
 
 /**
- * Polls until `check` returns truthy.
- *
- * Needed because `addPlayerForRoom` calls `addDoc(...).then(...)` without
- * awaiting or returning the promise, so it resolves before the write lands.
- * Letting a test finish with that write still in flight makes the next
- * `clearFirestore` contend with it and stall for the full timeout — so tests
- * that add a player must wait for it here. Remove once the data layer awaits
- * its writes; see improvements.md.
- */
-export const waitUntil = async (check, { timeout = 5000, interval = 25 } = {}) => {
-    const deadline = Date.now() + timeout;
-    for (;;) {
-        const result = await check();
-        if (result) return result;
-        if (Date.now() > deadline) throw new Error('waitUntil timed out');
-        await new Promise((resolve) => setTimeout(resolve, interval));
-    }
-};
-
-/**
  * Seeds a room with players. Writes the same fields `addPlayerForRoom` and
  * `DashBoard` write, so tests exercise realistic documents.
  */

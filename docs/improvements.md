@@ -10,13 +10,14 @@ Effort estimates are rough: **S** = under an hour, **M** = half a day,
 
 Closed by the testing-foundation work described in [testing.md](./testing.md):
 
-| Item                           | How                                                                                                                                          |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 11 — algorithm in three copies | Extracted to `src/game/targetGraph.js`; `TargetGenerator` and `ResetTargetsButton` now share it, `RemapPlayers` uses `src/game/remapPlan.js` |
-| 12 — broken shuffle            | Replaced with Durstenfeld Fisher–Yates, covered by a distribution test                                                                       |
-| 17 — round trips in loops      | `RemapPlayers` fetches the roster once via `fetchAliveRosterForRoom` and plans in memory                                                     |
-| 18 — zero tests                | 62 tests across four pure modules; harness rebuilt, CI runs it                                                                               |
-| 19 — empty command throws      | Guarded in `parseCommand`, with a regression test                                                                                            |
+| Item                                            | How                                                                                                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 11 — algorithm in three copies                  | Extracted to `src/game/targetGraph.js`; `TargetGenerator` and `ResetTargetsButton` now share it, `RemapPlayers` uses `src/game/remapPlan.js`               |
+| 12 — broken shuffle                             | Replaced with Durstenfeld Fisher–Yates, covered by a distribution test                                                                                     |
+| 17 — round trips in loops                       | `RemapPlayers` fetches the roster once via `fetchAliveRosterForRoom` and plans in memory                                                                   |
+| 18 — zero tests                                 | 62 tests across four pure modules; harness rebuilt, CI runs it                                                                                             |
+| 19 — empty command throws                       | Guarded in `parseCommand`, with a regression test                                                                                                          |
+| 1b — `addPlayerForRoom` did not await its write | Now returns the `addDoc` promise, so it resolves only once the write is durable and failures reject instead of being swallowed. Two emulator tests pin it. |
 
 Partially addressed:
 
@@ -63,26 +64,6 @@ it also makes GM input case-insensitive, which is what the lowercasing was
 clearly reaching for.
 
 Affects `/kill`, `/revive`, `/openseason`, `/mission done`, and `/add`.
-
-### 1b. `addPlayerForRoom` does not await its write
-
-**Impact: medium · Effort: S**
-
-```js
-addDoc(playerCollectionRef, { ... })   // not awaited, not returned
-    .then((docRef) => console.log(...))
-    .catch((error) => console.error(...));
-```
-
-The function resolves before the document is written, and any failure is
-swallowed into `console.error` where no caller can see it.
-
-Found while writing the emulator tests: with the write still in flight when the
-test ended, the next test's emulator reset contended with it and stalled for the
-full 20-second timeout. `test/emulatorHelpers.js` has a `waitUntil` poll to work
-around it, with a pointer back here.
-
-Await the `addDoc` and let it throw, in line with item 10.
 
 ### 2. No Firestore security rules exist in the repository
 
