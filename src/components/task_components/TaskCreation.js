@@ -1,17 +1,21 @@
 import React, { useContext, useEffect, useState } from 'react';
-import {Input, 
-        Button, 
-        Flex,
-        NumberInput,
-        NumberInputField,
-        NumberDecrementStepper,
-        NumberIncrementStepper,
-        NumberInputStepper,
-        Select,
-        Box
-    } from '@chakra-ui/react';
+import {
+    Input,
+    Button,
+    Flex,
+    NumberInput,
+    NumberInputField,
+    NumberDecrementStepper,
+    NumberIncrementStepper,
+    NumberInputStepper,
+    Select,
+} from '@chakra-ui/react';
 import CreateAlert from '../CreateAlert';
-import { addTaskForRoom, checkForTaskDupesForRoom, fetchTaskIndexThenIncrement } from '../firebase_calls/dbCalls';
+import {
+    addTaskForRoom,
+    checkForTaskDupesForRoom,
+    fetchTaskIndexThenIncrement,
+} from '../firebase_calls/dbCalls';
 import { gameContext, taskContext } from '../Contexts';
 
 const TaskCreation = () => {
@@ -28,48 +32,47 @@ const TaskCreation = () => {
     //stores task description
     const handleDescriptionChange = (event) => {
         setTaskDescription(event.target.value);
-    }
+    };
 
     //stores task title
     const handleTitleChange = (event) => {
         setTaskTitle(event.target.value);
-    }
+    };
 
     //stores point value
     const handlePointChange = (value) => {
         setPointValue(value);
-    }
+    };
 
     //stores task type
     const handleChangeTaskType = (event) => {
         setSelectedTaskType(event.target.value);
         if (event.target.value === 'Revival Mission') {
-            setDisableNumberInput(true); 
-            setPointValue('0');           
-        }
-        else {
+            setDisableNumberInput(true);
+            setPointValue('0');
+        } else {
             setDisableNumberInput(false);
         }
         console.log(selectedTaskType);
-    }
+    };
 
     //handles task submisison
     const handleAddTask = async () => {
         const titleTrimmedLowerCase = TaskTitle.replace(/\s/g, '').toLowerCase();
         const taskIndex = await fetchTaskIndexThenIncrement(roomID);
 
-        let newTask = {
+        const newTask = {
             title: TaskTitle,
             titleTrimmedLowerCase: titleTrimmedLowerCase,
             description: TaskDescription,
             pointValue: PointValue,
             taskType: selectedTaskType,
             taskIndex: taskIndex,
-            dateCreated: time.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
+            dateCreated: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isComplete: false,
-            completedBy: []
+            completedBy: [],
         };
-        
+
         //error handling for no task type selected
         if (newTask.taskType === '') {
             return createAlert('error', 'Error', 'Task type must be selected', 1500);
@@ -104,90 +107,86 @@ const TaskCreation = () => {
         if (dupeExists) {
             createAlert('error', 'Error', 'Task already exists', 1500);
         }
-    }
+    };
 
     useEffect(() => {
         console.log(`usingEffect selectedTaskType: ${selectedTaskType}`);
     }, [selectedTaskType]);
 
-    return (  
-        <Flex m = '6px' direction = 'column'>
-            <Flex mb = '4px'>
-                <Input 
-                    sx = {styles.titleInput}
-                    value = {TaskTitle}
-                    onChange = {handleTitleChange}
-                    placeholder = "Task Title"
+    return (
+        <Flex m="6px" direction="column">
+            <Flex mb="4px">
+                <Input
+                    sx={styles.titleInput}
+                    value={TaskTitle}
+                    onChange={handleTitleChange}
+                    placeholder="Task Title"
                 />
-                <Input 
-                    placeholder = 'Description'
-                    value = {TaskDescription}
-                    onChange= {handleDescriptionChange}
+                <Input
+                    placeholder="Description"
+                    value={TaskDescription}
+                    onChange={handleDescriptionChange}
                 />
             </Flex>
 
             <Flex>
                 <Select
-                    sx = {styles.taskTypeSelection}
-                    placeholder = 'Select Task Type'
-                    value = {selectedTaskType}
-                    onChange = {handleChangeTaskType}
+                    sx={styles.taskTypeSelection}
+                    placeholder="Select Task Type"
+                    value={selectedTaskType}
+                    onChange={handleChangeTaskType}
                 >
-                    <option value = 'Task'>Task</option>
-                    <option value = 'Revival Mission'>Revival Mission</option>
+                    <option value="Task">Task</option>
+                    <option value="Revival Mission">Revival Mission</option>
                 </Select>
-                
-                <NumberInput 
-                    style = {styles.pointInput}
-                    value = {PointValue}
-                    onChange = {handlePointChange}
-                    isDisabled = {disableNumberInput}
-                    m = '2px'
-                    marginX = '4px'
+
+                <NumberInput
+                    style={styles.pointInput}
+                    value={PointValue}
+                    onChange={handlePointChange}
+                    isDisabled={disableNumberInput}
+                    m="2px"
+                    marginX="4px"
                 >
                     <NumberInputField />
                     <NumberInputStepper>
-                        <NumberIncrementStepper color = 'white'/>
-                        <NumberDecrementStepper color = 'white'/>
+                        <NumberIncrementStepper color="white" />
+                        <NumberDecrementStepper color="white" />
                     </NumberInputStepper>
                 </NumberInput>
-                
-                <Button 
-                    sx = {styles.addButton}
-                    onClick = {handleAddTask}
-                    colorScheme = 'blue'
-                >
+
+                <Button sx={styles.addButton} onClick={handleAddTask} colorScheme="blue">
                     Add
                 </Button>
             </Flex>
         </Flex>
     );
-}
- 
+};
+
 const styles = {
     titleInput: {
         size: 'md',
         borderRadius: '2xl',
-        m: '2px'
+        m: '2px',
     },
     descInput: {
         borderRadius: '2xl',
-        m: '2px'
+        m: '2px',
     },
     taskTypeSelection: {
         size: 'md',
         borderRadius: '2xl',
-        m: '2px'
+        m: '2px',
     },
     addButton: {
         size: 'md',
         width: '20%',
-        m: '2px'
+        m: '2px',
     },
     pointInput: {
         defaultValue: '15',
         min: '0',
         size: 'md',
-    }
-}
+    },
+};
 export default TaskCreation;

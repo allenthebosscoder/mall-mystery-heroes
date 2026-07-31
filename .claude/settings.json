@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run lint)",
+      "Bash(npm run lint:fix)",
+      "Bash(npm run format)",
+      "Bash(npm run format:check)",
+      "Bash(npm test)",
+      "Bash(npm test -- *)",
+      "Bash(npm run test:watch)",
+      "Bash(npm run test:coverage)",
+      "Bash(npm run test:emulator)",
+      "Bash(npm run test:rules)",
+      "Bash(npm run build)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r f; case \"$f\" in /Users/yrl/mall-mystery-heroes/*) npx --no-install prettier --write --ignore-unknown \"$f\";; esac; } 2>/dev/null || true",
+            "statusMessage": "Formatting with Prettier",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
