@@ -50,3 +50,36 @@ jobs:
       # REACT_APP_USE_EMULATORS.
       - name: Build
         run: npm run build
+
+  integration:
+    name: Emulator tests
+    runs-on: ubuntu-latest
+
+    # Kept a separate job so a slow or flaky emulator never blocks the fast
+    # lint/unit/build feedback loop.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # The Firestore emulator is a Java process.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@13
+
+      # Runs the `integration` project against a throwaway emulator. The project
+      # id is `demo-` prefixed, which the Firebase tooling treats as
+      # emulator-only, so this can never reach a real backend even if
+      # credentials were present.
+      - name: Emulator tests
+        run: npm run test:emulator

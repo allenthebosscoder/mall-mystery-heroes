@@ -1,13 +1,18 @@
 /**
- * Two projects, one runner.
+ * Three projects, one runner.
  *
- *   unit  — node environment, no DOM, no Firebase. Pure game rules and helpers.
- *           Files: src/game/**\/*.test.js, src/utils/**\/*.test.js, functions/**\/*.test.js
- *   dom   — jsdom + Testing Library. React components only.
- *           Files: src/**\/*.test.jsx
+ *   unit        — node, no DOM, no Firebase. Pure game rules and helpers.
+ *                 Files: src/game/**\/*.test.js, src/utils/**\/*.test.js, functions/**\/*.test.js
+ *   dom         — jsdom + Testing Library. React components only.
+ *                 Files: src/**\/*.test.jsx
+ *   integration — node, real dbCalls against the Firestore emulator.
+ *                 Files: src/**\/*.integration.test.js
  *
- * The `.js` / `.jsx` split on test files is what routes a test to an
- * environment. A test that needs a DOM is named `.test.jsx`.
+ * The filename suffix routes a test to an environment. A test that needs a DOM
+ * is `.test.jsx`; one that needs the emulator is `.integration.test.js`.
+ *
+ * `npm test` runs unit + dom only, so the default loop needs no emulator.
+ * `npm run test:emulator` starts the emulator and runs the integration project.
  *
  * See docs/testing.md for what belongs in each layer.
  */
@@ -24,7 +29,7 @@ const config = {
         '<rootDir>/src/utils/**/*.test.js',
         '<rootDir>/functions/**/*.test.js',
       ],
-      testPathIgnorePatterns: ['/node_modules/'],
+      testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.test\\.js$'],
     },
     {
       displayName: 'dom',
@@ -37,6 +42,17 @@ const config = {
         '\\.(css|less|scss)$': '<rootDir>/test/styleStub.js',
         '\\.(png|jpe?g|gif|svg|webp|avif)$': '<rootDir>/test/fileStub.js',
       },
+    },
+    {
+      displayName: 'integration',
+      testEnvironment: 'node',
+      clearMocks: true,
+      testMatch: ['<rootDir>/src/**/*.integration.test.js'],
+      testPathIgnorePatterns: ['/node_modules/'],
+      // Must be setupFiles, not setupFilesAfterEnv: the env vars have to be in
+      // place before src/utils/firebase.js is first imported.
+      setupFiles: ['<rootDir>/test/integrationSetup.js'],
+      setupFilesAfterEnv: ['<rootDir>/test/integrationTimeout.js'],
     },
   ],
 

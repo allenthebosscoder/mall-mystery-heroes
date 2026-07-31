@@ -64,6 +64,26 @@ clearly reaching for.
 
 Affects `/kill`, `/revive`, `/openseason`, `/mission done`, and `/add`.
 
+### 1b. `addPlayerForRoom` does not await its write
+
+**Impact: medium · Effort: S**
+
+```js
+addDoc(playerCollectionRef, { ... })   // not awaited, not returned
+    .then((docRef) => console.log(...))
+    .catch((error) => console.error(...));
+```
+
+The function resolves before the document is written, and any failure is
+swallowed into `console.error` where no caller can see it.
+
+Found while writing the emulator tests: with the write still in flight when the
+test ended, the next test's emulator reset contended with it and stalled for the
+full 20-second timeout. `test/emulatorHelpers.js` has a `waitUntil` poll to work
+around it, with a pointer back here.
+
+Await the `addDoc` and let it throw, in line with item 10.
+
 ### 2. No Firestore security rules exist in the repository
 
 **Impact: high · Effort: M**

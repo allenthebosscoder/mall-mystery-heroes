@@ -1,6 +1,6 @@
 # Testing strategy
 
-**Status: phases 0 and 1 are implemented; phases 2–4 are still proposal.** This
+**Status: phases 0, 1 and 2 are implemented; phases 3–4 are still proposal.** This
 document reviews why the architecture resisted testing, records the refactors
 that unlocked it, and lays out what remains.
 
@@ -21,12 +21,13 @@ Test Suites: 4 passed, 4 total
 Tests:       62 passed, 62 total
 ```
 
-| Module                     | What it holds                                      | Tests |
-| -------------------------- | -------------------------------------------------- | ----- |
-| `src/game/targetGraph.js`  | `maxTargetsFor`, `shuffle`, `buildTargetGraph`     | 19    |
-| `src/game/remapPlan.js`    | `planRemap` — post-kill/revive matching, as a plan | 16    |
-| `src/game/commands.js`     | `parseCommand` for the GM command bar              | 18    |
-| `src/utils/firebaseEnv.js` | Config reading, emulator flag, production guard    | 9     |
+| Module                        | What it holds                                      | Tests |
+| ----------------------------- | -------------------------------------------------- | ----- |
+| `src/game/targetGraph.js`     | `maxTargetsFor`, `shuffle`, `buildTargetGraph`     | 19    |
+| `src/game/remapPlan.js`       | `planRemap` — post-kill/revive matching, as a plan | 16    |
+| `src/game/commands.js`        | `parseCommand` for the GM command bar              | 18    |
+| `src/utils/firebaseEnv.js`    | Config reading, emulator flag, production guard    | 9     |
+| `dbCalls.integration.test.js` | The data layer against the Firestore emulator      | 15    |
 
 All four are pure and run in Jest's `node` project with no mocks and no
 Firebase. The components now call into them rather than carrying their own
@@ -48,6 +49,25 @@ Two behaviour changes came with this, both intended:
    the new `.env.development` (loaded by the dev server only). Verified in both
    directions: the dev config resolves the flag to `true`, and the production
    bundle contains no literal bake of it.
+
+## Running the tests
+
+```bash
+npm test              # unit + dom projects. No emulator, no network.
+npm run test:emulator # integration project, emulator started and torn down around it
+```
+
+`npm test` deliberately excludes the integration project so the default loop
+needs nothing running. Both are separate CI jobs.
+
+The filename suffix routes a test to its project: `*.test.js` under `src/game/`
+or `src/utils/` is a pure unit test, `*.test.jsx` is a jsdom component test, and
+`*.integration.test.js` needs the emulator.
+
+Integration tests run against project id `demo-mall-mystery-heroes`. The
+Firebase tooling treats a `demo-` prefix as emulator-only and refuses to reach a
+real backend with it, which is a second independent guard alongside the
+`NODE_ENV=test` check in `firebaseEnv.js`.
 
 ---
 
@@ -413,9 +433,9 @@ layer that would have caught the `/kill`-vs-photo-approval divergence.
 | **3**    | Write `firestore.rules`; Layer 2 rules tests                               | 1 day    |
 | **4**    | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests     | 2–3 days |
 
-Phase 2 is the natural next step: the `dom` Jest project and the asset stubs it
-needs are already configured but currently match no files, and `planRemap`'s
-output gives the flow tests in phase 4 a ready-made oracle.
+Phase 3 is the natural next step. The `dom` Jest project and its asset stubs are
+configured but still match no files, and `planRemap`'s output gives the phase 4
+flow tests a ready-made oracle.
 
 Phase 0 is worth doing on its own merits even if the rest is never picked up —
 it closes the "tests can write to production" hole.
