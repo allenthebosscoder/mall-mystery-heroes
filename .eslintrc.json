@@ -1,7 +1,7 @@
 {
     "extends": ["react-app", "react-app/jest", "prettier"],
     "rules": {
-        "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+        "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "ignoreRestSiblings": true }],
         "eqeqeq": ["error", "smart"],
         "no-var": "error",
         "prefer-const": "warn"

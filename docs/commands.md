@@ -9,8 +9,7 @@ drives the game. It is implemented entirely in
 ## How input is parsed
 
 ```js
-const parts = value.match(/\/\S+|(\[[^\]]+\]|\S+)/g)
-                   .map(s => s.replace(/[\[\]]/g, ''));
+const parts = value.match(/\/\S+|(\[[^\]]+\]|\S+)/g).map((s) => s.replace(/[\[\]]/g, ''));
 const commandLine = parts[0].toLowerCase();
 const args = parts.slice(1);
 ```
@@ -39,7 +38,7 @@ Most commands lowercase their arguments before use, but every Firestore lookup
 queries the raw `name` field. **Commands therefore only work for players whose
 names were entered in all lowercase.** This affects `/kill`, `/revive`,
 `/openseason`, and `/mission done`. `/add` is broken in the opposite direction —
-it does *not* lowercase `args[0]` before validating it against a lowercased
+it does _not_ lowercase `args[0]` before validating it against a lowercased
 roster, so a capitalized name fails validation instead of failing the lookup.
 
 See [improvements.md](./improvements.md#1-player-names-must-be-all-lowercase-or-commands-silently-fail).
@@ -52,10 +51,10 @@ See [improvements.md](./improvements.md#1-player-names-must-be-all-lowercase-or-
 
 Adds points to a player's score. Points may be negative.
 
-| Check | Failure |
-|---|---|
-| `args[0]` is in the roster (compared **without** lowercasing) | `Player {name} is invalid` |
-| `args[1]` parses as a number | `Please input valid points` |
+| Check                                                         | Failure                     |
+| ------------------------------------------------------------- | --------------------------- |
+| `args[0]` is in the roster (compared **without** lowercasing) | `Player {name} is invalid`  |
+| `args[1]` parses as a number                                  | `Please input valid points` |
 
 Writes via `updatePointsForPlayer`, which is a read-modify-write, not an atomic
 `increment()`. Two GMs adding points at once can lose one of the updates.
@@ -65,11 +64,11 @@ Writes via `updatePointsForPlayer`, which is a read-modify-write, not an atomic
 Records a kill. See [game-flows.md](./game-flows.md#2-killing-a-player-kill-target-assassin)
 for the full sequence.
 
-| Check | Failure |
-|---|---|
-| At least 2 arguments | `Missing Arguments` |
-| Both names in roster | `Invalid players: …` |
-| Target is on the assassin's target list **or** the assassin is in open season | `{target} is not a valid taret for {assassin}` *(typo is in the source)* |
+| Check                                                                         | Failure                                                                  |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| At least 2 arguments                                                          | `Missing Arguments`                                                      |
+| Both names in roster                                                          | `Invalid players: …`                                                     |
+| Target is on the assassin's target list **or** the assassin is in open season | `{target} is not a valid taret for {assassin}` _(typo is in the source)_ |
 
 Effects: assassin gains the target's full score (floored at 0); target's score
 is zeroed, `isAlive` set false, `openSeason` cleared; target is unmapped from the
@@ -89,10 +88,10 @@ The revived player keeps the score of `0` assigned at death.
 Toggles the `openSeason` flag. While set, the player is a valid target for
 everyone and may kill anyone.
 
-| Check | Failure |
-|---|---|
-| Player in roster | `{name} is not a valid player` |
-| Second argument is `start` or `end` | `{arg} is not a valid input` |
+| Check                               | Failure                        |
+| ----------------------------------- | ------------------------------ |
+| Player in roster                    | `{name} is not a valid player` |
+| Second argument is `start` or `end` | `{arg} is not a valid input`   |
 
 The command does not check the current state first — a `TO DO` comment in the
 source acknowledges this — so `start` on an already-open-season player re-logs
@@ -103,18 +102,18 @@ the event.
 Marks a player as having completed mission `<index>` (the `taskIndex`, i.e. the
 number shown in the mission list — not a document ID).
 
-| Check | Failure |
-|---|---|
-| `Number(args[2])` is not `-1` | `{arg} is not a valid index` |
-| Player in roster | `Player {name} is invalid` |
-| Mission with that index exists | `Invalid task index` |
+| Check                               | Failure                                           |
+| ----------------------------------- | ------------------------------------------------- |
+| `Number(args[2])` is not `-1`       | `{arg} is not a valid index`                      |
+| Player in roster                    | `Player {name} is invalid`                        |
+| Mission with that index exists      | `Invalid task index`                              |
 | Player not already in `completedBy` | `Player {name} has already completed the mission` |
 
 Effect depends on `taskType`:
 
 - **`Task`** — awards `parseInt(pointValue)` points.
 - **`Revival Mission`** — requires the player to be dead (`Player {name} is not
-  dead` otherwise), revives them, and remaps them into the graph.
+dead` otherwise), revives them, and remaps them into the graph.
 
 Either way the player is appended to `completedBy`.
 
@@ -138,11 +137,11 @@ These appear in the autosuggest list and pass the whitelist check, so they
 consume the input and clear the box, but their `case` bodies are empty `// TO DO`
 stubs. **They fail silently.**
 
-| Command | Suggested syntax |
-|---|---|
-| `/broadcast` | `/broadcast [message]` |
-| `/leaderboard` | `/leaderboard send` |
-| `/whisper` | `/whisper [player] [message]` |
+| Command        | Suggested syntax              |
+| -------------- | ----------------------------- |
+| `/broadcast`   | `/broadcast [message]`        |
+| `/leaderboard` | `/leaderboard send`           |
+| `/whisper`     | `/whisper [player] [message]` |
 
 All three imply an out-of-band delivery channel to players — most likely the
 Discord bot hinted at by the unused `DISCORD_TOKEN` in `.env`.

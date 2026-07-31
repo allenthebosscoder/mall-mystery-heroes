@@ -7,7 +7,7 @@ Mall Mystery Heroes is a **Game Master (GM) console** for running a live-action
 submit photo proof of kills, and earn points. The GM sits at a laptop and drives
 the whole game from a single screen.
 
-The web app in this repository is *only* the GM console. It is a Create React App
+The web app in this repository is _only_ the GM console. It is a Create React App
 single-page application that talks **directly to Firebase**. There is effectively
 no backend of our own — see [Cloud Functions](#cloud-functions) below.
 
@@ -61,15 +61,15 @@ src/index.js
 Defined in `src/App.js`. All are public — see
 [Authentication](#authentication-and-authorization).
 
-| Path | Page | Purpose |
-|---|---|---|
-| `/` | `Homepage` | Log in / sign up landing |
-| `/login` | `Login` | Email + password sign-in |
-| `/login/password-reset` | `PasswordReset` | Sends Firebase reset email |
-| `/signup` | `SignUp` | Account creation |
-| `/dashboard` | `DashBoard` | Host a new room, log out |
-| `/rooms/:roomID/lobby` | `Lobby` | Roster management, target generation |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console |
+| Path                            | Page             | Purpose                              |
+| ------------------------------- | ---------------- | ------------------------------------ |
+| `/`                             | `Homepage`       | Log in / sign up landing             |
+| `/login`                        | `Login`          | Email + password sign-in             |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email           |
+| `/signup`                       | `SignUp`         | Account creation                     |
+| `/dashboard`                    | `DashBoard`      | Host a new room, log out             |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                |
 
 There is no catch-all `*` route, so an unknown URL renders a blank page.
 
@@ -103,10 +103,10 @@ a failed read commonly surfaces later as a `TypeError` on `.docs[0]` or
 Several files under `src/components/` export a factory that returns a function
 rather than JSX. They are used like hooks but are not named like them:
 
-| File | Returns |
-|---|---|
-| `CreateAlert.js` | `showToast(status, title, description, duration)` |
-| `UnmapPlayers.js` | `handleUnmapping(playerName, roomID)` |
+| File              | Returns                                                         |
+| ----------------- | --------------------------------------------------------------- |
+| `CreateAlert.js`  | `showToast(status, title, description, duration)`               |
+| `UnmapPlayers.js` | `handleUnmapping(playerName, roomID)`                           |
 | `RemapPlayers.js` | `handleRegeneration(needTargets, needAssassins, alive, roomID)` |
 
 They are invoked as `const createAlert = CreateAlert();` at the top of a
@@ -144,12 +144,12 @@ state) can and do disagree on screen at the same time.
 `src/components/Contexts.js` declares four contexts with no default value and no
 provider components — providers are inlined in `GameMasterView`'s JSX.
 
-| Context | Provided value | Consumers |
-|---|---|---|
-| `gameContext` | `{ roomID }` | `PlayersList`, `ChatInput`, `PhotosDisplay`, `HeaderExecution`, `Endgamebutton`, `ResetTargetsButton`, `TaskList`, `TaskCreation` |
-| `executionContext` | 12 handler functions | `ChatInput`, `PhotosDisplay` |
-| `taskContext` | `{ handleNewTaskAdded }` | `TaskCreation` — currently unreachable, see below |
-| `deadPlayerListContext` | never provided | only `old-components/` (dead) |
+| Context                 | Provided value           | Consumers                                                                                                                         |
+| ----------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `gameContext`           | `{ roomID }`             | `PlayersList`, `ChatInput`, `PhotosDisplay`, `HeaderExecution`, `Endgamebutton`, `ResetTargetsButton`, `TaskList`, `TaskCreation` |
+| `executionContext`      | 12 handler functions     | `ChatInput`, `PhotosDisplay`                                                                                                      |
+| `taskContext`           | `{ handleNewTaskAdded }` | `TaskCreation` — currently unreachable, see below                                                                                 |
+| `deadPlayerListContext` | never provided           | only `old-components/` (dead)                                                                                                     |
 
 `executionContext` is provided **twice** in `GameMasterView`'s tree with the same
 object — once wrapping `ChatInput`, once wrapping the right-hand stack — because
@@ -196,12 +196,12 @@ web config.
 `process.env.NODE_ENV === 'development'`, connects all four SDKs to local
 emulators:
 
-| Emulator | Port (`firebase.json`) | Client (`utils/firebase.js`) |
-|---|---|---|
-| Auth | 9099 | 9099 |
-| Functions | 5001 | 5001 |
-| Firestore | 8081 | 8081 |
-| Storage | 9199 | 9199 |
+| Emulator  | Port (`firebase.json`) | Client (`utils/firebase.js`) |
+| --------- | ---------------------- | ---------------------------- |
+| Auth      | 9099                   | 9099                         |
+| Functions | 5001                   | 5001                         |
+| Firestore | 8081                   | 8081                         |
+| Storage   | 9199                   | 9199                         |
 
 `NODE_ENV` is set to `development` by `react-scripts start`, so **`npm start`
 always targets emulators** and `npm run build` always targets production. There

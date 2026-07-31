@@ -123,14 +123,14 @@ sequenceDiagram
     CI->>GMV: show RemapPlayerModal
 ```
 
-**Scoring.** The assassin receives the victim's *entire* score (floored at 0),
+**Scoring.** The assassin receives the victim's _entire_ score (floored at 0),
 and the victim's score is zeroed. Since everyone starts at 10, points concentrate
 as the game progresses.
 
 **Open season.** `checkOpenSzn` is called with the **assassin's** name, so the
 flag being tested is "is the assassin in open season", which lets them kill
 anyone. But the resulting boolean is then passed to `handleKillPlayer`, which
-logs *"open season has ended for {victim}"* — attributing the assassin's flag to
+logs _"open season has ended for {victim}"_ — attributing the assassin's flag to
 the victim. Meanwhile `killPlayerForRoom` clears `openSeason` on the victim
 regardless. The log and the data can therefore disagree.
 
@@ -210,7 +210,7 @@ Three important gaps in this flow compared to `/kill`:
    console makes every prior judgment permanently unundoable, while the photo
    documents themselves remain judged in Firestore.
 
-`updatePointsForPlayer` *adds* to the current score, so the undo restore
+`updatePointsForPlayer` _adds_ to the current score, so the undo restore
 (`updatePointsForPlayer(target, originalPlayerData.score)`) works only because
 `killPlayerForRoom` zeroed the score first. It is correct by coincidence of
 ordering, not by construction.
@@ -247,7 +247,7 @@ sequenceDiagram
 ```
 
 A revived player keeps the score of `0` set at death — revival restores life but
-not points. The third route back to life, undoing a photo approval, *does*
+not points. The third route back to life, undoing a photo approval, _does_
 restore the score, so the two paths are inconsistent.
 
 `/revive` silently does nothing when the named player is not in the dead list:
@@ -260,11 +260,11 @@ the `if` has no `else`, so a typo produces no feedback at all.
 Because [state lives in three places](./architecture.md#state-management), each
 flow updates the UI differently:
 
-| Surface | Mechanism | Stale after reload? |
-|---|---|---|
-| Player list with scores and targets | `onSnapshot` | No — always live |
-| Photo queue | `onSnapshot` | No — always live |
-| Log panel | fetched once, appended locally | Yes — shows only this session's writes plus the initial fetch |
-| `Players (n)` header count | router state from `Lobby` | Yes — becomes `0` |
-| Alive/dead arrays driving `/revive` validation | fetched once on mount, mutated by handlers | Yes |
-| Photo undo history | React state only | Yes — lost entirely |
+| Surface                                        | Mechanism                                  | Stale after reload?                                           |
+| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| Player list with scores and targets            | `onSnapshot`                               | No — always live                                              |
+| Photo queue                                    | `onSnapshot`                               | No — always live                                              |
+| Log panel                                      | fetched once, appended locally             | Yes — shows only this session's writes plus the initial fetch |
+| `Players (n)` header count                     | router state from `Lobby`                  | Yes — becomes `0`                                             |
+| Alive/dead arrays driving `/revive` validation | fetched once on mount, mutated by handlers | Yes                                                           |
+| Photo undo history                             | React state only                           | Yes — lost entirely                                           |

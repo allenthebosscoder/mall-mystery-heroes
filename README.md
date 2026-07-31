@@ -14,14 +14,14 @@ Auth, Firestore, and Storage. There is no backend of our own.
 
 ## Documentation
 
-| Document | Contents |
-|---|---|
-| [docs/architecture.md](docs/architecture.md) | Layers, routing, state management, auth, configuration |
-| [docs/data-model.md](docs/data-model.md) | Firestore collections field by field — the only schema record that exists |
-| [docs/game-flows.md](docs/game-flows.md) | Sequence diagrams for hosting, killing, photo moderation, reviving |
-| [docs/commands.md](docs/commands.md) | The GM command bar reference |
-| [docs/improvements.md](docs/improvements.md) | Known issues and prioritized backlog |
-| [docs/testing.md](docs/testing.md) | Proposed testing strategy and the refactors it depends on |
+| Document                                     | Contents                                                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md) | Layers, routing, state management, auth, configuration                    |
+| [docs/data-model.md](docs/data-model.md)     | Firestore collections field by field — the only schema record that exists |
+| [docs/game-flows.md](docs/game-flows.md)     | Sequence diagrams for hosting, killing, photo moderation, reviving        |
+| [docs/commands.md](docs/commands.md)         | The GM command bar reference                                              |
+| [docs/improvements.md](docs/improvements.md) | Known issues and prioritized backlog                                      |
+| [docs/testing.md](docs/testing.md)           | Proposed testing strategy and the refactors it depends on                 |
 
 New to the codebase? Read `architecture.md`, then `data-model.md`. The data
 model is reconstructed from call sites and is not declared anywhere in code, so
@@ -69,12 +69,12 @@ local emulators whenever `NODE_ENV === 'development'`, and `react-scripts start`
 always sets that. There is no flag to point the dev server at the real project
 without editing that file.
 
-| Emulator | Port |
-|---|---|
-| Auth | 9099 |
-| Functions | 5001 |
-| Firestore | 8081 |
-| Storage | 9199 |
+| Emulator    | Port           |
+| ----------- | -------------- |
+| Auth        | 9099           |
+| Functions   | 5001           |
+| Firestore   | 8081           |
+| Storage     | 9199           |
 | Emulator UI | 4000 (default) |
 
 Since the emulator starts empty, a local run needs an account created through
@@ -102,11 +102,11 @@ Since the emulator starts empty, a local run needs an account created through
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `npm start` | Dev server on port 3000, wired to emulators |
-| `npm run build` | Production bundle to `build/`, wired to the real project |
-| `npm test` | `react-scripts test` — **no test files exist**, see below |
+| Command                    | Description                                                       |
+| -------------------------- | ----------------------------------------------------------------- |
+| `npm start`                | Dev server on port 3000, wired to emulators                       |
+| `npm run build`            | Production bundle to `build/`, wired to the real project          |
+| `npm test`                 | `react-scripts test` — **no test files exist**, see below         |
 | `npm run firebase:emulate` | Selects the `default` project alias and starts the emulator suite |
 
 Inside `functions/`: `npm run serve`, `npm run deploy`, `npm run logs`.

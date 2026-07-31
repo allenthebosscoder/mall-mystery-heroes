@@ -5,9 +5,8 @@ import bgimg from '../assets/logo-3.png'; // Ensure this path is correct
 import logo from '../assets/mall-logo-white-2.png';
 
 const LoginPage = () => {
-
     return (
-        <Box 
+        <Box
             w="100vw"
             h="100vh"
             bgImage={`url(${bgimg})`}
@@ -15,7 +14,7 @@ const LoginPage = () => {
             backgroundRepeat="no-repeat"
             backgroundSize="cover"
         >
-            <Flex 
+            <Flex
                 className="LoginPage"
                 direction="column"
                 align="center"
@@ -23,16 +22,16 @@ const LoginPage = () => {
                 height="100vh"
                 p={4}
             >
-                <Box 
+                <Box
                     display="flex"
                     flexDirection="column"
-                    alignItems="center"  // Center align items horizontally
+                    alignItems="center" // Center align items horizontally
                 >
-                    <Image 
-                        src={logo} 
+                    <Image
+                        src={logo}
                         maxWidth="300px"
                         maxHeight="300px"
-                        alt='logo white'
+                        alt="logo white"
                         mb={5} // Adds margin bottom to the Image
                     />
                     <Heading mb={8} color="brand.100" textAlign="center" marginLeft="10px">

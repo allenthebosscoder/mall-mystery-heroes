@@ -23,13 +23,13 @@ rooms/{roomID}
 
 The room document holds game-wide state plus the entire chat log.
 
-| Field | Type | Written by | Notes |
-|---|---|---|---|
-| `hostId` | `string` | `DashBoard.handleHostRoom` | The creating user's `auth.uid`. **Never read anywhere.** |
-| `isGameActive` | `boolean` | `DashBoard.handleHostRoom` (`true`), `dbCalls.endGame` (`false`) | Written but never read — ending a game does not gate anything. |
-| `logs` | `array<LogEntry>` | `dbCalls.updateLogsForRoom` | See below. Unbounded. |
-| `taskIndex` | `number` | `DashBoard.handleHostRoom` (`1`), `dbCalls.fetchTaskIndexThenIncrement` | Monotonic counter handing out human-facing mission numbers. |
-| `storageReference` | `array` | `DashBoard.handleHostRoom` (`[]`) | Written empty at creation, never read or appended. Vestigial. |
+| Field              | Type              | Written by                                                              | Notes                                                          |
+| ------------------ | ----------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `hostId`           | `string`          | `DashBoard.handleHostRoom`                                              | The creating user's `auth.uid`. **Never read anywhere.**       |
+| `isGameActive`     | `boolean`         | `DashBoard.handleHostRoom` (`true`), `dbCalls.endGame` (`false`)        | Written but never read — ending a game does not gate anything. |
+| `logs`             | `array<LogEntry>` | `dbCalls.updateLogsForRoom`                                             | See below. Unbounded.                                          |
+| `taskIndex`        | `number`          | `DashBoard.handleHostRoom` (`1`), `dbCalls.fetchTaskIndexThenIncrement` | Monotonic counter handing out human-facing mission numbers.    |
+| `storageReference` | `array`           | `DashBoard.handleHostRoom` (`[]`)                                       | Written empty at creation, never read or appended. Vestigial.  |
 
 ### `LogEntry`
 
@@ -53,19 +53,19 @@ persisted array are computed independently.
 
 The colors in use, by event type:
 
-| Color | Event |
-|---|---|
-| `red.400` | player killed |
-| `blue.300` | player revived |
-| `blue.200` | photo judgment undone |
-| `blue.400` | new target assigned (target reset) |
-| `blue.500` | remapping after a kill |
-| `lightblue` | open season started |
-| `pink.400` | open season ended |
-| `green.400` | mission completed |
-| `yellow.400` | mission created |
-| `gray` | revive undone, photo denied |
-| `gray.400` | seeded "Game has begun!" |
+| Color        | Event                              |
+| ------------ | ---------------------------------- |
+| `red.400`    | player killed                      |
+| `blue.300`   | player revived                     |
+| `blue.200`   | photo judgment undone              |
+| `blue.400`   | new target assigned (target reset) |
+| `blue.500`   | remapping after a kill             |
+| `lightblue`  | open season started                |
+| `pink.400`   | open season ended                  |
+| `green.400`  | mission completed                  |
+| `yellow.400` | mission created                    |
+| `gray`       | revive undone, photo denied        |
+| `gray.400`   | seeded "Game has begun!"           |
 
 ---
 
@@ -73,17 +73,17 @@ The colors in use, by event type:
 
 One document per player. Created by `dbCalls.addPlayerForRoom`.
 
-| Field | Type | Initial | Notes |
-|---|---|---|---|
-| `name` | `string` | as typed | The de facto primary key — every lookup is `where('name','==',…)`. Case-sensitive. |
-| `trimmedNameLowerCase` | `string` | `name` minus whitespace, lowercased | Used **only** for the duplicate check at insert time. |
-| `isAlive` | `boolean` | `true` | |
-| `score` | `number` | `10` | Reset to `0` on death. Read back with `parseInt` in places, implying it is sometimes a string. |
-| `targets` | `array<string>` | `[]` | Names this player is hunting. |
-| `targetsLength` | `number` | `0` | Denormalized `targets.length`, maintained so Firestore can `orderBy` it. |
-| `assassins` | `array<string>` | `[]` | Names hunting this player. |
-| `assassinsLength` | `number` | `0` | Denormalized `assassins.length`. |
-| `openSeason` | `boolean` | `false` | When true, *anyone* may kill this player, and this player may kill anyone. |
+| Field                  | Type            | Initial                             | Notes                                                                                          |
+| ---------------------- | --------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `name`                 | `string`        | as typed                            | The de facto primary key — every lookup is `where('name','==',…)`. Case-sensitive.             |
+| `trimmedNameLowerCase` | `string`        | `name` minus whitespace, lowercased | Used **only** for the duplicate check at insert time.                                          |
+| `isAlive`              | `boolean`       | `true`                              |                                                                                                |
+| `score`                | `number`        | `10`                                | Reset to `0` on death. Read back with `parseInt` in places, implying it is sometimes a string. |
+| `targets`              | `array<string>` | `[]`                                | Names this player is hunting.                                                                  |
+| `targetsLength`        | `number`        | `0`                                 | Denormalized `targets.length`, maintained so Firestore can `orderBy` it.                       |
+| `assassins`            | `array<string>` | `[]`                                | Names hunting this player.                                                                     |
+| `assassinsLength`      | `number`        | `0`                                 | Denormalized `assassins.length`.                                                               |
+| `openSeason`           | `boolean`       | `false`                             | When true, _anyone_ may kill this player, and this player may kill anyone.                     |
 
 ### The target graph
 
@@ -122,17 +122,17 @@ cannot be referenced from the command bar. See
 Missions the GM sets for players. Created by `TaskCreation` via
 `dbCalls.addTaskForRoom`.
 
-| Field | Type | Notes |
-|---|---|---|
-| `title` | `string` | Required, non-blank. |
-| `titleTrimmedLowerCase` | `string` | Used by `checkForTaskDupesForRoom` to reject duplicates. |
-| `description` | `string` | Defaults to `'No description provided'` if left blank. |
-| `pointValue` | `string \| number` | Stored as a **string** from the Chakra `NumberInput`, except for revival missions where it is coerced to the number `0`. Read back with `parseInt`. |
-| `taskType` | `'Task' \| 'Revival Mission'` | Drives what completion does — points, or resurrection. |
-| `taskIndex` | `number` | From `fetchTaskIndexThenIncrement`. The number GMs type in `/mission` commands. |
-| `dateCreated` | `string` | `"HH:MM"` local time. No date component. |
-| `isComplete` | `boolean` | Set true by `/mission end`. Marks the mission closed for everyone. |
-| `completedBy` | `array<string>` | Player names, appended by `/mission done`. |
+| Field                   | Type                          | Notes                                                                                                                                               |
+| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                 | `string`                      | Required, non-blank.                                                                                                                                |
+| `titleTrimmedLowerCase` | `string`                      | Used by `checkForTaskDupesForRoom` to reject duplicates.                                                                                            |
+| `description`           | `string`                      | Defaults to `'No description provided'` if left blank.                                                                                              |
+| `pointValue`            | `string \| number`            | Stored as a **string** from the Chakra `NumberInput`, except for revival missions where it is coerced to the number `0`. Read back with `parseInt`. |
+| `taskType`              | `'Task' \| 'Revival Mission'` | Drives what completion does — points, or resurrection.                                                                                              |
+| `taskIndex`             | `number`                      | From `fetchTaskIndexThenIncrement`. The number GMs type in `/mission` commands.                                                                     |
+| `dateCreated`           | `string`                      | `"HH:MM"` local time. No date component.                                                                                                            |
+| `isComplete`            | `boolean`                     | Set true by `/mission end`. Marks the mission closed for everyone.                                                                                  |
+| `completedBy`           | `array<string>`               | Player names, appended by `/mission done`.                                                                                                          |
 
 `taskType` decides the completion effect:
 
@@ -152,13 +152,13 @@ Kill-proof photos. **Written by the out-of-repo mobile app**, not by this
 codebase — the only writer here is `dbCalls.addPhotoForRoom`, a test helper with
 no callers.
 
-| Field | Type | Notes |
-|---|---|---|
-| `url` | `string` | Download URL. Rendered directly into an `<Image src>`. |
-| `assassin` | `string` | Claiming player's name. |
-| `target` | `string` | Claimed victim's name. |
-| `timestamp` | `Timestamp` | `serverTimestamp()`. The queue orders ascending by this field, so the GM judges oldest-first. |
-| `status` | `'pending' \| 'approved' \| 'denied'` | `PhotosDisplay` subscribes to the whole collection and filters client-side for `pending`. |
+| Field       | Type                                  | Notes                                                                                         |
+| ----------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `url`       | `string`                              | Download URL. Rendered directly into an `<Image src>`.                                        |
+| `assassin`  | `string`                              | Claiming player's name.                                                                       |
+| `target`    | `string`                              | Claimed victim's name.                                                                        |
+| `timestamp` | `Timestamp`                           | `serverTimestamp()`. The queue orders ascending by this field, so the GM judges oldest-first. |
+| `status`    | `'pending' \| 'approved' \| 'denied'` | `PhotosDisplay` subscribes to the whole collection and filters client-side for `pending`.     |
 
 `PhotosDisplay` reads every photo document in the room on every snapshot and
 discards the non-pending ones in JavaScript. The filter is not part of the query.
@@ -184,10 +184,10 @@ the room directory rather than the photo. Since photo documents already carry a
 
 ```js
 uniqueNamesGenerator({
-  dictionaries: [adjectives, [randomRoomNumber.toString()]],  // 10000–99999
-  separator: '',
-  style: 'capital'
-})
+    dictionaries: [adjectives, [randomRoomNumber.toString()]], // 10000–99999
+    separator: '',
+    style: 'capital',
+});
 ```
 
 producing IDs like `Fluffy42317`. It retries on collision (checked with
@@ -203,10 +203,10 @@ These exports in `dbCalls.js` have no live callers and describe behavior the app
 does not currently have. They are listed here so their presence is not mistaken
 for evidence of a feature.
 
-| Function | Note |
-|---|---|
-| `createRoomWithDefaults` | An alternative room initializer seeding `taskIndex: 0` and a "Game has begun!" log. `DashBoard` uses inline `setDoc` with `taskIndex: 1` instead. The two disagree. |
-| `addPhotoForRoom` | Test helper for injecting photos without the mobile app. |
-| `updateCompletedByForTask` | Superseded by `addPlayerToCompletedByForTask`. |
-| `fetchTaskForRoom`, `fetchReferenceForTask`, `updateIsCompleteToTrueForTask` | By-document-ID variants; the app uses the by-`taskIndex` variants throughout. |
-| `fetchAlivePlayersQueryByDescendPointsForRoom` | Superseded by `fetchPlayersQueryByDescendPointsThenIsAliveForRoom`, which keeps dead players visible at the bottom. |
+| Function                                                                     | Note                                                                                                                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createRoomWithDefaults`                                                     | An alternative room initializer seeding `taskIndex: 0` and a "Game has begun!" log. `DashBoard` uses inline `setDoc` with `taskIndex: 1` instead. The two disagree. |
+| `addPhotoForRoom`                                                            | Test helper for injecting photos without the mobile app.                                                                                                            |
+| `updateCompletedByForTask`                                                   | Superseded by `addPlayerToCompletedByForTask`.                                                                                                                      |
+| `fetchTaskForRoom`, `fetchReferenceForTask`, `updateIsCompleteToTrueForTask` | By-document-ID variants; the app uses the by-`taskIndex` variants throughout.                                                                                       |
+| `fetchAlivePlayersQueryByDescendPointsForRoom`                               | Superseded by `fetchPlayersQueryByDescendPointsThenIsAliveForRoom`, which keeps dead players visible at the bottom.                                                 |

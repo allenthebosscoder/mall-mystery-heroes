@@ -1,10 +1,10 @@
 button {
-  cursor: pointer;
-  display: block;
-  margin: auto;
-  cursor: pointer;
+    cursor: pointer;
+    display: block;
+    margin: auto;
+    cursor: pointer;
 }
 
 h1 {
-  text-align: center;
+    text-align: center;
 }

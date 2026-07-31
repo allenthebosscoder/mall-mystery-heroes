@@ -19,17 +19,17 @@ the raw `name` field:
 
 ```js
 // ChatInput.js — validation uses a lowercased roster
-const arrayOfPlayerNames = (await fetchAllPlayersForRoom(roomID)).map(n => n.toLowerCase());
+const arrayOfPlayerNames = (await fetchAllPlayersForRoom(roomID)).map((n) => n.toLowerCase());
 const targetName = args[0].toLowerCase();
 
 // dbCalls.js — but the lookup queries the stored, case-preserved name
-query(playerCollectionRef, where('name', '==', playerName))
+query(playerCollectionRef, where('name', '==', playerName));
 ```
 
 A player added as `Alice`:
 
 - `/kill alice bob` → passes validation, then `fetchTargetsForPlayer('bob')`
-  returns `[]`, and the GM sees *"alice is not a valid taret for bob"*.
+  returns `[]`, and the GM sees _"alice is not a valid taret for bob"_.
 - `/add Alice 5` → fails validation outright (`Alice` is not in the lowercased
   roster).
 - `/add alice 5` → passes validation, then `playerSnapshot.docs[0]` is
@@ -127,11 +127,11 @@ subcollection) at approval time.
 
 Three counters are read and rewritten instead of updated atomically:
 
-| Function | Should use |
-|---|---|
-| `updatePointsForPlayer` | `increment(points)` |
-| `fetchTaskIndexThenIncrement` | `increment(1)` in a transaction |
-| `updateLogsForRoom` | already uses `arrayUnion`, but reads the array first for its return value |
+| Function                      | Should use                                                                |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `updatePointsForPlayer`       | `increment(points)`                                                       |
+| `fetchTaskIndexThenIncrement` | `increment(1)` in a transaction                                           |
+| `updateLogsForRoom`           | already uses `arrayUnion`, but reads the array first for its return value |
 
 Concurrent GMs — or a GM plus the mobile app — can silently drop an update.
 `fetchTaskIndexThenIncrement` in particular can hand the same `taskIndex` to two
@@ -143,7 +143,7 @@ missions, which then makes `/mission done <index>` ambiguous.
 
 In `/kill`, `checkOpenSzn(roomID, assassinName)` reads the **assassin's** flag —
 correct for "this assassin may kill anyone". But the resulting boolean is passed
-to `handleKillPlayer`, which logs *"open season has ended for {victim}"*, and
+to `handleKillPlayer`, which logs _"open season has ended for {victim}"_, and
 `killPlayerForRoom` clears `openSeason` on the **victim** unconditionally. The
 log can therefore announce the end of an open season the victim never had, while
 a genuinely open-season victim's end goes unlogged when the assassin was not
@@ -209,7 +209,8 @@ straightforward to unit test.
 `RemapPlayers`' copy is a **correct** uniform shuffle:
 
 ```js
-for (let i = 0; i < array.length; i++) {          // RemapPlayers.js:16 — correct
+for (let i = 0; i < array.length; i++) {
+    // RemapPlayers.js:16 — correct
     const j = Math.floor(Math.random() * (i + 1));
     [array[i], array[j]] = [array[j], array[i]];
 }
@@ -254,15 +255,15 @@ unnecessary at that point.
 
 **Impact: low · Effort: S**
 
-| Path | Status |
-|---|---|
+| Path                                                   | Status                                                                                                                                                                                                                                   |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/components/old-components/` (8 files, ~600 lines) | Imported by nothing. Its own imports are already broken — it references `./dbCalls`, `./Contexts`, `./TaskButton`, and `./assets/…`, none of which exist at those paths. It survives only because CRA never bundles unreachable modules. |
-| `src/components/cloudFunction.js` | Debug button for the `targetFunction` stub. Not mounted. |
-| `src/components/firebase_calls/storageCalls.js` | Sole export has no callers, and calls `ref(storage, roomID, photoName)` — a signature error; `ref()` takes `(storage, path)`. |
-| `deadPlayerListContext` in `Contexts.js` | Never provided; only `old-components/` consumes it. |
-| `rooms/{id}.storageReference` | Written as `[]` at creation, never read. |
-| `rooms/{id}.hostId`, `.isGameActive` | Written, never read. Both should become *used* rather than deleted — see items 2 and 15. |
-| Seven unused exports in `dbCalls.js` | Listed in [data-model.md](./data-model.md#unused-data-layer-surface). |
+| `src/components/cloudFunction.js`                      | Debug button for the `targetFunction` stub. Not mounted.                                                                                                                                                                                 |
+| `src/components/firebase_calls/storageCalls.js`        | Sole export has no callers, and calls `ref(storage, roomID, photoName)` — a signature error; `ref()` takes `(storage, path)`.                                                                                                            |
+| `deadPlayerListContext` in `Contexts.js`               | Never provided; only `old-components/` consumes it.                                                                                                                                                                                      |
+| `rooms/{id}.storageReference`                          | Written as `[]` at creation, never read.                                                                                                                                                                                                 |
+| `rooms/{id}.hostId`, `.isGameActive`                   | Written, never read. Both should become _used_ rather than deleted — see items 2 and 15.                                                                                                                                                 |
+| Seven unused exports in `dbCalls.js`                   | Listed in [data-model.md](./data-model.md#unused-data-layer-surface).                                                                                                                                                                    |
 
 `old-components/` is the significant one: it is large enough to mislead a reader
 into thinking those flows are live.
@@ -371,7 +372,7 @@ panel use `onSnapshot` — which resolves the log half of item 13.
 **Impact: low · Effort: S**
 
 `Log.js` renders a literal `<ListItem>Game has begun!</ListItem>` above the
-mapped logs. `createRoomWithDefaults` *also* seeds a real log with that text — so
+mapped logs. `createRoomWithDefaults` _also_ seeds a real log with that text — so
 a room created through that path would show the message twice. `DashBoard`
 currently creates rooms with `logs: []`, so it shows once, from the hardcoded
 element. The two mechanisms need reconciling.

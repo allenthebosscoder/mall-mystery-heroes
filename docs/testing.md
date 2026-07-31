@@ -30,10 +30,10 @@ four config files in the repository root are dead.
 
 Three concrete defects in the harness itself:
 
-| Problem | Detail |
-|---|---|
-| Runner version conflict | Root `devDependencies` pin `jest@^27.5.1` (27.5.1 installed) while `jest-environment-jsdom@^29.7.0` and `jest-fixed-jsdom` sit in `dependencies`. A Jest 29 environment cannot run under a Jest 27 runner. |
-| Undeclared dependency | `jest.polyfills.js` does `require("undici")`. `undici` is not in `package.json` — it resolves only transitively today. |
+| Problem                  | Detail                                                                                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runner version conflict  | Root `devDependencies` pin `jest@^27.5.1` (27.5.1 installed) while `jest-environment-jsdom@^29.7.0` and `jest-fixed-jsdom` sit in `dependencies`. A Jest 29 environment cannot run under a Jest 27 runner.                 |
+| Undeclared dependency    | `jest.polyfills.js` does `require("undici")`. `undici` is not in `package.json` — it resolves only transitively today.                                                                                                     |
 | Unreferenced setup files | `jest.config.js` declares no `setupFiles` or `setupFilesAfterEach`, so `jest.setup.js` and `jest.polyfills.js` would not load even if the config were used. Only `src/setupTests.js` is live (CRA loads it by convention). |
 
 So the first task is not "write tests" — it is "make one test able to run at
@@ -74,11 +74,11 @@ or not you ever write a test.
 The target-assignment algorithm — the most rule-dense, most regression-prone code
 in the repository — is not callable without rendering a component:
 
-| Location | Shape |
-|---|---|
+| Location                                    | Shape                                                                                                          |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `TargetGenerator.js:68` `InitializeTargets` | Closure over `useState` setters, not exported, no return value — it writes to `setPlayerData` / `setTargetMap` |
-| `ResetTargetsButton.js:35` | A near-identical ~120-line copy, same problem |
-| `RemapPlayers.js:23-173` | A factory returning an async function that interleaves Firestore reads and writes into the matching loop |
+| `ResetTargetsButton.js:35`                  | A near-identical ~120-line copy, same problem                                                                  |
+| `RemapPlayers.js:23-173`                    | A factory returning an async function that interleaves Firestore reads and writes into the matching loop       |
 
 To test "does a 7-player room give everyone exactly 2 targets and nobody
 themselves?" today, you must render `<TargetGenerator>`, click through a Chakra
@@ -146,7 +146,7 @@ Split `utils/firebase.js` into config and instance:
 
 - Key emulator connection on an explicit `REACT_APP_USE_EMULATORS` flag, not on
   `NODE_ENV`. This also fixes backlog item 25 (you currently cannot point `npm
-  start` at a real project without editing source).
+start` at a real project without editing source).
 - Export a `getDb()` accessor rather than a module-scope `db`, or guard
   initialization behind `getApps().length ? getApp() : initializeApp(...)`.
 - Have `dbCalls.js` take its `db` from that accessor, so a test can point it at
@@ -241,19 +241,19 @@ test`:
 ```js
 // jest.config.js
 module.exports = {
-  projects: [
-    {
-      displayName: 'unit',
-      testEnvironment: 'node',
-      testMatch: ['<rootDir>/src/game/**/*.test.js', '<rootDir>/functions/**/*.test.js'],
-    },
-    {
-      displayName: 'dom',
-      testEnvironment: 'jsdom',
-      setupFilesAfterEach: ['<rootDir>/src/setupTests.js'],
-      testMatch: ['<rootDir>/src/**/*.test.jsx'],
-    },
-  ],
+    projects: [
+        {
+            displayName: 'unit',
+            testEnvironment: 'node',
+            testMatch: ['<rootDir>/src/game/**/*.test.js', '<rootDir>/functions/**/*.test.js'],
+        },
+        {
+            displayName: 'dom',
+            testEnvironment: 'jsdom',
+            setupFilesAfterEach: ['<rootDir>/src/setupTests.js'],
+            testMatch: ['<rootDir>/src/**/*.test.jsx'],
+        },
+    ],
 };
 ```
 
@@ -271,13 +271,13 @@ Required cleanup, all mechanical:
    repo with three tests, produces a wall of 0% noise. Put it behind
    `npm run test:coverage`.
 5. Scripts:
-   ```json
-   "test":           "jest",
-   "test:watch":     "jest --watch",
-   "test:coverage":  "jest --coverage",
-   "test:emulator":  "firebase emulators:exec --only firestore,auth,storage 'jest --selectProjects integration'",
-   "test:rules":     "firebase emulators:exec --only firestore 'jest --selectProjects rules'"
-   ```
+    ```json
+    "test":           "jest",
+    "test:watch":     "jest --watch",
+    "test:coverage":  "jest --coverage",
+    "test:emulator":  "firebase emulators:exec --only firestore,auth,storage 'jest --selectProjects integration'",
+    "test:rules":     "firebase emulators:exec --only firestore 'jest --selectProjects rules'"
+    ```
 
 **Cheaper alternative** if the standalone move feels like too much up front: keep
 `react-scripts test`, delete `jest.config.js` / `jest.setup.js` /
@@ -360,13 +360,13 @@ layer that would have caught the `/kill`-vs-photo-approval divergence.
 
 ## Part 5 — Phasing
 
-| Phase | Work | Effort |
-|---|---|---|
-| **0** | R1 (emulator safety + lazy init), harness cleanup, one trivial passing test, CI green | ½ day |
-| **1** | R2 + R3 extractions; Layer 0 tests for target graph and parser | 1 day |
-| **2** | Layer 1 emulator tests for `dbCalls`; `test:emulator` script | 1–2 days |
-| **3** | Write `firestore.rules`; Layer 2 rules tests | 1 day |
-| **4** | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests | 2–3 days |
+| Phase | Work                                                                                  | Effort   |
+| ----- | ------------------------------------------------------------------------------------- | -------- |
+| **0** | R1 (emulator safety + lazy init), harness cleanup, one trivial passing test, CI green | ½ day    |
+| **1** | R2 + R3 extractions; Layer 0 tests for target graph and parser                        | 1 day    |
+| **2** | Layer 1 emulator tests for `dbCalls`; `test:emulator` script                          | 1–2 days |
+| **3** | Write `firestore.rules`; Layer 2 rules tests                                          | 1 day    |
+| **4** | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests                | 2–3 days |
 
 Phase 0 is worth doing on its own merits even if the rest is never picked up —
 it closes the "tests can write to production" hole.

@@ -1,5 +1,5 @@
-import { getDownloadURL, ref } from "firebase/storage";
-import { storage } from "../../utils/firebase"
+import { getDownloadURL, ref } from 'firebase/storage';
+import { storage } from '../../utils/firebase';
 
 // export const testStorageCall = async () => {
 //     const storageRef = ref(storage, 'test');
@@ -9,13 +9,12 @@ import { storage } from "../../utils/firebase"
 //         console.log('uloaded file: ', snapshot);
 //     });
 
-
 export const fetchPhotoURLFromStorageForRoom = async (photoName, roomID) => {
     try {
         const photoRef = ref(storage, roomID, photoName);
         const photoURL = await getDownloadURL(photoRef);
-        return photoURL;    
+        return photoURL;
     } catch (error) {
-        console.error("Error fetching photo url: ", error);
+        console.error('Error fetching photo url: ', error);
     }
-}
+};

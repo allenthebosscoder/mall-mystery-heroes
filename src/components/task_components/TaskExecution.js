@@ -1,22 +1,21 @@
-import React from "react";
-import TaskList from "./TaskList";
-import TaskCreation from "./TaskCreation";
-import { Heading,
-         Box,
-    } from '@chakra-ui/react';
+import React from 'react';
+import TaskList from './TaskList';
+import TaskCreation from './TaskCreation';
+import { Heading, Box } from '@chakra-ui/react';
 const TaskExecution = () => {
-
-    return (  
+    return (
         <>
-            <Box flex = '1' overflow = 'auto'>
-                <Heading size = 'md' textAlign = 'center'>Missions</Heading>
+            <Box flex="1" overflow="auto">
+                <Heading size="md" textAlign="center">
+                    Missions
+                </Heading>
                 <TaskList />
             </Box>
-            <Box >
-                <TaskCreation />      
+            <Box>
+                <TaskCreation />
             </Box>
         </>
     );
-}
- 
+};
+
 export default TaskExecution;

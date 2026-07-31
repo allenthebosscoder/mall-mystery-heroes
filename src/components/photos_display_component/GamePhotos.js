@@ -1,4 +1,4 @@
-import { Image, Text } from "@chakra-ui/react";
+import { Image, Text } from '@chakra-ui/react';
 
 export default function GamePhotos({ photo }) {
     if (!photo) {
@@ -6,12 +6,6 @@ export default function GamePhotos({ photo }) {
     }
 
     return (
-        <Image
-            src={photo.url}
-            alt="Unjudged photo"
-            maxH="100%"
-            maxW="100%"
-            objectFit="contain"
-        />
+        <Image src={photo.url} alt="Unjudged photo" maxH="100%" maxW="100%" objectFit="contain" />
     );
 }
