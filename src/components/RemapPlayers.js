@@ -1,9 +1,10 @@
-import { fetchAlivePlayersByAscendAssassinsLengthForRoom,
-         fetchAlivePlayersByAscendTargetsLengthForRoom,
-         fetchPlayerForRoom,
-         updateAssassinsForPlayer,
-         updateTargetsForPlayer
-    } from './firebase_calls/dbCalls';
+import {
+    fetchAlivePlayersByAscendAssassinsLengthForRoom,
+    fetchAlivePlayersByAscendTargetsLengthForRoom,
+    fetchPlayerForRoom,
+    updateAssassinsForPlayer,
+    updateTargetsForPlayer,
+} from './firebase_calls/dbCalls';
 
 const RemapPlayers = (handleRemapping, createAlert) => {
     const tempNewTargets = {};
@@ -16,13 +17,18 @@ const RemapPlayers = (handleRemapping, createAlert) => {
             [array[i], array[j]] = [array[j], array[i]];
         }
         return array;
-    }
-    
-    const handleTargetRegeneration = async (playersNeedingTarget, arrayOfAlivePlayers, MAXTARGETS, roomID) => {
+    };
+
+    const handleTargetRegeneration = async (
+        playersNeedingTarget,
+        arrayOfAlivePlayers,
+        MAXTARGETS,
+        roomID
+    ) => {
         try {
             for (const player of playersNeedingTarget) {
                 const randomizedAlivePlayers = randomizeArray(arrayOfAlivePlayers);
-                
+
                 //finds player in db and retrieves targets
                 const playerDoc = await fetchPlayerForRoom(player, roomID);
                 if (playerDoc === null) {
@@ -30,7 +36,7 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                 }
                 const playerData = playerDoc.data();
                 const newTargetArray = [...playerData.targets];
-                
+
                 //finds possible targets for player
                 for (const possibleTarget of randomizedAlivePlayers) {
                     const possibleTargetDoc = await fetchPlayerForRoom(possibleTarget, roomID);
@@ -38,23 +44,30 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                         return createAlert('error', 'Error', 'Target Not Found', 1500);
                     }
                     const possibleTargetData = possibleTargetDoc.data();
-                    
-                    if (possibleTargetData.assassins.length >= MAXTARGETS || //checks if possible target has Max assassins
+
+                    if (
+                        possibleTargetData.assassins.length >= MAXTARGETS || //checks if possible target has Max assassins
                         possibleTargetData.targets.includes(player) || //checks if possible target is targeting player
                         newTargetArray.includes(possibleTarget) || //checks if player is already targeting possible target
                         possibleTarget === player || //checks if target is the same as player
                         newTargetArray.length >= MAXTARGETS //checks if player has max targets
-                        ) {
-                            console.log('continue');
-                            continue;
+                    ) {
+                        console.log('continue');
+                        continue;
                     }
                     //adds possible target to targets
                     newTargetArray.push(possibleTarget);
 
                     //updates target's assassins in db
-                    await updateAssassinsForPlayer(possibleTarget, [...possibleTargetData.assassins, player], roomID);
-                    await handleRemapping("New target for " + player + ": " + possibleTarget);
-                    console.log(`Assassins updated for ${possibleTarget} in database (loop1): ${possibleTargetData.assassins}`);
+                    await updateAssassinsForPlayer(
+                        possibleTarget,
+                        [...possibleTargetData.assassins, player],
+                        roomID
+                    );
+                    await handleRemapping('New target for ' + player + ': ' + possibleTarget);
+                    console.log(
+                        `Assassins updated for ${possibleTarget} in database (loop1): ${possibleTargetData.assassins}`
+                    );
 
                     //breaks loop if player has max targets
                     if (newTargetArray.length >= MAXTARGETS) {
@@ -67,13 +80,20 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                 if (newTargetArray.length < MAXTARGETS - 1 || newTargetArray.length === 0) {
                     console.error('running final case for targets on ', player);
                     try {
-                        const lastCaseTargetForPlayer = await fetchAlivePlayersByAscendAssassinsLengthForRoom(roomID, player);
+                        const lastCaseTargetForPlayer =
+                            await fetchAlivePlayersByAscendAssassinsLengthForRoom(roomID, player);
                         console.log(`lastCaseTargetForPlayer: `, lastCaseTargetForPlayer);
                         for (const target of lastCaseTargetForPlayer) {
                             if (target) {
                                 newTargetArray.push(target.name);
-                                await updateAssassinsForPlayer(target.name, [...target.assassins, player], roomID);
-                                await handleRemapping("New target for " + player + ": " + target.name);
+                                await updateAssassinsForPlayer(
+                                    target.name,
+                                    [...target.assassins, player],
+                                    roomID
+                                );
+                                await handleRemapping(
+                                    'New target for ' + player + ': ' + target.name
+                                );
                             }
                             if (newTargetArray.length >= MAXTARGETS) {
                                 break;
@@ -83,21 +103,28 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                         console.error('Error finding last case target: ', error);
                     }
                 }
-                const newTargetsForPlayer = newTargetArray.filter(target => !playerData.targets.includes(target));
+                const newTargetsForPlayer = newTargetArray.filter(
+                    (target) => !playerData.targets.includes(target)
+                );
                 tempNewTargets[player] = newTargetsForPlayer;
                 await updateTargetsForPlayer(player, newTargetArray, roomID);
                 console.log(`Targets updated for ${player} in database: ${newTargetArray}`);
-            } 
-        }catch (error) {
+            }
+        } catch (error) {
             console.error('Error updating targets: ', error);
         }
-    }
+    };
 
-    const handleAssassinRegeneration = async (playersNeedingAssassins, arrayOfAlivePlayers, MAXTARGETS, roomID) => {
+    const handleAssassinRegeneration = async (
+        playersNeedingAssassins,
+        arrayOfAlivePlayers,
+        MAXTARGETS,
+        roomID
+    ) => {
         try {
             for (const player of playersNeedingAssassins) {
                 const randomizedAlivePlayers = randomizeArray(arrayOfAlivePlayers);
-                
+
                 //finds player in db and retrieves assassins
                 const playerDoc = await fetchPlayerForRoom(player, roomID);
                 if (playerDoc === null) {
@@ -114,22 +141,29 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                     }
                     const possibleAssassinData = possibleAssassinDoc.data();
 
-                    if (possibleAssassinData.targets.length >= MAXTARGETS || //checks if possible target has Max targets
+                    if (
+                        possibleAssassinData.targets.length >= MAXTARGETS || //checks if possible target has Max targets
                         possibleAssassinData.assassins.includes(player) || //checks if possible target is targeting player
                         newAssassinArray.includes(possibleAssassin) || //checks if player is already targeting possible target
                         possibleAssassin === player || //checks if target is the same as player
                         newAssassinArray.length >= MAXTARGETS //checks if player has max targets
-                        ) {
-                            continue;
+                    ) {
+                        continue;
                     }
 
                     //adds possible target to targets
                     newAssassinArray.push(possibleAssassin);
 
                     //updates target's targets in db
-                    await updateTargetsForPlayer(possibleAssassin, [...possibleAssassinData.targets, player], roomID);
-                    await handleRemapping("New target for " + player + ": " + possibleAssassin);
-                    console.log(`Targets updated for ${possibleAssassin} in database (loop2): ${possibleAssassinData.targets}`);
+                    await updateTargetsForPlayer(
+                        possibleAssassin,
+                        [...possibleAssassinData.targets, player],
+                        roomID
+                    );
+                    await handleRemapping('New target for ' + player + ': ' + possibleAssassin);
+                    console.log(
+                        `Targets updated for ${possibleAssassin} in database (loop2): ${possibleAssassinData.targets}`
+                    );
 
                     //breaks loop if player has max targets
                     if (newAssassinArray.length >= MAXTARGETS) {
@@ -142,13 +176,23 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                 if (newAssassinArray.length < MAXTARGETS - 1 || newAssassinArray.length === 0) {
                     console.error('running final case for assassins on ', player);
                     try {
-                        const lastCaseAssassinForPlayer = await fetchAlivePlayersByAscendTargetsLengthForRoom(roomID, player);
+                        const lastCaseAssassinForPlayer =
+                            await fetchAlivePlayersByAscendTargetsLengthForRoom(roomID, player);
                         console.log(`lastCaseAssassinForPlayer: `, lastCaseAssassinForPlayer);
                         for (const possibleLastCaseAssassin of lastCaseAssassinForPlayer) {
                             if (possibleLastCaseAssassin) {
                                 newAssassinArray.push(possibleLastCaseAssassin.name);
-                                await updateTargetsForPlayer(possibleLastCaseAssassin.name, [...possibleLastCaseAssassin.targets, player], roomID);
-                                await handleRemapping("New target for " + possibleLastCaseAssassin.name + ": " + player);
+                                await updateTargetsForPlayer(
+                                    possibleLastCaseAssassin.name,
+                                    [...possibleLastCaseAssassin.targets, player],
+                                    roomID
+                                );
+                                await handleRemapping(
+                                    'New target for ' +
+                                        possibleLastCaseAssassin.name +
+                                        ': ' +
+                                        player
+                                );
                             }
                             if (newAssassinArray.length >= MAXTARGETS) {
                                 break;
@@ -158,7 +202,9 @@ const RemapPlayers = (handleRemapping, createAlert) => {
                         console.error('Error finding last case target: ', error);
                     }
                 }
-                const newAssassinsForPlayer = newAssassinArray.filter(assassin => !playerData.assassins.includes(assassin));
+                const newAssassinsForPlayer = newAssassinArray.filter(
+                    (assassin) => !playerData.assassins.includes(assassin)
+                );
                 tempNewAssassins[player] = newAssassinsForPlayer;
 
                 //updates player's assassins in db
@@ -168,20 +214,36 @@ const RemapPlayers = (handleRemapping, createAlert) => {
         } catch (error) {
             console.error('Error updating assassins: ', error);
         }
-    }
-    const handleRegeneration = async (playersNeedingTarget, playersNeedingAssassins, arrayOfAlivePlayers, roomID) => {
+    };
+    const handleRegeneration = async (
+        playersNeedingTarget,
+        playersNeedingAssassins,
+        arrayOfAlivePlayers,
+        roomID
+    ) => {
         try {
-            const MAXTARGETS = arrayOfAlivePlayers.length > 15 ? 3 : (arrayOfAlivePlayers.length > 5 ? 2 : 1); //defines what max targets each player should be assigned
-            await handleTargetRegeneration(playersNeedingTarget, arrayOfAlivePlayers, MAXTARGETS, roomID);
-            await handleAssassinRegeneration(playersNeedingAssassins, arrayOfAlivePlayers, MAXTARGETS, roomID);
+            const MAXTARGETS =
+                arrayOfAlivePlayers.length > 15 ? 3 : arrayOfAlivePlayers.length > 5 ? 2 : 1; //defines what max targets each player should be assigned
+            await handleTargetRegeneration(
+                playersNeedingTarget,
+                arrayOfAlivePlayers,
+                MAXTARGETS,
+                roomID
+            );
+            await handleAssassinRegeneration(
+                playersNeedingAssassins,
+                arrayOfAlivePlayers,
+                MAXTARGETS,
+                roomID
+            );
             return [tempNewTargets, tempNewAssassins];
-        } catch(error) {
-            console.error("Error regenerating: ", error);
+        } catch (error) {
+            console.error('Error regenerating: ', error);
             createAlert('error', 'Error Regenerating Targets', 'Check console', 1500);
         }
-    }
+    };
 
     return handleRegeneration;
-}
- 
+};
+
 export default RemapPlayers;
