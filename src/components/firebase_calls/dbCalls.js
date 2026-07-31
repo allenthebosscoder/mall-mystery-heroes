@@ -558,6 +558,25 @@ export const fetchAlivePlayerNamesForRoom = async (roomID) => {
     }
 };
 
+//fetches the full alive roster in one read, shaped for src/game/remapPlan.js
+export const fetchAliveRosterForRoom = async (roomID) => {
+    try {
+        const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
+        const playerQuery = query(playerCollectionRef, where('isAlive', '==', true));
+        const playerSnapshot = await getDocs(playerQuery);
+        return playerSnapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                name: data.name,
+                targets: data.targets ?? [],
+                assassins: data.assassins ?? [],
+            };
+        });
+    } catch (error) {
+        throw new Error('Error fetching alive roster: ', error.message);
+    }
+};
+
 //ends the game
 export const endGame = async (roomID) => {
     try {

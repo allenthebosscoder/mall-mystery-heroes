@@ -1,20 +1,65 @@
 # Testing strategy
 
-**Status: proposal.** Nothing here is implemented. This document reviews why the
-current architecture resists testing, proposes the refactors that unlock it, and
-lays out a phased plan.
+**Status: phases 0 and 1 are implemented; phases 2–4 are still proposal.** This
+document reviews why the architecture resisted testing, records the refactors
+that unlocked it, and lays out what remains.
 
 Companion reading: [architecture.md](./architecture.md) for the layer map,
 [improvements.md](./improvements.md) for the bug backlog this plan is designed to
 catch.
 
+## What exists today
+
+```
+$ npm test
+PASS unit src/game/targetGraph.test.js
+PASS unit src/game/commands.test.js
+PASS unit src/game/remapPlan.test.js
+PASS unit src/utils/firebaseEnv.test.js
+
+Test Suites: 4 passed, 4 total
+Tests:       62 passed, 62 total
+```
+
+| Module                     | What it holds                                      | Tests |
+| -------------------------- | -------------------------------------------------- | ----- |
+| `src/game/targetGraph.js`  | `maxTargetsFor`, `shuffle`, `buildTargetGraph`     | 19    |
+| `src/game/remapPlan.js`    | `planRemap` — post-kill/revive matching, as a plan | 16    |
+| `src/game/commands.js`     | `parseCommand` for the GM command bar              | 18    |
+| `src/utils/firebaseEnv.js` | Config reading, emulator flag, production guard    | 9     |
+
+All four are pure and run in Jest's `node` project with no mocks and no
+Firebase. The components now call into them rather than carrying their own
+copies:
+
+- `TargetGenerator.js` and `ResetTargetsButton.js` both call `buildTargetGraph`;
+  their two ~120-line duplicate implementations are gone.
+- `RemapPlayers.js` is now a thin I/O shell — fetch the roster once via the new
+  `fetchAliveRosterForRoom`, call `planRemap`, apply the writes.
+- `ChatInput.js` calls `parseCommand`; its inline regex, its private
+  `sanityCheckCommandInputs` whitelist, and the redundant `if/else` wrapper
+  around the whole switch are gone.
+
+Two behaviour changes came with this, both intended:
+
+1. **Pressing Enter on an empty command box no longer throws** (backlog item 19).
+2. **`npm start` and `npm run build` no longer decide emulator targeting from
+   `NODE_ENV`.** It is now the explicit `REACT_APP_USE_EMULATORS` flag, set in
+   the new `.env.development` (loaded by the dev server only). Verified in both
+   directions: the dev config resolves the flag to `true`, and the production
+   bundle contains no literal bake of it.
+
 ---
 
-## Where things stand
+## Where things stood (the starting point)
+
+Everything from here to the end of Part 5 describes the codebase as found. It is
+kept because the reasoning still explains why the current structure is shaped the
+way it is; the ✅ markers in Part 5 note what has since been done.
 
 `jest.config.js`, `jest.setup.js`, `jest.polyfills.js`, and `babel.config.js`
-configure Jest, Testing Library, jsdom, and `collectCoverage: true`. There are
-zero test files, and the config is not wired to anything:
+configured Jest, Testing Library, jsdom, and `collectCoverage: true`. There were
+zero test files, and the config was not wired to anything:
 
 ```
 $ CI=true npx react-scripts test --watchAll=false
@@ -360,13 +405,17 @@ layer that would have caught the `/kill`-vs-photo-approval divergence.
 
 ## Part 5 — Phasing
 
-| Phase | Work                                                                                  | Effort   |
-| ----- | ------------------------------------------------------------------------------------- | -------- |
-| **0** | R1 (emulator safety + lazy init), harness cleanup, one trivial passing test, CI green | ½ day    |
-| **1** | R2 + R3 extractions; Layer 0 tests for target graph and parser                        | 1 day    |
-| **2** | Layer 1 emulator tests for `dbCalls`; `test:emulator` script                          | 1–2 days |
-| **3** | Write `firestore.rules`; Layer 2 rules tests                                          | 1 day    |
-| **4** | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests                | 2–3 days |
+| Phase    | Work                                                                       | Effort   |
+| -------- | -------------------------------------------------------------------------- | -------- |
+| **0** ✅ | R1 (emulator safety + explicit flag), harness cleanup, CI green            | done     |
+| **1** ✅ | R2 + R3 extractions; Layer 0 tests for target graph, remap planner, parser | done     |
+| **2**    | Layer 1 emulator tests for `dbCalls`; `test:emulator` script               | 1–2 days |
+| **3**    | Write `firestore.rules`; Layer 2 rules tests                               | 1 day    |
+| **4**    | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests     | 2–3 days |
+
+Phase 2 is the natural next step: the `dom` Jest project and the asset stubs it
+needs are already configured but currently match no files, and `planRemap`'s
+output gives the flow tests in phase 4 a ready-made oracle.
 
 Phase 0 is worth doing on its own merits even if the rest is never picked up —
 it closes the "tests can write to production" hole.

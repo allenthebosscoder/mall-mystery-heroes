@@ -1,10 +1,29 @@
 # Improvement backlog
 
-Findings from a full read of the codebase (July 2026). Nothing here has been
-fixed — this is a triage list, ordered by severity within each tier.
+Findings from a full read of the codebase (July 2026), ordered by severity
+within each tier.
 
 Effort estimates are rough: **S** = under an hour, **M** = half a day,
 **L** = multi-day.
+
+## Resolved
+
+Closed by the testing-foundation work described in [testing.md](./testing.md):
+
+| Item                           | How                                                                                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| 11 — algorithm in three copies | Extracted to `src/game/targetGraph.js`; `TargetGenerator` and `ResetTargetsButton` now share it, `RemapPlayers` uses `src/game/remapPlan.js` |
+| 12 — broken shuffle            | Replaced with Durstenfeld Fisher–Yates, covered by a distribution test                                                                       |
+| 17 — round trips in loops      | `RemapPlayers` fetches the roster once via `fetchAliveRosterForRoom` and plans in memory                                                     |
+| 18 — zero tests                | 62 tests across four pure modules; harness rebuilt, CI runs it                                                                               |
+| 19 — empty command throws      | Guarded in `parseCommand`, with a regression test                                                                                            |
+
+Partially addressed:
+
+| Item                            | Remaining                                                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 25 — no environment separation  | Emulator targeting is now an explicit `REACT_APP_USE_EMULATORS` flag rather than `NODE_ENV`, and Jest can no longer reach a live project. `.firebaserc` still maps `dev` and `prod` to the same project — unchanged.   |
+| 9 — denormalized counters drift | `planRemap` derives counts from the arrays it returns, so remaps no longer read stale values. `targetsLength`/`assassinsLength` are still written only by the two `update…For…` helpers and can still drift elsewhere. |
 
 ---
 
