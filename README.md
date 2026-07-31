@@ -33,6 +33,11 @@ it is the piece least recoverable by reading source.
 - [Firebase CLI](https://firebase.google.com/docs/cli) — `npm install -g firebase-tools`
 - Java runtime (required by the Firestore emulator)
 
+You do **not** need access to the `mall-mystery-heroes` Firebase project to run
+this locally. The emulators serve everything, and `npm run firebase:emulate`
+passes the project id with `--project` rather than selecting it with
+`firebase use`, which would try to verify your access and fail.
+
 ## Setup
 
 ```bash

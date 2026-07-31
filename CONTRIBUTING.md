@@ -21,6 +21,9 @@ npm run firebase:emulate   # terminal 1
 npm start                  # terminal 2
 ```
 
+Everything runs against local emulators — you do not need access to the
+`mall-mystery-heroes` Firebase project.
+
 ## Before you open a PR
 
 ```bash
