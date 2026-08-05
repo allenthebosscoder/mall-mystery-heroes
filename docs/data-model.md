@@ -169,10 +169,12 @@ Missions the GM sets for players. Created by `TaskCreation` via
 - **`Revival Mission`** — brings the player back to life and triggers a remap.
   `pointValue` is forced to `0` and the input is disabled in the UI.
 
-`TaskExecution` (creation + listing) is mounted in `GameMasterView` again as
-of `improvements.md` item 15 — it used to be commented out, so missions
-could be completed via the command bar but no longer created through the
-app at all.
+Creation and listing are reachable from the GM console again as of
+`improvements.md` item 15 — missions used to only be completable via the
+command bar (`/mission done`/`/mission end`), with no way to create one
+through the app at all. Both now open as on-demand popups,
+`TaskCreationModal`/`TaskListModal`, via `/mission start`/`/mission view` —
+not a permanently-visible panel.
 
 ---
 
