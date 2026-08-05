@@ -129,6 +129,21 @@ The success toast ("Task has been saved as completed") fires **before** the
 lookup and write, so it appears even when the index does not exist — in which
 case the subsequent `task.title` access throws.
 
+### `/mission start`
+
+Opens a popup (`TaskCreationModal`) with the mission creation form —
+title, description, task type, points — the same form `TaskCreation`
+always had. Ignores any extra arguments. Closes automatically once a
+mission is created successfully; stays open on a validation error or a
+duplicate title so the GM can fix the form without retyping.
+
+### `/mission view`
+
+Opens a read-only popup (`TaskListModal`) listing missions split into
+Active/Completed tabs. Marking a mission done or closing it out is still
+only done via `/mission done`/`/mission end` — this popup has no actions
+of its own (docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md).
+
 ---
 
 ## Declared but not implemented

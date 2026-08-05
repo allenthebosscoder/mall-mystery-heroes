@@ -825,6 +825,15 @@ flagged) and `TaskList.test.jsx` (active/completed split by count and
 content, doesn't crash when the fetch rejects). Neither component had any
 test before this — they were unreachable dead code.
 
+**Follow-up, same session:** the panel form above never actually worked as
+a layout — see `docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md`.
+`TaskCreation`/`TaskList` stayed exactly as described above; `TaskExecution`
+(the component that combined them into one panel) was deleted, replaced by
+`TaskCreationModal`/`TaskListModal` — two on-demand popups triggered by new
+`/mission start`/`/mission view` commands, following the existing
+`RemapPlayerModal` pattern. The restore-vs-remove decision itself didn't
+change; only how the restored feature is presented did.
+
 **Not addressed:** the "relatedly" paragraph below, about `isGameActive`
 being written but never read — a narrower, separate gap this item's own
 text flagged in passing, not part of the "restore vs. remove" decision this
