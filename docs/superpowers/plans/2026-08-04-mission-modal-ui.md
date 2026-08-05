@@ -424,15 +424,15 @@ import { gameContext, executionContext } from '../components/Contexts';
 Replace:
 
 ```js
-    const [showRemapModal, setShowRemapModal] = useState(false);
+const [showRemapModal, setShowRemapModal] = useState(false);
 ```
 
 with:
 
 ```js
-    const [showRemapModal, setShowRemapModal] = useState(false);
-    const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
-    const [showTaskListModal, setShowTaskListModal] = useState(false);
+const [showRemapModal, setShowRemapModal] = useState(false);
+const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
+const [showTaskListModal, setShowTaskListModal] = useState(false);
 ```
 
 - [ ] **Step 4: Make `handleNewTaskAdded` close the creation modal, add the two show-handlers**
@@ -440,35 +440,35 @@ with:
 Replace:
 
 ```js
-    // TaskList (docs/improvements.md item 15) owns its own live subscription
-    // to the tasks collection, so a new task shows up there without this
-    // needing to track a parallel copy — this only logs the event.
-    const handleNewTaskAdded = async (newTask) => {
-        await addLog('Added new task: ' + newTask.title, 'yellow.400');
-    };
+// TaskList (docs/improvements.md item 15) owns its own live subscription
+// to the tasks collection, so a new task shows up there without this
+// needing to track a parallel copy — this only logs the event.
+const handleNewTaskAdded = async (newTask) => {
+    await addLog('Added new task: ' + newTask.title, 'yellow.400');
+};
 ```
 
 with:
 
 ```js
-    // TaskList (docs/improvements.md item 15) owns its own live subscription
-    // to the tasks collection, so a new task shows up there without this
-    // needing to track a parallel copy — this only logs the event and
-    // closes the creation modal (docs/superpowers/specs/2026-08-04-
-    // mission-modal-ui-design.md — creation closes automatically on
-    // success).
-    const handleNewTaskAdded = async (newTask) => {
-        setShowTaskCreationModal(false);
-        await addLog('Added new task: ' + newTask.title, 'yellow.400');
-    };
+// TaskList (docs/improvements.md item 15) owns its own live subscription
+// to the tasks collection, so a new task shows up there without this
+// needing to track a parallel copy — this only logs the event and
+// closes the creation modal (docs/superpowers/specs/2026-08-04-
+// mission-modal-ui-design.md — creation closes automatically on
+// success).
+const handleNewTaskAdded = async (newTask) => {
+    setShowTaskCreationModal(false);
+    await addLog('Added new task: ' + newTask.title, 'yellow.400');
+};
 
-    const handleShowMissionCreation = () => {
-        setShowTaskCreationModal(true);
-    };
+const handleShowMissionCreation = () => {
+    setShowTaskCreationModal(true);
+};
 
-    const handleShowMissionList = () => {
-        setShowTaskListModal(true);
-    };
+const handleShowMissionList = () => {
+    setShowTaskListModal(true);
+};
 ```
 
 - [ ] **Step 5: Add the two new handlers to `executionContextProviderValues`**
@@ -476,37 +476,37 @@ with:
 Replace:
 
 ```js
-    const executionContextProviderValues = {
-        handleKillPlayer,
-        handleAddNewAssassins,
-        handleAddNewTargets,
-        handleRemapping,
-        handlePlayerRevive,
-        handleTaskCompleted,
-        handleSetShowMessageToTrue,
-        handleOpenSznstarted,
-        handleOpenSznended,
-        addLog,
-    };
+const executionContextProviderValues = {
+    handleKillPlayer,
+    handleAddNewAssassins,
+    handleAddNewTargets,
+    handleRemapping,
+    handlePlayerRevive,
+    handleTaskCompleted,
+    handleSetShowMessageToTrue,
+    handleOpenSznstarted,
+    handleOpenSznended,
+    addLog,
+};
 ```
 
 with:
 
 ```js
-    const executionContextProviderValues = {
-        handleKillPlayer,
-        handleAddNewAssassins,
-        handleAddNewTargets,
-        handleRemapping,
-        handlePlayerRevive,
-        handleTaskCompleted,
-        handleSetShowMessageToTrue,
-        handleShowMissionCreation,
-        handleShowMissionList,
-        handleOpenSznstarted,
-        handleOpenSznended,
-        addLog,
-    };
+const executionContextProviderValues = {
+    handleKillPlayer,
+    handleAddNewAssassins,
+    handleAddNewTargets,
+    handleRemapping,
+    handlePlayerRevive,
+    handleTaskCompleted,
+    handleSetShowMessageToTrue,
+    handleShowMissionCreation,
+    handleShowMissionList,
+    handleOpenSznstarted,
+    handleOpenSznended,
+    addLog,
+};
 ```
 
 - [ ] **Step 6: Render the two modals, remove the panel**
@@ -547,31 +547,31 @@ with:
 Then replace:
 
 ```jsx
-                    <executionContext.Provider value={executionContextProviderValues}>
-                        <VStack sx={styles.rightHandStack}>
-                            <Box sx={styles.photosBox}>
-                                <PhotosDisplay />
-                            </Box>
+<executionContext.Provider value={executionContextProviderValues}>
+    <VStack sx={styles.rightHandStack}>
+        <Box sx={styles.photosBox}>
+            <PhotosDisplay />
+        </Box>
 
-                            <Box sx={styles.taskBox}>
-                                <taskContext.Provider value={{ handleNewTaskAdded }}>
-                                    <TaskExecution />
-                                </taskContext.Provider>
-                            </Box>
-                        </VStack>
-                    </executionContext.Provider>
+        <Box sx={styles.taskBox}>
+            <taskContext.Provider value={{ handleNewTaskAdded }}>
+                <TaskExecution />
+            </taskContext.Provider>
+        </Box>
+    </VStack>
+</executionContext.Provider>
 ```
 
 with:
 
 ```jsx
-                    <executionContext.Provider value={executionContextProviderValues}>
-                        <VStack sx={styles.rightHandStack}>
-                            <Box sx={styles.photosBox}>
-                                <PhotosDisplay />
-                            </Box>
-                        </VStack>
-                    </executionContext.Provider>
+<executionContext.Provider value={executionContextProviderValues}>
+    <VStack sx={styles.rightHandStack}>
+        <Box sx={styles.photosBox}>
+            <PhotosDisplay />
+        </Box>
+    </VStack>
+</executionContext.Provider>
 ```
 
 - [ ] **Step 7: Simplify the `taskBox`/`photosBox` styles back to a single-child box**
@@ -715,9 +715,7 @@ describe('/mission start and /mission view open the mission modals (improvements
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/mission start');
 
-        await waitFor(() =>
-            expect(executionHandlers.handleShowMissionCreation).toHaveBeenCalled()
-        );
+        await waitFor(() => expect(executionHandlers.handleShowMissionCreation).toHaveBeenCalled());
     });
 
     it('/mission view calls handleShowMissionList', async () => {
@@ -739,35 +737,35 @@ Expected: the two new tests FAIL — `/mission start`/`/mission view` currently 
 In `src/components/logs_components/ChatInput.js`, find the destructure that pulls handlers out of `xecutionContext`:
 
 ```js
-    const {
-        handleRemapping,
-        handleKillPlayer,
-        handleSetShowMessageToTrue,
-        handleAddNewAssassins,
-        handleAddNewTargets,
-        handleOpenSznstarted,
-        handleOpenSznended,
-        handlePlayerRevive,
-        handleTaskCompleted,
-    } = xecutionContext; // retrieve contexts
+const {
+    handleRemapping,
+    handleKillPlayer,
+    handleSetShowMessageToTrue,
+    handleAddNewAssassins,
+    handleAddNewTargets,
+    handleOpenSznstarted,
+    handleOpenSznended,
+    handlePlayerRevive,
+    handleTaskCompleted,
+} = xecutionContext; // retrieve contexts
 ```
 
 Replace with:
 
 ```js
-    const {
-        handleRemapping,
-        handleKillPlayer,
-        handleSetShowMessageToTrue,
-        handleAddNewAssassins,
-        handleAddNewTargets,
-        handleOpenSznstarted,
-        handleOpenSznended,
-        handlePlayerRevive,
-        handleTaskCompleted,
-        handleShowMissionCreation,
-        handleShowMissionList,
-    } = xecutionContext; // retrieve contexts
+const {
+    handleRemapping,
+    handleKillPlayer,
+    handleSetShowMessageToTrue,
+    handleAddNewAssassins,
+    handleAddNewTargets,
+    handleOpenSznstarted,
+    handleOpenSznended,
+    handlePlayerRevive,
+    handleTaskCompleted,
+    handleShowMissionCreation,
+    handleShowMissionList,
+} = xecutionContext; // retrieve contexts
 ```
 
 Then find the `/mission` case's inner switch:

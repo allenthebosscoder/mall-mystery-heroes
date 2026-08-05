@@ -72,16 +72,16 @@ falls out of the existing component behavior for free.
   (booleans, same shape as the existing `showRemapModal`).
 - Two new handlers, added to `executionContextProviderValues` alongside
   `handleSetShowMessageToTrue`:
-  - `handleShowMissionCreation` — sets `showTaskCreationModal` to `true`.
-  - `handleShowMissionList` — sets `showTaskListModal` to `true`.
+    - `handleShowMissionCreation` — sets `showTaskCreationModal` to `true`.
+    - `handleShowMissionList` — sets `showTaskListModal` to `true`.
 - `handleNewTaskAdded` (already exists, already called by `TaskCreation` on
   success) additionally sets `showTaskCreationModal` to `false` — this is
   the entire mechanism for "closes automatically on success." No change
   needed inside `TaskCreation.js`.
 - `<TaskCreationModal isOpen={showTaskCreationModal} onClose={() =>
-  setShowTaskCreationModal(false)} handleNewTaskAdded={handleNewTaskAdded}
-  />` and `<TaskListModal isOpen={showTaskListModal} onClose={() =>
-  setShowTaskListModal(false)} />` render unconditionally in the JSX (same
+setShowTaskCreationModal(false)} handleNewTaskAdded={handleNewTaskAdded}
+/>` and `<TaskListModal isOpen={showTaskListModal} onClose={() =>
+setShowTaskListModal(false)} />` render unconditionally in the JSX (same
   pattern as `RemapPlayerModal` today) — not inside the right-hand column,
   since they no longer occupy layout space.
 - The right-hand column (`rightHandStack`) goes back to containing only
