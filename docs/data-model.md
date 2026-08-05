@@ -59,18 +59,19 @@ GM's log entries are no longer invisible until reload).
 
 The colors in use, by event type:
 
-| Color        | Event                              |
-| ------------ | ---------------------------------- |
-| `red.400`    | player killed                      |
-| `blue.300`   | player revived                     |
-| `blue.200`   | photo judgment undone              |
-| `blue.400`   | new target assigned (target reset) |
-| `blue.500`   | remapping after a kill             |
-| `lightblue`  | open season started                |
-| `pink.400`   | open season ended                  |
-| `green.400`  | mission completed                  |
-| `yellow.400` | mission created                    |
-| `gray`       | revive undone, photo denied        |
+| Color        | Event                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| `red.400`    | player killed                                                                                    |
+| `blue.300`   | player revived                                                                                   |
+| `blue.200`   | photo judgment undone                                                                            |
+| `blue.400`   | new target assigned (target reset)                                                               |
+| `blue.500`   | remapping after a kill                                                                           |
+| `lightblue`  | open season started                                                                              |
+| `pink.400`   | open season ended                                                                                |
+| `green.400`  | mission completed (by `/mission end`, or by a player via `/mission done` — improvements item 40) |
+| `purple.400` | mission auto-ended by reaching its completion cap (improvements item 41)                         |
+| `yellow.400` | mission created                                                                                  |
+| `gray`       | revive undone, photo denied                                                                      |
 
 ---
 
@@ -151,17 +152,18 @@ Not covered: `trimmedNameLowerCase` strips all whitespace, but `ChatInput`'s
 Missions the GM sets for players. Created by `TaskCreation` via
 `dbCalls.addTaskForRoom`.
 
-| Field                   | Type                          | Notes                                                                                                                                               |
-| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `title`                 | `string`                      | Required, non-blank.                                                                                                                                |
-| `titleTrimmedLowerCase` | `string`                      | Used by `checkForTaskDupesForRoom` to reject duplicates.                                                                                            |
-| `description`           | `string`                      | Defaults to `'No description provided'` if left blank.                                                                                              |
-| `pointValue`            | `string \| number`            | Stored as a **string** from the Chakra `NumberInput`, except for revival missions where it is coerced to the number `0`. Read back with `parseInt`. |
-| `taskType`              | `'Task' \| 'Revival Mission'` | Drives what completion does — points, or resurrection.                                                                                              |
-| `taskIndex`             | `number`                      | From `fetchTaskIndexThenIncrement`. The number GMs type in `/mission` commands.                                                                     |
-| `dateCreated`           | `string`                      | `"HH:MM"` local time. No date component.                                                                                                            |
-| `isComplete`            | `boolean`                     | Set true by `/mission end`. Marks the mission closed for everyone.                                                                                  |
-| `completedBy`           | `array<string>`               | Player names, appended by `/mission done`.                                                                                                          |
+| Field                   | Type                          | Notes                                                                                                                                                                                                                                                  |
+| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `title`                 | `string`                      | Required, non-blank.                                                                                                                                                                                                                                   |
+| `titleTrimmedLowerCase` | `string`                      | Used by `checkForTaskDupesForRoom` to reject duplicates.                                                                                                                                                                                               |
+| `description`           | `string`                      | Defaults to `'No description provided'` if left blank.                                                                                                                                                                                                 |
+| `pointValue`            | `string \| number`            | Stored as a **string** from the Chakra `NumberInput`, except for revival missions where it is coerced to the number `0`. Read back with `parseInt`.                                                                                                    |
+| `taskType`              | `'Task' \| 'Revival Mission'` | Drives what completion does — points, or resurrection.                                                                                                                                                                                                 |
+| `taskIndex`             | `number`                      | From `fetchTaskIndexThenIncrement`. The number GMs type in `/mission` commands.                                                                                                                                                                        |
+| `dateCreated`           | `string`                      | `"HH:MM"` local time. No date component.                                                                                                                                                                                                               |
+| `isComplete`            | `boolean`                     | Set true by `/mission end`, or automatically by `/mission done` once `maxCompletions` is reached (item 41). Also checked _by_ `/mission done` (item 39) — a mission that's already `isComplete` rejects further completions.                           |
+| `completedBy`           | `array<string>`               | Player names, appended by `/mission done`.                                                                                                                                                                                                             |
+| `maxCompletions`        | `number \| null`              | Optional (improvements item 41). `null`/unset means unlimited — every mission created before this field existed reads this way. When set, `/mission done` auto-sets `isComplete: true` once `completedBy.length` reaches it, and logs an announcement. |
 
 `taskType` decides the completion effect:
 

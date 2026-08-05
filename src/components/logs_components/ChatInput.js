@@ -24,6 +24,7 @@ import CreateAlert from '../CreateAlert';
 export default function ChatInput() {
     const [value, setValue] = useState('');
     const [suggestions, setSuggestions] = useState([]);
+    const [highlightedSuggestion, setHighlightedSuggestion] = useState(null);
     const { roomID } = useContext(gameContext);
     const xecutionContext = useContext(executionContext);
     const createAlert = CreateAlert();
@@ -32,12 +33,26 @@ export default function ChatInput() {
         setValue(newValue);
     };
 
-    const onSuggestionsFetchRequested = () => {
-        setSuggestions(getSuggestions(value));
+    // react-autosuggest passes the up-to-date input value as an argument —
+    // reading the outer `value` state instead (as this did previously)
+    // reads last render's value, since this callback and the onChange that
+    // updates `value` both fire from the same, not-yet-re-rendered closure.
+    // That made the suggestion list always one keystroke stale.
+    const onSuggestionsFetchRequested = ({ value: currentValue }) => {
+        setSuggestions(getSuggestions(currentValue));
     };
 
     const onSuggestionsClearRequested = () => {
         setSuggestions([]);
+        setHighlightedSuggestion(null);
+    };
+
+    // react-autosuggest tracks arrow-key highlighting internally but only
+    // exposes it via this callback — mirrored into local state so Tab can
+    // read it. react-autosuggest has no built-in Tab handling of its own;
+    // Tab otherwise just blurs the input.
+    const onSuggestionHighlighted = ({ suggestion }) => {
+        setHighlightedSuggestion(suggestion);
     };
 
     const inputProps = {
@@ -47,6 +62,12 @@ export default function ChatInput() {
         onKeyDown: (event) => {
             if (event.key === 'Enter') {
                 handleCommandExecution(value, setValue, roomID, xecutionContext, createAlert);
+            } else if (event.key === 'Tab' && suggestions.length > 0) {
+                // Accepts the arrow-key-highlighted suggestion, or the first
+                // match if the GM hasn't arrowed through the list yet — so
+                // typing a unique prefix and hitting Tab works immediately.
+                event.preventDefault();
+                setValue(getSuggestionValue(highlightedSuggestion ?? suggestions[0]));
             }
         },
     };
@@ -57,6 +78,7 @@ export default function ChatInput() {
                 suggestions={suggestions}
                 onSuggestionsFetchRequested={onSuggestionsFetchRequested}
                 onSuggestionsClearRequested={onSuggestionsClearRequested}
+                onSuggestionHighlighted={onSuggestionHighlighted}
                 getSuggestionValue={getSuggestionValue}
                 renderSuggestion={renderSuggestion}
                 inputProps={inputProps}
@@ -163,6 +185,7 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
         handleTaskCompleted,
         handleShowMissionCreation,
         handleShowMissionList,
+        addLog,
     } = xecutionContext; // retrieve contexts
 
     // dbCalls functions throw on failure rather than swallowing errors
@@ -269,6 +292,21 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
                                 break;
                             }
 
+                            // A mission /mission end already closed can't be
+                            // completed again — this only used to check
+                            // whether THIS player had already done it, not
+                            // whether the mission itself was still open.
+                            if (task.isComplete) {
+                                createAlert(
+                                    'error',
+                                    'Error',
+                                    `Mission ${missionIndex} has already ended`,
+                                    1500
+                                );
+                                console.error(`Mission ${missionIndex} has already ended`);
+                                break;
+                            }
+
                             // check if player has completed task
                             if (!task.completedBy.includes(playerName)) {
                                 //updates player scores for task types
@@ -288,7 +326,6 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
                                         handlePlayerRevive(playerName);
                                         arrayOfAlivePlayers =
                                             await fetchAlivePlayerNamesForRoom(roomID);
-                                        console.log('xxx: ', playerName);
                                         const [targets, assassins] = await handleTargetRegeneration(
                                             [playerName],
                                             [playerName],
@@ -309,6 +346,25 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
                                     }
                                 }
                                 await addPlayerToCompletedByForTask(taskDocRef, playerName);
+                                await addLog(
+                                    `${playerName} completed mission: ${task.title}`,
+                                    'green.400'
+                                );
+
+                                // Optional per-mission completion cap — unset
+                                // or 0 means unlimited, matching every
+                                // mission created before this field existed.
+                                const completedCount = task.completedBy.length + 1;
+                                if (task.maxCompletions && completedCount >= task.maxCompletions) {
+                                    await updateIsCompleteToTrueForTaskByIndex(
+                                        missionIndex,
+                                        roomID
+                                    );
+                                    await addLog(
+                                        `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
+                                        'purple.400'
+                                    );
+                                }
                             } else {
                                 createAlert(
                                     'error',

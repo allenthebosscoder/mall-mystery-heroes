@@ -277,7 +277,10 @@ const styles = {
         mr: '16px',
         w: '25%',
         minW: '25%',
-        h: { base: '100%', md: '100%' },
+        // 95%, not 100% — matches playersListWrapper/logsWrapper, its
+        // siblings in the same row. The mismatch used to make the photos
+        // box's border extend past the players/logs boxes below them.
+        h: '95%',
     },
     photosBox: {
         w: { base: '100%', md: '100%' },

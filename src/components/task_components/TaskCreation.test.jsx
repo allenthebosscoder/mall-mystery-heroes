@@ -104,3 +104,67 @@ describe('TaskCreation (improvements item 15)', () => {
         expect(addTaskForRoom).not.toHaveBeenCalled();
     });
 });
+
+describe('a failed submission does not burn a task index (bug report)', () => {
+    it('does not fetch a task index when no task type is selected', async () => {
+        mountTaskCreation();
+
+        await userEvent.type(screen.getByPlaceholderText('Task Title'), 'Find the clue');
+        await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        expect(await screen.findByText('Task type must be selected')).toBeInTheDocument();
+        expect(fetchTaskIndexThenIncrement).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch a task index when the task is a duplicate', async () => {
+        checkForTaskDupesForRoom.mockResolvedValue(true);
+        mountTaskCreation();
+
+        await fillOutRevivalMissionTask('Find the clue');
+        await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        expect(await screen.findByText('Task already exists')).toBeInTheDocument();
+        expect(fetchTaskIndexThenIncrement).not.toHaveBeenCalled();
+    });
+
+    it('only fetches a task index once every check has passed', async () => {
+        mountTaskCreation();
+
+        await fillOutRevivalMissionTask('Find the clue');
+        await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        await waitFor(() => expect(addTaskForRoom).toHaveBeenCalled());
+        expect(fetchTaskIndexThenIncrement).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('optional completion cap (bug report)', () => {
+    it('includes maxCompletions in the created task when set', async () => {
+        mountTaskCreation();
+
+        await fillOutRevivalMissionTask('Find the clue');
+        await userEvent.type(screen.getByPlaceholderText('Max completions'), '5');
+        await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        await waitFor(() =>
+            expect(addTaskForRoom).toHaveBeenCalledWith(
+                expect.objectContaining({ maxCompletions: 5 }),
+                'room-a'
+            )
+        );
+    });
+
+    it('defaults maxCompletions to null (unlimited) when left blank', async () => {
+        mountTaskCreation();
+
+        await fillOutRevivalMissionTask('Find the clue');
+        await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+        await waitFor(() =>
+            expect(addTaskForRoom).toHaveBeenCalledWith(
+                expect.objectContaining({ maxCompletions: null }),
+                'room-a'
+            )
+        );
+    });
+});

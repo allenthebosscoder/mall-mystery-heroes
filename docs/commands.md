@@ -31,6 +31,10 @@ Two parser caveats:
   suggestion for `/kill [player] [assassin]` and pressing Enter runs
   `/kill player assassin` — the placeholders become the arguments. Suggestions
   are a reference, not a template to submit.
+- **Tab accepts a suggestion** (improvements item 42) — the arrow-key-highlighted
+  one, or the first match if none is highlighted yet, same as accepting it by
+  click. The suggestion list itself is keyed off the input's current value
+  (previously off a stale one-keystroke-behind value — also item 42).
 
 ## Argument case sensitivity
 
@@ -107,6 +111,7 @@ number shown in the mission list — not a document ID).
 | `Number(args[2])` is not `-1`       | `{arg} is not a valid index`                      |
 | Player in roster                    | `Player {name} is invalid`                        |
 | Mission with that index exists      | `Invalid task index`                              |
+| Mission is not already `isComplete` | `Mission {index} has already ended`               |
 | Player not already in `completedBy` | `Player {name} has already completed the mission` |
 
 Effect depends on `taskType`:
@@ -115,7 +120,12 @@ Effect depends on `taskType`:
 - **`Revival Mission`** — requires the player to be dead (`Player {name} is not
 dead` otherwise), revives them, and remaps them into the graph.
 
-Either way the player is appended to `completedBy`.
+Either way: the player is appended to `completedBy`, the completion is
+logged to chat (`{player} completed mission: {title}`), and — if the
+mission has a `maxCompletions` cap (improvements item 41) and this
+completion reaches it — the mission auto-ends the same way `/mission end`
+does, with its own chat announcement
+(`Mission "{title}" auto-ended — reached its {N}-completion cap`).
 
 Note the index validation only rejects the literal value `-1`; any other
 non-numeric argument becomes `NaN`, passes the check, and fails later as
@@ -134,10 +144,11 @@ item 20).
 ### `/mission start`
 
 Opens a popup (`TaskCreationModal`) with the mission creation form —
-title, description, task type, points — the same form `TaskCreation`
-always had. Ignores any extra arguments. Closes automatically once a
-mission is created successfully; stays open on a validation error or a
-duplicate title so the GM can fix the form without retyping.
+title, description, task type, points, and an optional completion cap
+(improvements item 41) — the same form `TaskCreation` always had. Ignores
+any extra arguments. Closes automatically once a mission is created
+successfully; stays open on a validation error or a duplicate title so the
+GM can fix the form without retyping.
 
 ### `/mission view`
 

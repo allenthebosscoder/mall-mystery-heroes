@@ -50,6 +50,12 @@ plus the auth and add-player work below:
 | 36 — `handleUnmapping` silently failed to unmap almost any real player | Found while investigating item 4. Query and filter both fixed to use `trimmedNameLowerCase`/`normalizePlayerName`, matching every other lookup. 4 new emulator tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 9 — denormalized length counters drift                                 | Deleted `targetsLength`/`assassinsLength` outright rather than routing every writer through the two `update…For…` helpers this item originally proposed — nothing read them anymore (the `RemapPlayers` fallback that used to query by them was already replaced by in-memory matching under item 17), so the two functions that queried `orderBy(…Length)` were confirmed-dead code. See the full writeup at item 9 below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 10 — swallowed errors                                                  | Finished the remaining 15 swallowing functions (of an original ~40) beyond the first pass's 12, plus fixed 3 more that already threw but with a malformed rethrow that discarded the real error message. Every call site checked; most already had error handling from other items' fixes. `dbCalls.js` now has zero catch-log-swallow functions. See the full writeup at item 10 below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 37 — mission panel boundary extends past its neighbors                 | `rightHandStack`'s height now matches its siblings (`95%`, not `100%`). One-line style fix, no test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 38 — a failed mission submission burns a task index                    | `fetchTaskIndexThenIncrement` now runs last in `handleAddTask`, after every validation and the dupe check, instead of first. 3 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 39 — an ended mission can still be completed                           | `/mission done` now checks `task.isComplete` before awarding, matching what `/mission end` already sets. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 40 — mission completions never show up in the chat log                 | `/mission done` now calls `addLog` on a successful completion — it never had before. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 41 — missions have no completion cap                                   | Optional `maxCompletions` field on task creation; `/mission done` auto-ends and announces the mission once it's reached. Unset/blank stays unlimited. 4 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 42 — chat autosuggest is stale and has no Tab-to-complete              | `onSuggestionsFetchRequested` now reads the value `react-autosuggest` actually passes it instead of a stale closure (was one keystroke behind); Tab now accepts the highlighted or first suggestion. 1 new test, which caught the staleness bug before the Tab fix was even in scope.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### ⚠️ Partially addressed
 
@@ -1243,6 +1249,125 @@ fix. `UnmapPlayers.js` and this test file were both later deleted as part
 of item 4, once the Cloud Function re-implemented unmapping from scratch —
 the fix is repinned there, in `executeKill.integration.test.js`'s
 capitalized-name regression test.
+
+### 37. Mission panel boundary extends past its neighbors ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found live-testing the mission modals (item 15's follow-up). `rightHandStack`
+(the column holding `PhotosDisplay`) used `h: '100%'`, while
+`playersListWrapper` and `logsWrapper` — its siblings in the same row — both
+use `h: '95%'`. The mismatch made the photos box's border extend visibly
+below the players/logs boxes next to it.
+
+**Resolution:** `rightHandStack` now uses `h: '95%'`, matching its siblings
+(`src/pages/GameMasterView.js`). No test — this codebase has no visual
+regression coverage, and the fix is a one-line style value.
+
+### 38. A failed mission submission burns a task index ✅ Resolved
+
+**Impact: medium · Effort: S**
+
+Live-reported: creating two missions produced indices 1 and 3, skipping 2.
+`TaskCreation.js`'s `handleAddTask` called `fetchTaskIndexThenIncrement`
+first, before any validation — task type selected, title non-blank, etc.
+`fetchTaskIndexThenIncrement` atomically consumes the room's next index the
+moment it's called, whether or not a task ends up created with it. A failed
+first attempt (wrong task type, blank title, a duplicate title) still
+consumed an index with no task ever using it, so the next successful
+creation skipped a number.
+
+**Resolution:** the index fetch moved to the last step in `handleAddTask` —
+after every validation check and the dupe check have both passed, right
+before `addTaskForRoom`. 3 new tests (`TaskCreation.test.jsx`) assert
+`fetchTaskIndexThenIncrement` is not called when validation fails or a
+duplicate is found, and is called exactly once on a successful submission —
+each verified to fail against the pre-fix ordering before confirming green.
+
+### 39. A mission that has already ended can still be completed ✅ Resolved
+
+**Impact: medium · Effort: S**
+
+Live-reported. `/mission end <index>` sets `isComplete: true`, but
+`/mission done <player> <index>` never checked that flag — only whether
+_that specific player_ had already completed the mission. A GM could run
+`/mission done` against a mission they'd already closed, and it would still
+award points or revive the player.
+
+**Resolution:** `/mission done` now checks `task.isComplete` first and
+rejects with `Mission {index} has already ended` if set
+(`ChatInput.js`'s `/mission` case). 1 new regression test
+(`ChatInput.test.jsx`), verified to fail against the pre-fix code (award
+happens regardless) before confirming green.
+
+### 40. Mission completions never show up in the chat log ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Live-reported: `/mission end` logs "Completed task: {title}" when a mission
+closes, but `/mission done` — an individual player completing it — logged
+nothing at all, giving the GM no chat-visible confirmation that a
+completion actually went through.
+
+**Resolution:** `/mission done` now calls `addLog` with
+`"{player} completed mission: {title}"` right after
+`addPlayerToCompletedByForTask` succeeds. `addLog` is destructured from
+`executionContext` in `ChatInput.js` alongside the switch's other handlers
+— it wasn't imported there before. 1 new regression test, verified to fail
+against the pre-fix code (no `addLog` call at all) before confirming green.
+
+### 41. Missions have no way to cap how many players can complete them ✅ Resolved
+
+**Impact: medium · Effort: M**
+
+Feature request, live session: some missions should only be completable by
+a fixed number of players (e.g. "first 5 to find this item") — once that
+many have completed it, the mission should close itself automatically and
+say so in the chat, with no way to complete it afterward.
+
+**Resolution:** `TaskCreation.js` gained an optional `maxCompletions` field
+— a `NumberInput` alongside the existing points field, blank/`null` by
+default (unlimited, matching every mission created before this existed).
+`/mission done` (`ChatInput.js`) checks
+`task.completedBy.length + 1 >= task.maxCompletions` after a successful
+completion; if reached, it calls the same `updateIsCompleteToTrueForTaskByIndex`
+`/mission end` uses and logs
+`Mission "{title}" auto-ended — reached its {N}-completion cap`. Once
+closed this way, item 39's `isComplete` check already blocks any further
+`/mission done` against it — no separate enforcement needed.
+`TaskAccordion.js` now shows `Completions: {count}` (and `/ {max}` when
+capped) so the GM can see progress toward the cap without doing the math
+themselves. 4 new tests across `TaskCreation.test.jsx` (the field is
+included/defaults to `null` correctly) and `ChatInput.test.jsx` (auto-ends
+and announces at the cap, does not before it) — each verified to fail
+against the pre-fix code before confirming green.
+
+### 42. Chat autosuggest is stale by one keystroke, and has no Tab-to-complete ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Feature request, live session: typing full commands in the GM chat bar is
+slow; some way to accept a suggestion instead of typing it all out was
+requested. Investigating surfaced a second, independent bug in the same
+code: `onSuggestionsFetchRequested` (`ChatInput.js`) ignored the current
+value `react-autosuggest` passes it as an argument and read the component's
+own `value` state from its enclosing closure instead — which, because both
+that callback and the `onChange` that updates `value` fire from the same
+pre-re-render closure, was always one keystroke behind what was actually
+typed. The suggestion list a GM saw never quite matched what they'd typed.
+
+**Resolution:** `onSuggestionsFetchRequested` now destructures `value` from
+its argument instead of closing over stale state. Separately,
+`react-autosuggest` has no built-in Tab handling (Tab just blurs the input
+by default) — a new `onSuggestionHighlighted` callback mirrors its
+arrow-key highlight into local state, and the input's `onKeyDown` now
+accepts that highlighted suggestion (or the first match, if the GM hasn't
+arrowed through the list) on Tab, calling `preventDefault()` so focus
+doesn't leave the input. 1 new regression test (`ChatInput.test.jsx`) types
+a unique command prefix and asserts Tab completes it to the full command —
+this test is what caught the staleness bug in the first place (it initially
+failed by completing to the wrong, alphabetically-first `/mission …`
+command instead).
 
 ---
 

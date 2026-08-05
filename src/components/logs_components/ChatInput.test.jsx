@@ -47,6 +47,7 @@ const executionHandlers = {
     handleTaskCompleted: jest.fn(),
     handleShowMissionCreation: jest.fn(),
     handleShowMissionList: jest.fn(),
+    addLog: jest.fn(),
 };
 
 const mountChatInput = () => {
@@ -215,6 +216,86 @@ describe('/mission start and /mission view open the mission modals (improvements
         typeAndSubmit(commandInput, '/mission view');
 
         await waitFor(() => expect(executionHandlers.handleShowMissionList).toHaveBeenCalled());
+    });
+});
+
+describe('/mission done (bug report: ended missions, missing chat log, completion cap)', () => {
+    const baseTask = {
+        title: 'Find the clue',
+        taskType: 'Task',
+        pointValue: '10',
+        completedBy: [],
+        isComplete: false,
+        maxCompletions: null,
+    };
+
+    it('rejects completing a mission that has already ended', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, isComplete: true });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        expect(await screen.findByText(/mission 1 has already ended/i)).toBeInTheDocument();
+        expect(dbCalls.updatePointsForPlayer).not.toHaveBeenCalled();
+        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
+    });
+
+    it('logs the completion to chat', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                'bob completed mission: Find the clue',
+                'green.400'
+            )
+        );
+    });
+
+    it('auto-ends the mission and announces it once the completion cap is reached', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, maxCompletions: 1 });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).toHaveBeenCalledWith(1, 'room-a')
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Mission "Find the clue" auto-ended — reached its 1-completion cap',
+            'purple.400'
+        );
+    });
+
+    it('does not auto-end the mission before the completion cap is reached', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, maxCompletions: 2 });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                'bob completed mission: Find the clue',
+                'green.400'
+            )
+        );
+        expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
+    });
+});
+
+describe('Tab accepts an autosuggest match (bug report: typing full commands is troublesome)', () => {
+    it('completes the input to the only matching suggestion on Tab', async () => {
+        const commandInput = mountChatInput();
+
+        await userEvent.type(commandInput, '/mission s');
+        expect(await screen.findByText('/mission start')).toBeInTheDocument();
+        expect(screen.queryByText('/mission done [player name] mission_index')).toBeNull();
+
+        await userEvent.tab();
+
+        expect(commandInput).toHaveValue('/mission start');
     });
 });
 

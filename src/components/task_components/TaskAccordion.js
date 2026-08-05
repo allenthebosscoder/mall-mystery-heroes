@@ -25,6 +25,10 @@ const TaskAccordion = (props) => {
                 <Text pb="12px">Description: {task.description}</Text>
                 <Text pb="12px">Task Type: {task.taskType}</Text>
                 <Text pb="12px">
+                    Completions: {task.completedBy.length}
+                    {task.maxCompletions ? ` / ${task.maxCompletions}` : ''}
+                </Text>
+                <Text pb="12px">
                     {task.completedBy.length === '0' || !task.isComplete
                         ? 'Incomplete'
                         : `Completed By: ${task.completedBy.length === '0' ? 'None' : task.completedBy.join(', ')}`}
