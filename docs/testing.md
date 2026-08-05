@@ -29,9 +29,11 @@ PASS dom src/pages/NotFound.test.jsx
 PASS dom src/components/header_components/Endgamebutton.test.jsx
 PASS dom src/components/task_components/TaskCreation.test.jsx
 PASS dom src/components/task_components/TaskList.test.jsx
+PASS dom src/components/task_components/TaskCreationModal.test.jsx
+PASS dom src/components/task_components/TaskListModal.test.jsx
 
-Test Suites: 17 passed, 17 total
-Tests:       114 passed, 114 total
+Test Suites: 19 passed, 19 total
+Tests:       123 passed, 123 total
 ```
 
 `npm run test:emulator` runs two further suites against the real Firestore,
@@ -40,28 +42,30 @@ tests) and `executeKill.integration.test.js` (7 tests), 34 tests total.
 `npm run test:rules` runs `test/firestore.rules.test.js` (17 tests) against
 Firestore alone.
 
-| Module                            | What it holds                                                                                                                                               | Tests |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `src/game/targetGraph.js`         | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                              | 19    |
-| `src/game/remapPlan.js`           | `planRemap` — post-kill/revive matching, as a plan                                                                                                          | 16    |
-| `src/game/commands.js`            | `parseCommand` for the GM command bar; `UNIMPLEMENTED_COMMANDS` (item 21)                                                                                   | 19    |
-| `src/utils/firebaseEnv.js`        | Config reading, emulator flag, production guard                                                                                                             | 9     |
-| `src/game/photoJudgments.js`      | `splitPhotosByStatus` (item 6)                                                                                                                              | 5     |
-| `dbCalls.integration.test.js`     | The data layer against the Firestore emulator                                                                                                               | 27    |
-| `executeKill.integration.test.js` | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth | 7     |
-| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                               | 17    |
-| `PlayerAddition.test.jsx`         | The `dom` project's first test — see below                                                                                                                  | 3     |
-| `ChatInput.test.jsx`              | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35                                                                                  | 14    |
-| `RequireAuth.test.jsx`            | Route guard spinner/redirect/render states (item 3)                                                                                                         | 3     |
-| `PhotosDisplay.test.jsx`          | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                        | 5     |
-| `PlayersList.test.jsx`            | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                   | 4     |
-| `GameMasterView.test.jsx`         | Live header count and alive-only roster derivation (item 13)                                                                                                | 3     |
-| `src/game/playerNames.js`         | `normalizePlayerName` (item 35)                                                                                                                             | 4     |
-| `auth.test.jsx`                   | Confirm-password show/hide toggle (item 32)                                                                                                                 | 1     |
-| `NotFound.test.jsx`               | 404 route content (item 30)                                                                                                                                 | 1     |
-| `Endgamebutton.test.jsx`          | Only navigates away once `endGame` resolves; alerts instead of navigating on failure (item 10)                                                              | 2     |
-| `TaskCreation.test.jsx`           | Mission panel restored (item 15): create end to end, duplicate rejection, validation, failure toast                                                         | 4     |
-| `TaskList.test.jsx`               | Mission panel restored (item 15): active/completed split, doesn't crash when the fetch rejects                                                              | 2     |
+| Module                            | What it holds                                                                                                                                                                        | Tests |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| `src/game/targetGraph.js`         | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                                                       | 19    |
+| `src/game/remapPlan.js`           | `planRemap` — post-kill/revive matching, as a plan                                                                                                                                   | 16    |
+| `src/game/commands.js`            | `parseCommand` for the GM command bar; `UNIMPLEMENTED_COMMANDS` (item 21)                                                                                                            | 19    |
+| `src/utils/firebaseEnv.js`        | Config reading, emulator flag, production guard                                                                                                                                      | 9     |
+| `src/game/photoJudgments.js`      | `splitPhotosByStatus` (item 6)                                                                                                                                                       | 5     |
+| `dbCalls.integration.test.js`     | The data layer against the Firestore emulator                                                                                                                                        | 27    |
+| `executeKill.integration.test.js` | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                          | 7     |
+| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                                                        | 17    |
+| `PlayerAddition.test.jsx`         | The `dom` project's first test — see below                                                                                                                                           | 3     |
+| `ChatInput.test.jsx`              | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                              | 16    |
+| `RequireAuth.test.jsx`            | Route guard spinner/redirect/render states (item 3)                                                                                                                                  | 3     |
+| `PhotosDisplay.test.jsx`          | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                                                 | 5     |
+| `PlayersList.test.jsx`            | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                                            | 4     |
+| `GameMasterView.test.jsx`         | Live header count and alive-only roster derivation (item 13)                                                                                                                         | 3     |
+| `src/game/playerNames.js`         | `normalizePlayerName` (item 35)                                                                                                                                                      | 4     |
+| `auth.test.jsx`                   | Confirm-password show/hide toggle (item 32)                                                                                                                                          | 1     |
+| `NotFound.test.jsx`               | 404 route content (item 30)                                                                                                                                                          | 1     |
+| `Endgamebutton.test.jsx`          | Only navigates away once `endGame` resolves; alerts instead of navigating on failure (item 10)                                                                                       | 2     |
+| `TaskCreation.test.jsx`           | Mission panel restored (item 15): create end to end, duplicate rejection, validation, failure toast                                                                                  | 4     |
+| `TaskList.test.jsx`               | Mission panel restored (item 15): active/completed split, doesn't crash when the fetch rejects                                                                                       | 2     |
+| `TaskCreationModal.test.jsx`      | Item 15's mission modal follow-up: renders `TaskCreation` when open, renders nothing when closed, closes on the Close button, forwards a successful creation to `handleNewTaskAdded` | 4     |
+| `TaskListModal.test.jsx`          | Item 15's mission modal follow-up: renders `TaskList` when open, renders nothing when closed, closes on the Close button                                                             | 3     |
 
 The first six modules are pure and run in Jest's `node` project with no
 mocks and no Firebase; the rest need the emulator (`integration`, `rules`) or

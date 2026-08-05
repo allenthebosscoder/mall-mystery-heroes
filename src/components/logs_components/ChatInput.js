@@ -90,6 +90,8 @@ const commands = [
     { text: '/leaderboard send' },
     { text: '/mission done [player name] mission_index' },
     { text: '/mission end mission_index' },
+    { text: '/mission start' },
+    { text: '/mission view' },
     { text: '/openSeason [player] start/end' },
     { text: '/revive [player]' },
     { text: '/whisper [player] [message]' },

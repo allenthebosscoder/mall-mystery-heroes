@@ -816,7 +816,10 @@ Two dead-code findings surfaced while restoring it, both fixed:
   percentage heights, `95%` and `60%`, that together exceed the parent's
   `100%` — never exercised before, since `taskBox` was always commented out.
   Switched both to `flex` ratios (`3`/`2`) instead of fixed percentages, so
-  they always share the available height regardless of exact numbers.
+  they'd share the available height regardless of exact numbers. Superseded
+  by the same-session follow-up below: once `taskBox` was removed in favor of
+  the two modals, `photosBox` went back to a plain `h: '100%'` — `PhotosDisplay`
+  is its only child again, so there's nothing left to share height with.
 
 New test coverage: `TaskCreation.test.jsx` (create end to end and clears the
 form, duplicate rejected, validation, a rejected write shows an error toast

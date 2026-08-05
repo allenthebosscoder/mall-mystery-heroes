@@ -125,9 +125,11 @@ non-numeric argument becomes `NaN`, passes the check, and fails later as
 
 Closes a mission for everyone by setting `isComplete: true`.
 
-The success toast ("Task has been saved as completed") fires **before** the
-lookup and write, so it appears even when the index does not exist — in which
-case the subsequent `task.title` access throws.
+The index is validated and the mission is looked up and written **before**
+the success toast ("Task has been saved as completed") fires, mirroring
+`/mission done`'s guard — a bad index now fails with "Invalid task index"
+instead of toasting success and then throwing on `task.title` (improvements
+item 20).
 
 ### `/mission start`
 

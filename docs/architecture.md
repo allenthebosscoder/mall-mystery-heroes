@@ -164,13 +164,16 @@ write-only piece this note used to describe, was deleted outright once item
 ### Contexts
 
 `src/components/Contexts.js` declares three contexts with no default value and no
-provider components — providers are inlined in `GameMasterView`'s JSX.
+provider components. `gameContext` and `executionContext` providers are inlined
+in `GameMasterView`'s JSX; `taskContext`'s provider lives inside
+`TaskCreationModal.js` instead, wrapping `TaskCreation` only while the modal is
+open.
 
 | Context            | Provided value           | Consumers                                                                                                                         |
 | ------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | `gameContext`      | `{ roomID }`             | `PlayersList`, `ChatInput`, `PhotosDisplay`, `HeaderExecution`, `Endgamebutton`, `ResetTargetsButton`, `TaskList`, `TaskCreation` |
-| `executionContext` | 10 handler functions     | `ChatInput`, `PhotosDisplay`                                                                                                      |
-| `taskContext`      | `{ handleNewTaskAdded }` | `TaskCreation` — currently unreachable, see below                                                                                 |
+| `executionContext` | 12 handler functions     | `ChatInput`, `PhotosDisplay`                                                                                                      |
+| `taskContext`      | `{ handleNewTaskAdded }` | `TaskCreation`, reachable via `/mission start` opening `TaskCreationModal`                                                        |
 
 `executionContext` is provided **twice** in `GameMasterView`'s tree with the same
 object — once wrapping `ChatInput`, once wrapping the right-hand stack — because

@@ -106,9 +106,9 @@ const TaskCreation = () => {
 
         // checkForTaskDupesForRoom and addTaskForRoom throw on failure
         // rather than swallowing (docs/improvements.md item 10) — this
-        // component is currently unmounted (item 15), but the try/catch
-        // matches the pattern used everywhere else in this file so a future
-        // re-mount doesn't reintroduce an unhandled rejection.
+        // component is mounted inside TaskCreationModal (item 15), and the
+        // try/catch matches the pattern used everywhere else in this file so
+        // it doesn't reintroduce an unhandled rejection.
         try {
             const dupeExists = await checkForTaskDupesForRoom(newTask, roomID);
             if (dupeExists) {

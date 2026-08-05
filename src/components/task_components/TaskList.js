@@ -14,8 +14,8 @@ const TaskList = () => {
     const taskQuery = fetchTasksQueryForRoom(roomID);
 
     // fetchTasksByCompletionForRoom throws on failure rather than swallowing
-    // (docs/improvements.md item 10) — now surfaced with createAlert rather
-    // than console.error only, since item 15 remounted this panel and a
+    // (docs/improvements.md item 10) — surfaced with createAlert rather than
+    // console.error only, since item 15 remounted this as TaskListModal and a
     // failure here is visible to the GM again.
     const fetchTaskForRooms = async () => {
         try {
