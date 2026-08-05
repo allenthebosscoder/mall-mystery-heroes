@@ -62,7 +62,10 @@ const Lobby = () => {
         }
 
         try {
-            navigate(`/rooms/${roomID}/GameMasterView`, { state: { arrayOfPlayers } });
+            // GameMasterView derives its own player count from a live
+            // Firestore subscription now, not router state
+            // (docs/improvements.md item 13) — nothing reads this anymore.
+            navigate(`/rooms/${roomID}/GameMasterView`);
         } catch (error) {
             console.error('Error navigating to game view: ', error);
             createAlert('error', 'Error navigating to game view', 'Check console.', 1500);

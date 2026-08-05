@@ -1,0 +1,60 @@
+rules_version = '2';
+
+// Minimum-viable rules for docs/improvements.md item 2. All game state is
+// scoped to the room's host: `hostId` is the creating user's auth.uid, set
+// once in DashBoard.handleHostRoom and never changed (docs/data-model.md).
+//
+// Not addressed here, on purpose (see docs/testing.md Phase 3 scope):
+//   - item 4's atomicity problem is resolved — kills now run inside a
+//     Cloud Function transaction (functions/callableFunctions/killPlayer.js),
+//     which uses the Admin SDK and bypasses these rules entirely (it
+//     re-implements the isHostOfExistingRoom check itself). What's NOT
+//     resolved: the host can still write any *other* player field
+//     directly from the client — score via task completion,
+//     ResetTargetsButton's manual reset, open-season toggling,
+//     addPlayerForRoom. Only kills moved server-side; auditing and
+//     re-homing everything else client-writable is separate, larger scope.
+//   - `photos` is scoped to the host, not "the mobile app's identity" as
+//     item 2 originally called for — no such app exists yet (item 33).
+//     Revisit once it does.
+//   - route guards (item 3) and storage.rules are separate concerns.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isHostOfExistingRoom(roomId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid;
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.hostId == request.auth.uid;
+      allow update, delete: if isHostOfExistingRoom(roomId);
+
+      match /players/{playerId} {
+        allow read: if isSignedIn();
+        allow write: if isHostOfExistingRoom(roomId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isSignedIn();
+        allow write: if isHostOfExistingRoom(roomId);
+      }
+
+      match /logs/{logId} {
+        allow read: if isSignedIn();
+        allow write: if isHostOfExistingRoom(roomId);
+      }
+
+      // Interim scope — see file header.
+      match /photos/{photoId} {
+        allow read: if isSignedIn();
+        allow write: if isHostOfExistingRoom(roomId);
+      }
+    }
+  }
+}

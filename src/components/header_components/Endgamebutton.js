@@ -11,19 +11,30 @@ import {
 import React, { useContext } from 'react';
 import { endGame } from '../firebase_calls/dbCalls';
 import { useNavigate } from 'react-router-dom';
+import CreateAlert from '../CreateAlert';
 import { gameContext } from '../Contexts';
 
 const Endgamebutton = () => {
     const { roomID } = useContext(gameContext);
     const cancelRef = React.useRef();
     const navigate = useNavigate();
+    const createAlert = CreateAlert();
 
     const { isOpen, onOpen, onClose } = useDisclosure();
 
+    // endGame throws on failure rather than swallowing (docs/improvements.md
+    // item 10) — previously this fired-and-forgot the write and navigated
+    // away immediately regardless, so a failure was invisible and the GM
+    // would land on /dashboard believing the game had ended when it hadn't.
     const onYesEnd = async () => {
         onClose();
-        endGame(roomID);
-        navigate('/dashboard');
+        try {
+            await endGame(roomID);
+            navigate('/dashboard');
+        } catch (error) {
+            console.error('Error ending game: ', error);
+            createAlert('error', 'Error ending game', error.message, 1500);
+        }
     };
 
     const handleClick = () => {

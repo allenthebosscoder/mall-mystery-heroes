@@ -10,3 +10,6 @@ app.use(cors({ corsOptions }));
 
 const { targetFunction } = require("./callableFunctions/targetFunction")
 exports.targetFunction = targetFunction
+
+const { killPlayer } = require("./callableFunctions/killPlayer")
+exports.killPlayer = killPlayer

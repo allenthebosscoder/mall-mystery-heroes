@@ -57,9 +57,19 @@ const TaskCreation = () => {
     };
 
     //handles task submisison
+    //
+    // fetchTaskIndexThenIncrement throws on failure rather than swallowing
+    // errors (docs/improvements.md item 10) — this function had no try/catch
+    // at all, so a failure would have been an unhandled promise rejection.
     const handleAddTask = async () => {
         const titleTrimmedLowerCase = TaskTitle.replace(/\s/g, '').toLowerCase();
-        const taskIndex = await fetchTaskIndexThenIncrement(roomID);
+        let taskIndex;
+        try {
+            taskIndex = await fetchTaskIndexThenIncrement(roomID);
+        } catch (error) {
+            console.error('Error fetching task index: ', error);
+            return createAlert('error', 'Error creating task', error.message, 1500);
+        }
 
         const newTask = {
             title: TaskTitle,
@@ -94,8 +104,16 @@ const TaskCreation = () => {
             newTask.pointValue = 0;
         }
 
-        const dupeExists = await checkForTaskDupesForRoom(newTask, roomID);
-        if (!dupeExists) {
+        // checkForTaskDupesForRoom and addTaskForRoom throw on failure
+        // rather than swallowing (docs/improvements.md item 10) — this
+        // component is currently unmounted (item 15), but the try/catch
+        // matches the pattern used everywhere else in this file so a future
+        // re-mount doesn't reintroduce an unhandled rejection.
+        try {
+            const dupeExists = await checkForTaskDupesForRoom(newTask, roomID);
+            if (dupeExists) {
+                return createAlert('error', 'Error', 'Task already exists', 1500);
+            }
             await addTaskForRoom(newTask, roomID);
             handleNewTaskAdded(newTask);
             setTaskTitle('');
@@ -103,9 +121,9 @@ const TaskCreation = () => {
             setPointValue('0');
             setSelectedTaskType('');
             createAlert('success', 'Task Added', 'Your task has been created', 1500);
-        }
-        if (dupeExists) {
-            createAlert('error', 'Error', 'Task already exists', 1500);
+        } catch (error) {
+            console.error('Error creating task: ', error);
+            createAlert('error', 'Error creating task', error.message, 1500);
         }
     };
 

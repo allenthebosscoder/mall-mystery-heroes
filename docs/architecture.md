@@ -22,24 +22,30 @@ no backend of our own — see [Cloud Functions](#cloud-functions) below.
                                 │  · Storage    (kill photos)  │
 ┌─────────────────────┐         │  · Functions  (stub only)    │
 │  Player mobile app  │────────▶│                              │
-│  (NOT in this repo) │         └──────────────────────────────┘
+│  (aspirational —    │         └──────────────────────────────┘
+│   does not exist)   │
 └─────────────────────┘
 ```
 
-Two collaborators exist outside this repository:
+Two collaborators are referenced by this codebase's shape but neither is
+versioned here, so neither is documented beyond what follows — treat both as
+unknowns when changing the `photos` schema or the room document shape:
 
-- **A player-facing mobile app.** It is never referenced in code, but its
-  existence is implied: `dbCalls.js` has a helper explicitly commented
-  `// adds photo for testing without mobile app`, and the `photos` collection is
-  read but only ever written by that test helper. The mobile app is what uploads
-  kill-proof photos.
-- **Something Discord-related.** `.env` carries a `DISCORD_TOKEN` that no code in
-  this repository reads. Presumably a bot that broadcasts game events; the
-  unimplemented `/broadcast`, `/leaderboard`, and `/whisper` commands are the
-  likely intended integration point.
-
-Neither is versioned here, so neither is documented further. Treat both as
-unknowns when changing the `photos` schema or the room document shape.
+- **A player-facing mobile app — does not currently exist, anywhere**
+  ([improvements.md](./improvements.md) item 33). It is never referenced in
+  code, but its existence is implied: the `photos` collection is designed to
+  be read by such an app but is never written by anything in this repository
+  — nothing in `dbCalls.js` writes a photo document (the test helper that
+  once did was dead code, deleted per item 14). `firestore.rules`'s `photos`
+  block is scoped to the host rather than to a distinct mobile-app identity
+  for the same reason (item 2). Until this app exists, kill-proof photos
+  have no way to enter Firestore except manual/emulator seeding.
+- **Something Discord-related — unconfirmed, not just unbuilt.** `.env`
+  carries a `DISCORD_TOKEN` that no code in this repository reads.
+  Presumably a bot that broadcasts game events; the unimplemented
+  `/broadcast`, `/leaderboard`, and `/whisper` commands are the likely
+  intended integration point, but this is inference from a stray env var,
+  not a documented design.
 
 ## Layers
 
@@ -49,27 +55,26 @@ src/index.js
        ├─ pages/ ................... one component per route
        ├─ components/ .............. feature-grouped UI, some non-UI "hook-alikes"
        │    └─ firebase_calls/
-       │         ├─ dbCalls.js ..... THE data-access layer (~40 exported functions)
-       │         └─ storageCalls.js  (currently unused)
+       │         └─ dbCalls.js ..... THE data-access layer (~38 exported functions)
        ├─ utils/firebase.js ........ SDK init, emulator wiring
        ├─ theme.js ................. Chakra theme extension
-       └─ Contexts.js .............. four bare createContext() objects
+       └─ Contexts.js .............. three bare createContext() objects
 ```
 
 ### Routes
 
-Defined in `src/App.js`. All are public — see
+Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                              |
-| ------------------------------- | ---------------- | ------------------------------------ |
-| `/`                             | `Homepage`       | Log in / sign up landing             |
-| `/login`                        | `Login`          | Email + password sign-in             |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email           |
-| `/signup`                       | `SignUp`         | Account creation                     |
-| `/dashboard`                    | `DashBoard`      | Host a new room, log out             |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                |
+| Path                            | Page             | Purpose                              | Guarded |
+| ------------------------------- | ---------------- | ------------------------------------ | ------- |
+| `/`                             | `Homepage`       | Log in / sign up landing             |         |
+| `/login`                        | `Login`          | Email + password sign-in             |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email           |         |
+| `/signup`                       | `SignUp`         | Account creation                     |         |
+| `/dashboard`                    | `DashBoard`      | Host a new room, log out             | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                | ✅      |
 
 There is no catch-all `*` route, so an unknown URL renders a blank page.
 
@@ -88,68 +93,84 @@ Its naming convention is consistent and worth preserving:
   hand to `onSnapshot`
 - `update…For…` — writes
 
-Two components bypass the seam and use the Firestore SDK directly:
-`UnmapPlayers.js` and `DashBoard.js` (room creation). `old-components/OpenSeason.js`
-does too, but that file is dead code.
+One file bypasses the seam and uses the Firestore SDK directly: `DashBoard.js`
+(room creation). `src/utils/UnmapPlayers.js` used to be a second exception;
+it was deleted when its unmapping logic moved server-side into `killPlayer`'s
+transaction (item 4), which touches the Admin SDK directly — a different,
+intentional exception, since it's server-side code in a separate package,
+not a component reaching around `dbCalls.js`.
 
-Every function in `dbCalls.js` wraps its body in `try/catch` and reports failures
-via `console.error`, then returns `undefined`. Callers do not check for this, so
-a failed read commonly surfaces later as a `TypeError` on `.docs[0]` or
-`.data()`. This is a systemic pattern, not an oversight in one place — see
-[improvements.md](./improvements.md).
+Most functions in `dbCalls.js` still wrap their body in `try/catch` and report
+failures via `console.error`, then return `undefined`, and callers do not
+check for this — a failed read commonly surfaces later as a `TypeError` on
+`.docs[0]` or `.data()`. A representative subset (12 functions, and every one
+of their call sites) now throws instead and is handled with `CreateAlert` at
+the call site. This is a systemic pattern still mostly present, not an
+oversight fully fixed in one place — see
+[improvements.md item 10](./improvements.md).
 
 ### Components that are not components
 
-Several files under `src/components/` export a factory that returns a function
+Some files under `src/components/` export a factory that returns a function
 rather than JSX. They are used like hooks but are not named like them:
 
 | File              | Returns                                                         |
 | ----------------- | --------------------------------------------------------------- |
 | `CreateAlert.js`  | `showToast(status, title, description, duration)`               |
-| `UnmapPlayers.js` | `handleUnmapping(playerName, roomID)`                           |
 | `RemapPlayers.js` | `handleRegeneration(needTargets, needAssassins, alive, roomID)` |
 
 They are invoked as `const createAlert = CreateAlert();` at the top of a
-component body. `CreateAlert` and `UnmapPlayers` genuinely depend on hooks or
-module state; `RemapPlayers` does not, and could be a plain module function.
+component body. `CreateAlert` genuinely depends on a hook (`useToast()`);
+`RemapPlayers` does not, and could be a plain module function.
 
-Note that `dbCalls.killPlayerForRoom` calls `UnmapPlayers()` at module-function
-scope — a data-layer function reaching back into the component layer.
+`UnmapPlayers` used to be in this table too — a data-layer function
+(`dbCalls.killPlayerForRoom`) called `UnmapPlayers()` at module-function
+scope, a data-layer function reaching back into the component layer for a
+factory pattern it never needed (it used no hooks; the doc's older claim
+that it "genuinely depended on hooks or module state" was simply wrong).
+Resolved by moving it to `src/utils/UnmapPlayers.js` as a plain exported
+`handleUnmapping` function
+([improvements.md item 16](./improvements.md)). That file was later deleted
+outright when item 4 moved unmapping server-side into `killPlayer`'s
+transaction, which re-implements it from scratch rather than calling the
+old function.
 
-## State management
+## State management ✅ Resolved (improvements item 13)
 
-There is no state library. State lives in three separate places that do not
-agree with each other, which is the single most important thing to understand
-before changing `GameMasterView`.
+There is no state library. Until item 13, state lived in three separate
+places that did not agree with each other: `PlayersList`/`PhotosDisplay`
+subscribed live via `onSnapshot`, `GameMasterView` fetched its own player/log
+arrays once on mount and mutated them by hand, and the header's roster count
+came from React Router location state (`useLocation().state.arrayOfPlayers`,
+lost on reload — `Players (0)`).
 
-**1. Live Firestore subscriptions.** `PlayersList` and `PhotosDisplay` each call
-a `fetch…QueryFor…` helper and subscribe with `onSnapshot`. These are always
-current and update across browser tabs.
-
-**2. Local React state in `GameMasterView`.** `arrayOfAlivePlayers`,
-`arrayOfDeadPlayers`, `arrayOfTasks`, `completedTasks`, and `logList` are fetched
-**once** on mount and thereafter mutated optimistically by handler functions
-(`handleKillPlayer`, `handlePlayerRevive`, …). They do not re-sync with
-Firestore, so a second GM's actions are invisible until reload.
-
-**3. React Router location state.** The roster count in the console header comes
-from `useLocation().state.arrayOfPlayers`, passed by `Lobby` at navigation time.
-Refreshing `GameMasterView` discards it and the header reads `Players (0)`.
-
-The consequence: `PlayersList` (subscription) and the header count (router
-state) can and do disagree on screen at the same time.
+`GameMasterView` now owns a single live `onSnapshot` subscription to the
+same player query `PlayersList` used to subscribe to independently
+(`fetchPlayersQueryByDescendPointsThenIsAliveForRoom`) and a second one for
+the `logs` subcollection (`fetchLogsQueryByAscendingTimestampForRoom` — see
+[data-model.md](./data-model.md), item 22). The header count
+(`players.length`) and `ResetTargetsButton`'s alive-only roster
+(`players.filter(p => p.isAlive).map(p => p.name)`) are both derived inline
+from that one subscription — no separate state, no manual mutation.
+`PlayersList` is presentational now, taking `players` as a prop instead of
+subscribing itself (two live listeners on the same query would have doubled
+the reads for no benefit). `completedTasks` remains write-only local state —
+`TaskList` (item 15) owns its own independent live subscription to the
+tasks collection rather than reading this. `arrayOfTasks`, the other
+write-only piece this note used to describe, was deleted outright once item
+15 restored the mission panel and made its uselessness obvious (its own
+`fetchAllTasksForRoom` fetch, read by nothing).
 
 ### Contexts
 
-`src/components/Contexts.js` declares four contexts with no default value and no
+`src/components/Contexts.js` declares three contexts with no default value and no
 provider components — providers are inlined in `GameMasterView`'s JSX.
 
-| Context                 | Provided value           | Consumers                                                                                                                         |
-| ----------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `gameContext`           | `{ roomID }`             | `PlayersList`, `ChatInput`, `PhotosDisplay`, `HeaderExecution`, `Endgamebutton`, `ResetTargetsButton`, `TaskList`, `TaskCreation` |
-| `executionContext`      | 12 handler functions     | `ChatInput`, `PhotosDisplay`                                                                                                      |
-| `taskContext`           | `{ handleNewTaskAdded }` | `TaskCreation` — currently unreachable, see below                                                                                 |
-| `deadPlayerListContext` | never provided           | only `old-components/` (dead)                                                                                                     |
+| Context            | Provided value           | Consumers                                                                                                                         |
+| ------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `gameContext`      | `{ roomID }`             | `PlayersList`, `ChatInput`, `PhotosDisplay`, `HeaderExecution`, `Endgamebutton`, `ResetTargetsButton`, `TaskList`, `TaskCreation` |
+| `executionContext` | 10 handler functions     | `ChatInput`, `PhotosDisplay`                                                                                                      |
+| `taskContext`      | `{ handleNewTaskAdded }` | `TaskCreation` — currently unreachable, see below                                                                                 |
 
 `executionContext` is provided **twice** in `GameMasterView`'s tree with the same
 object — once wrapping `ChatInput`, once wrapping the right-hand stack — because
@@ -162,33 +183,67 @@ Firebase Auth, email/password only, handled entirely by `src/components/auth.js`
 goes through `sendPasswordResetEmail`. Google sign-in is initialized in
 `utils/firebase.js` (`googleProvider`) but never used.
 
-**There is no authorization anywhere.** Specifically:
+**Authorization is enforced at both the database and the route.**
+`firestore.rules` (registered in `firebase.json`) requires `request.auth !=
+null` for every read, and scopes every write under `rooms/{roomId}` —
+including the `players`, `tasks`, and `photos` subcollections — to
+`resource.data.hostId == request.auth.uid`. `rooms/{roomID}.hostId`, written
+once at room creation, is now read, by the rules engine. On top of that,
+`src/components/RequireAuth.js` wraps `/dashboard` and the two
+`/rooms/:roomID/*` routes, redirecting a signed-out visitor to `/` before the
+page renders at all — defense-in-depth, not a substitute for the rules.
 
-- No route guards. `/dashboard` and `/rooms/:roomID/*` render for signed-out
-  visitors. `DashBoard` checks `auth.currentUser` only to decide whether to
-  create a room, and logs to console if absent.
-- No `firestore.rules` file exists in this repository, and `firebase.json` does
-  not register one. Whatever rules are live in the Firebase project are unknown
-  and unversioned.
-- `storage.rules` is `allow read, write: if true` for all paths.
-- `rooms/{roomID}.hostId` is written at creation and never read again, so room
-  ownership is recorded but not enforced.
+Gaps that remain, per [improvements.md](./improvements.md):
+
+- `storage.rules` is still `allow read, write: if true` for all paths (item 2's
+  storage half, out of scope for the Firestore-rules pass).
+- All game logic remains client-side, so a signed-in host can still write any
+  field on their own room's documents, including `score` directly — the rules
+  stop other people from editing a room, not a host from writing anything to
+  their own (item 4, item 10 in [testing.md](./testing.md#layer-2--security-rules-)).
+- `photos` is scoped to the host, not to a distinct mobile-app identity — no
+  such app exists in this repository (item 33).
 
 ## Cloud Functions
 
-`functions/` contains one callable, `targetFunction`, which checks
-`context.auth` and echoes its input back. Nothing in the game depends on it; the
-only caller is `src/components/cloudFunction.js`, a debug button component that
-is not mounted anywhere.
+`functions/` contains two callables:
+
+- `targetFunction` — a stub that checks `context.auth` and echoes its input
+  back. Nothing in the game depends on it; its only caller, a debug button
+  component (`cloudFunction.js`) that was never mounted anywhere, was
+  deleted as dead code (`improvements.md` item 14).
+- `killPlayer` (`functions/callableFunctions/killPlayer.js`) — the atomic
+  replacement for the client-side kill flow (`improvements.md` item 4).
+  Validates the kill, transfers points, marks the victim dead, unmaps them
+  from every neighbor, and reassigns targets/assassins to whoever that
+  leaves short, all inside one Firestore transaction via the Admin SDK.
+  `src/components/executeKill.js` is now a thin `httpsCallable` wrapper
+  around it. This is the one place in the app where game logic runs
+  server-side rather than in the browser.
 
 `functions/index.js` additionally constructs an Express app with CORS and then
-never exports or uses it.
+never exports or uses it — pre-existing dead scaffolding, unrelated to
+either callable.
 
-The practical consequence: **all game logic runs on the client.** Target
-assignment, kill validation, scoring, and revival all execute in the browser and
-write directly to Firestore. Combined with the absence of Firestore rules, the
-game state is fully writable by anyone holding the (necessarily public) Firebase
-web config.
+**Kills are the one exception; everything else is still client-side.**
+Target _generation_ (the initial ring assignment), open-season toggling,
+task-completion scoring, and reviving a player all still execute in the
+browser and write directly to Firestore, same as before. `firestore.rules`
+(item 2) scopes those writes to the room's host, but does not distinguish
+_which_ field a host writes — a signed-in host can still write a player's
+score directly, for anything that isn't a kill. See `firestore.rules`'s own
+header comment and `improvements.md` item 4's resolution for the exact
+boundary of what moved server-side and what didn't.
+
+`functions/` is a separate npm package sharing the root's dependency tree
+via npm workspaces (`package.json`'s `"workspaces": ["functions"]`) — a
+single `npm install` at the repo root installs both. `killPlayer.js` reuses
+`src/game/remapPlan.js` (and its own dependencies, `targetGraph.js` and
+`playerNames.js`) directly via a relative `require()` — those three files
+use CommonJS `module.exports` rather than this codebase's usual ES
+`export`/`import` specifically so a plain Node `require()` from `functions/`
+works with no build step; the client's existing `import` of them is
+unaffected (webpack's CommonJS interop).
 
 ## Configuration and environments
 

@@ -21,12 +21,14 @@ const Auth = (props) => {
     const [password, setPassword] = useState('');
     const [password2, setPassword2] = useState('');
     const [show, setShow] = useState(false);
+    const [show2, setShow2] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [passRules, setPassRules] = useState(true);
     const isLoginPage = props.isLoginPage;
     const navigate = useNavigate();
 
     const handleClick = () => setShow(!show);
+    const handleClick2 = () => setShow2(!show2);
 
     const signIn = async () => {
         try {
@@ -143,12 +145,24 @@ const Auth = (props) => {
                     <InputGroup size="md">
                         <Input
                             pr="4.5rem"
-                            type="password"
+                            type={show2 ? 'text' : 'password'}
                             placeholder="Confirm password"
                             value={password2}
                             onChange={(e) => setPassword2(e.target.value)}
                             borderWidth="3px" //until theme is fixed
                         />
+                        <InputRightElement width="4.5rem">
+                            <Button
+                                h="1.75rem"
+                                size="sm"
+                                onClick={handleClick2}
+                                variant="ghost"
+                                color="brand.100"
+                                _hover={{ bg: 'brand.500', color: 'black' }}
+                            >
+                                {show2 ? 'Hide' : 'Show'}
+                            </Button>
+                        </InputRightElement>
                     </InputGroup>
                 )}
                 {isLoginPage ? (

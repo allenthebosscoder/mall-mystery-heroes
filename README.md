@@ -8,9 +8,10 @@ drive the whole game.
 It is a Create React App single-page application backed entirely by Firebase —
 Auth, Firestore, and Storage. There is no backend of our own.
 
-> **Companion apps.** A player-facing mobile app (which uploads the kill photos)
-> and something Discord-related both interact with this system but live outside
-> this repository. See [docs/architecture.md](docs/architecture.md#system-context).
+> **Companion apps.** A player-facing mobile app is meant to upload kill
+> photos, but does not currently exist — aspirational, not "elsewhere."
+> Something Discord-related is implied by a stray env var, unconfirmed. See
+> [docs/architecture.md](docs/architecture.md#system-context).
 
 ## Documentation
 
@@ -42,8 +43,11 @@ passes the project id with `--project` rather than selecting it with
 
 ```bash
 npm install
-(cd functions && npm install)
 ```
+
+`functions/` is an npm workspace of the root package, so this one install
+covers both packages' dependencies — no separate `cd functions && npm
+install` step needed.
 
 Create a `.env` in the repository root with the Firebase web config for your
 project (Firebase console → Project settings → Your apps → SDK setup):
@@ -123,7 +127,7 @@ Since the emulator starts empty, a local run needs an account created through
 | `npm run format:check`     | Prettier in check mode, as CI runs it                             |
 | `npm run firebase:emulate` | Selects the `default` project alias and starts the emulator suite |
 
-Inside `functions/`: `npm run serve`, `npm run deploy`, `npm run logs`.
+Inside `functions/`: `npm run serve`, `npm run deploy`, `npm run logs`, `npm run lint`.
 
 ## Contributing
 
@@ -142,11 +146,10 @@ src/
     logs_components/            log panel and the GM command bar
     photos_display_component/   kill-photo moderation queue
     player_listing/             live player list
-    task_components/            missions (currently unmounted)
-    old-components/             DEAD CODE — unreferenced, imports already broken
+    task_components/            mission creation and listing panel
   utils/firebase.js             SDK init and emulator wiring
   Contexts.js, theme.js
-functions/                      one callable stub; no game logic runs here
+functions/                      killPlayer (atomic kill transaction) + a callable stub
 docs/                           architecture documentation
 ```
 
@@ -155,13 +158,18 @@ docs/                           architecture documentation
 Worth knowing before you start changing things — all detailed in
 [docs/improvements.md](docs/improvements.md):
 
-- **No Firestore security rules are versioned here**, and `storage.rules` allows
-  unauthenticated read/write on every path.
-- **No route guards** — every route renders for signed-out visitors.
-- **All game logic is client-side.** Cloud Functions contains one echo stub.
-  Scoring, kill validation, and target assignment all run in the browser.
-- **Test coverage is thin.** The harness is in place and CI runs it, but most of
-  the game logic is still untested — see [docs/testing.md](docs/testing.md).
+- **`firestore.rules` scopes access to a room's host**, and the three
+  authenticated routes are wrapped in `RequireAuth`, but `storage.rules` still
+  allows unauthenticated read/write on every path.
+- **Most game logic is still client-side.** Kills are the one exception —
+  validation, scoring, unmapping, and remapping all run server-side inside
+  the `killPlayer` Cloud Function's transaction. Target assignment,
+  open-season toggling, and task-completion scoring still run in the
+  browser — a signed-in host can still write any of those fields directly
+  to their own room.
+- **Test coverage is thin outside `src/game/` and the kill path.** The
+  harness is in place and CI runs it, but plenty of game logic is still
+  untested — see [docs/testing.md](docs/testing.md).
 - **`.firebaserc` maps `dev` and `prod` to the same project.** There is no
   staging environment.
 - **Deployment is not captured here** — `firebase.json` has no `hosting` block,

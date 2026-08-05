@@ -2,45 +2,54 @@ import { Box, Heading, Image } from '@chakra-ui/react';
 import { useContext, useEffect, useState } from 'react';
 import { gameContext } from '../Contexts';
 import {
+    approvePhotoForRoom,
     fetchPhotosQueryByAscendingTimestampForRoom,
-    killPlayerForRoom,
     updatePhotoStatusForRoom,
-    fetchPlayerForRoom,
     updatePointsForPlayer,
     updateTargetsForPlayer,
     updateAssassinsForPlayer,
     remapPlayerAsTarget,
 } from '../firebase_calls/dbCalls';
 import { onSnapshot } from 'firebase/firestore';
+import { splitPhotosByStatus } from '../../game/photoJudgments';
+import { executeKill } from '../executeKill';
 import confirm from '../../assets/enter-green.png';
 import deny from '../../assets/red-x.png';
 import undo from '../../assets/arrow-left.png';
 import GamePhotos from './GamePhotos';
 import { executionContext } from '../Contexts';
+import CreateAlert from '../CreateAlert';
 
 const PhotosDisplay = () => {
     const [unjudgedPhotos, setUnjudgedPhotos] = useState([]);
     const [judgedPhotos, setJudgedPhotos] = useState([]);
     const { roomID } = useContext(gameContext);
-    const { handlePlayerRevive, setArrayOfAlivePlayers, setArrayOfDeadPlayers, addLog } =
-        useContext(executionContext);
+    const {
+        handlePlayerRevive,
+        addLog,
+        handleRemapping,
+        handleAddNewAssassins,
+        handleAddNewTargets,
+        handleSetShowMessageToTrue,
+    } = useContext(executionContext);
+    const createAlert = CreateAlert();
 
+    // Both lists are derived from Firestore on every snapshot, not
+    // accumulated locally (docs/improvements.md item 6) — judgedPhotos used
+    // to live only in React state, built up as the GM clicked through a
+    // session, so reloading the console lost every prior judgment (and the
+    // originalPlayerData an undo needs) even though the photo documents
+    // were already approved/denied in Firestore. splitPhotosByStatus is the
+    // pure, unit-tested piece of this (src/game/photoJudgments.js).
     useEffect(() => {
         const photosQuery = fetchPhotosQueryByAscendingTimestampForRoom(roomID);
         const unsubscribe = onSnapshot(
             photosQuery,
             (snapshot) => {
-                if (!snapshot.empty) {
-                    const allPhotos = snapshot.docs
-                        .map((doc) => ({
-                            id: doc.id,
-                            ...doc.data(),
-                        }))
-                        .filter((photo) => photo.status === 'pending');
-                    setUnjudgedPhotos(allPhotos);
-                } else {
-                    setUnjudgedPhotos([]);
-                }
+                const allPhotos = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+                const { unjudged, judged } = splitPhotosByStatus(allPhotos);
+                setUnjudgedPhotos(unjudged);
+                setJudgedPhotos(judged);
             },
             (error) => {
                 console.error('Error fetching photos: ', error);
@@ -50,32 +59,61 @@ const PhotosDisplay = () => {
         return () => unsubscribe();
     }, [roomID]);
 
+    // Approving a photo used to kill the target unconditionally — no check
+    // that the assassin was actually hunting them, and no remap of the
+    // target's own assassins/targets onto new ones (docs/improvements.md
+    // item 5). executeKill now runs the validate/transfer-points/kill/
+    // unmap/remap sequence atomically server-side (item 4) — the same
+    // Cloud Function /kill (ChatInput.js) calls, so the two paths can't
+    // diverge; its preKillSnapshot is exactly the {score, targets,
+    // assassins} shape handleUndo below expects as originalPlayerData.
     const handlePass = async () => {
         if (unjudgedPhotos.length === 0) return;
         const [currentPhoto] = unjudgedPhotos;
 
-        const playerDoc = await fetchPlayerForRoom(currentPhoto.target, roomID);
-        const originalPlayerData = playerDoc.data(); // contains score, targets, etc.
+        try {
+            const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } = await executeKill(
+                currentPhoto.target,
+                currentPhoto.assassin,
+                roomID
+            );
 
-        await updatePhotoStatusForRoom(roomID, currentPhoto.id, 'approved');
-        await killPlayerForRoom(currentPhoto.target, roomID);
-        await addLog(`${currentPhoto.target} was killed by ${currentPhoto.assassin}`, 'red.400');
-        setJudgedPhotos((prev) => [
-            ...prev,
-            { photo: currentPhoto, action: 'pass', originalPlayerData },
-        ]);
+            // Persists preKillSnapshot onto the photo doc so undo survives a
+            // reload (docs/improvements.md item 6) — the onSnapshot listener
+            // above picks up the resulting status change and recomputes
+            // judgedPhotos, so no local state update is needed here.
+            await approvePhotoForRoom(roomID, currentPhoto.id, preKillSnapshot);
+            await addLog(
+                `${currentPhoto.target} was killed by ${currentPhoto.assassin}`,
+                'red.400'
+            );
+
+            for (const log of remapLogs) {
+                await handleRemapping(log);
+            }
+            handleAddNewAssassins(addedAssassins);
+            handleAddNewTargets(addedTargets);
+            handleSetShowMessageToTrue();
+        } catch (error) {
+            console.error('Error approving photo: ', error);
+            createAlert('error', 'Error approving photo', error.message, 1500);
+        }
     };
 
     const handleDeny = async () => {
         if (unjudgedPhotos.length === 0) return;
         const [currentPhoto] = unjudgedPhotos;
 
-        await updatePhotoStatusForRoom(roomID, currentPhoto.id, 'denied');
-        await addLog(
-            `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
-            'gray'
-        );
-        setJudgedPhotos((prev) => [...prev, { photo: currentPhoto, action: 'deny' }]);
+        try {
+            await updatePhotoStatusForRoom(roomID, currentPhoto.id, 'denied');
+            await addLog(
+                `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
+                'gray'
+            );
+        } catch (error) {
+            console.error('Error denying photo: ', error);
+            createAlert('error', 'Error denying photo', error.message, 1500);
+        }
     };
 
     const handleUndo = async () => {
@@ -100,10 +138,9 @@ const PhotosDisplay = () => {
                 await updateTargetsForPlayer(photo.target, originalPlayerData.targets, roomID);
                 await updateAssassinsForPlayer(photo.target, originalPlayerData.assassins, roomID);
                 await remapPlayerAsTarget(photo.target, roomID, originalPlayerData.assassins);
-
-                // Mark target as alive again
-                setArrayOfAlivePlayers((prev) => [...prev, photo.target]);
-                setArrayOfDeadPlayers((prev) => prev.filter((name) => name !== photo.target));
+                // GameMasterView's players subscription (docs/improvements.md
+                // item 13) picks up handlePlayerRevive's isAlive write above
+                // — no local array mutation needed.
             }
 
             if (action === 'deny') {
@@ -112,12 +149,11 @@ const PhotosDisplay = () => {
                     'blue.200'
                 );
             }
-
-            // Step 3: Update UI state
-            setJudgedPhotos((prev) => prev.slice(0, -1));
-            setUnjudgedPhotos((prev) => [photo, ...prev]);
+            // unjudgedPhotos/judgedPhotos update via the onSnapshot listener
+            // once the status write above lands — no local update needed.
         } catch (error) {
             console.error('Error undoing photo judgment:', error);
+            createAlert('error', 'Error undoing photo judgment', error.message, 1500);
         }
     };
 
@@ -131,9 +167,14 @@ const PhotosDisplay = () => {
                     <GamePhotos photo={unjudgedPhotos[0]} />
                 </Box>
                 <Box sx={styles.buttonsBox}>
-                    <Image src={deny} sx={styles.buttonImage} onClick={handleDeny} />
-                    <Image src={undo} sx={styles.buttonImage} onClick={handleUndo} />
-                    <Image src={confirm} sx={styles.buttonImage} onClick={handlePass} />
+                    <Image src={deny} alt="Deny" sx={styles.buttonImage} onClick={handleDeny} />
+                    <Image src={undo} alt="Undo" sx={styles.buttonImage} onClick={handleUndo} />
+                    <Image
+                        src={confirm}
+                        alt="Approve"
+                        sx={styles.buttonImage}
+                        onClick={handlePass}
+                    />
                 </Box>
             </Box>
         </>

@@ -1,6 +1,6 @@
 # Testing strategy
 
-**Status: phases 0, 1 and 2 are implemented; phases 3–4 are still proposal.** This
+**Status: phases 0–3 are implemented; phase 4 is still proposal.** This
 document reviews why the architecture resisted testing, records the refactors
 that unlocked it, and lays out what remains.
 
@@ -12,26 +12,61 @@ catch.
 
 ```
 $ npm test
-PASS unit src/game/targetGraph.test.js
 PASS unit src/game/commands.test.js
-PASS unit src/game/remapPlan.test.js
 PASS unit src/utils/firebaseEnv.test.js
+PASS unit src/game/remapPlan.test.js
+PASS unit src/game/targetGraph.test.js
+PASS unit src/game/photoJudgments.test.js
+PASS unit src/game/playerNames.test.js
+PASS dom src/components/RequireAuth.test.jsx
+PASS dom src/components/lobby_components/PlayerAddition.test.jsx
+PASS dom src/components/logs_components/ChatInput.test.jsx
+PASS dom src/components/photos_display_component/PhotosDisplay.test.jsx
+PASS dom src/components/player_listing/PlayersList.test.jsx
+PASS dom src/pages/GameMasterView.test.jsx
+PASS dom src/components/auth.test.jsx
+PASS dom src/pages/NotFound.test.jsx
+PASS dom src/components/header_components/Endgamebutton.test.jsx
+PASS dom src/components/task_components/TaskCreation.test.jsx
+PASS dom src/components/task_components/TaskList.test.jsx
 
-Test Suites: 4 passed, 4 total
-Tests:       62 passed, 62 total
+Test Suites: 17 passed, 17 total
+Tests:       114 passed, 114 total
 ```
 
-| Module                        | What it holds                                      | Tests |
-| ----------------------------- | -------------------------------------------------- | ----- |
-| `src/game/targetGraph.js`     | `maxTargetsFor`, `shuffle`, `buildTargetGraph`     | 19    |
-| `src/game/remapPlan.js`       | `planRemap` — post-kill/revive matching, as a plan | 16    |
-| `src/game/commands.js`        | `parseCommand` for the GM command bar              | 18    |
-| `src/utils/firebaseEnv.js`    | Config reading, emulator flag, production guard    | 9     |
-| `dbCalls.integration.test.js` | The data layer against the Firestore emulator      | 15    |
+`npm run test:emulator` runs two further suites against the real Firestore,
+Auth, and Functions emulators together — `dbCalls.integration.test.js` (27
+tests) and `executeKill.integration.test.js` (7 tests), 34 tests total.
+`npm run test:rules` runs `test/firestore.rules.test.js` (17 tests) against
+Firestore alone.
 
-All four are pure and run in Jest's `node` project with no mocks and no
-Firebase. The components now call into them rather than carrying their own
-copies:
+| Module                            | What it holds                                                                                                                                               | Tests |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `src/game/targetGraph.js`         | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                              | 19    |
+| `src/game/remapPlan.js`           | `planRemap` — post-kill/revive matching, as a plan                                                                                                          | 16    |
+| `src/game/commands.js`            | `parseCommand` for the GM command bar; `UNIMPLEMENTED_COMMANDS` (item 21)                                                                                   | 19    |
+| `src/utils/firebaseEnv.js`        | Config reading, emulator flag, production guard                                                                                                             | 9     |
+| `src/game/photoJudgments.js`      | `splitPhotosByStatus` (item 6)                                                                                                                              | 5     |
+| `dbCalls.integration.test.js`     | The data layer against the Firestore emulator                                                                                                               | 27    |
+| `executeKill.integration.test.js` | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth | 7     |
+| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                               | 17    |
+| `PlayerAddition.test.jsx`         | The `dom` project's first test — see below                                                                                                                  | 3     |
+| `ChatInput.test.jsx`              | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35                                                                                  | 14    |
+| `RequireAuth.test.jsx`            | Route guard spinner/redirect/render states (item 3)                                                                                                         | 3     |
+| `PhotosDisplay.test.jsx`          | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                        | 5     |
+| `PlayersList.test.jsx`            | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                   | 4     |
+| `GameMasterView.test.jsx`         | Live header count and alive-only roster derivation (item 13)                                                                                                | 3     |
+| `src/game/playerNames.js`         | `normalizePlayerName` (item 35)                                                                                                                             | 4     |
+| `auth.test.jsx`                   | Confirm-password show/hide toggle (item 32)                                                                                                                 | 1     |
+| `NotFound.test.jsx`               | 404 route content (item 30)                                                                                                                                 | 1     |
+| `Endgamebutton.test.jsx`          | Only navigates away once `endGame` resolves; alerts instead of navigating on failure (item 10)                                                              | 2     |
+| `TaskCreation.test.jsx`           | Mission panel restored (item 15): create end to end, duplicate rejection, validation, failure toast                                                         | 4     |
+| `TaskList.test.jsx`               | Mission panel restored (item 15): active/completed split, doesn't crash when the fetch rejects                                                              | 2     |
+
+The first six modules are pure and run in Jest's `node` project with no
+mocks and no Firebase; the rest need the emulator (`integration`, `rules`) or
+jsdom (`dom`). The components now call into the pure modules rather than
+carrying their own copies:
 
 - `TargetGenerator.js` and `ResetTargetsButton.js` both call `buildTargetGraph`;
   their two ~120-line duplicate implementations are gone.
@@ -54,7 +89,7 @@ Two behaviour changes came with this, both intended:
 
 ```bash
 npm test              # unit + dom projects. No emulator, no network.
-npm run test:emulator # integration project, emulator started and torn down around it
+npm run test:emulator # integration project, against firestore+auth+functions emulators, started and torn down around it
 ```
 
 `npm test` deliberately excludes the integration project so the default loop
@@ -188,7 +223,7 @@ round trips. Any test of them is really a test of a Firestore mock.
 even after extraction the target-graph functions would produce unrepeatable
 output.
 
-### Bonus: three sources of truth make component assertions meaningless
+### Bonus: three sources of truth make component assertions meaningless ✅ done
 
 Per [architecture.md](./architecture.md#state-management), `GameMasterView`'s
 player arrays are fetched once on mount and thereafter mutated optimistically,
@@ -197,6 +232,13 @@ from router state. A component test asserting "after `/kill alice`, the roster
 shows 6" is asserting against local state that Firestore may already disagree
 with. Until item 13 in the backlog is fixed, high-level component tests will
 encode the bug rather than catch it.
+
+Item 13 is fixed now — `GameMasterView` subscribes live, the same as
+`PlayersList`/`PhotosDisplay` already did. See its resolution in
+[improvements.md](./improvements.md) and the design doc it links to. This
+section is kept for the historical reasoning; `GameMasterView.test.jsx` and
+`PlayersList.test.jsx` are the component tests this section says were
+meaningless to write before.
 
 ---
 
@@ -274,7 +316,7 @@ export const executeCommand = (parsed, { roomID, db, handlers, alert, rng, clock
 clears the input. Every command path then tests with a hand-written fake `db`
 object — no `jest.mock` of 18 imports, no rendering.
 
-### R5 — Fix the `dbCalls` return contract
+### R5 — Fix the `dbCalls` return contract ✅ done
 
 Every function currently wraps its body in `try/catch`, logs, and returns
 `undefined` (backlog item 10). Callers never check, so failures surface as
@@ -284,13 +326,24 @@ cannot assert "this call failed" when success and failure both return
 
 Let them throw. Handle at the call site with the existing `CreateAlert` toast.
 
-### R6 — Unify the two kill paths
+Done in two passes — see [improvements.md item 10](./improvements.md) for
+the full writeup of both. Every `dbCalls.js` function now either throws on
+failure or, for the handful of synchronous query-builder functions that
+never touched the network in the first place, never had a real failure mode
+to catch.
+
+### R6 — Unify the two kill paths ✅ done
 
 Backlog item 5: `PhotosDisplay.handlePass` (`PhotosDisplay.js:44`) kills without
 validating the target is on the assassin's list and without remapping, while
 `/kill` does both. Extract one `executeKill(target, assassin, roomID, deps)` used
 by both. Right now there is no single function to point a test at — which is
 exactly why the two paths were allowed to diverge.
+
+Landed as `src/components/executeKill.js`, with the dependency-object idea
+from R4 narrowed to just what this function needs rather than the full
+command executor. See [improvements.md item 5](./improvements.md) for the
+full writeup and its test coverage across Layers 1 and 3.
 
 ---
 
@@ -387,25 +440,108 @@ precisely a test in this layer: `addPlayerForRoom('Alice')` then
 Since the data model is only recorded in `data-model.md` and reconstructed from
 call sites, these tests double as the executable schema the repository lacks.
 
-### Layer 2 — Security rules
+All `*.integration.test.js` files share one emulator backend process
+(`firebase emulators:exec` starts it once for the whole `npm run
+test:emulator` run), and `clearFirestore()` wipes the _entire_ emulator, not
+just the calling file's room. Jest runs separate test files in parallel
+workers by default, so two files clearing/seeding concurrently can clobber
+each other mid-test — this surfaced as spurious `PERMISSION_DENIED` failures
+once a second integration file (`executeKill.integration.test.js`) existed
+alongside `dbCalls.integration.test.js`. Fixed by running both `test:emulator`
+and `test:rules` with `--runInBand`, serializing test files within that one
+project selection; since each script only ever selects its own single Jest
+project, this doesn't slow down `npm test`'s `unit`/`dom` projects, which
+never run in the same invocation.
 
-Blocked on backlog item 2: there is no `firestore.rules` file at all, and
-`storage.rules` is `allow read, write: if true` on every path. Once rules exist,
-`@firebase/rules-unit-testing` gives you the highest security-per-line-of-test
-ratio available:
+### Layer 1b — Cloud Functions, against the Functions, Firestore, and Auth emulators together
+
+Target: `functions/callableFunctions/killPlayer.js` (backlog item 4).
+
+`executeKill.integration.test.js` calls it exactly the way the real app
+does — through `httpsCallable`, via the thin `src/components/executeKill.js`
+wrapper — rather than importing the function's internals and invoking them
+directly (the `firebase-functions-test` shortcut this repo's devDependencies
+would otherwise support). That keeps the same "test through the real
+interface" stance Layer 1 already takes with `dbCalls.js`: assertions read
+back what actually landed in Firestore after a real callable-function HTTP
+round trip, not what the function's return value merely claims happened.
+
+This requires the `functions` emulator running alongside `firestore` and
+`auth` — `test:emulator`'s `--only` flag lists all three. A second helper,
+`callableAsNonHost` (`test/emulatorHelpers.js`), spins up a second, separate
+Firebase app instance signed in as a different anonymous user, so the
+host-only authorization check (re-implemented in `killPlayer.js`, since the
+Admin SDK it runs under bypasses `firestore.rules` entirely) has something
+real to reject.
+
+`functions/` has its own lint config and script (`functions/.eslintrc.json`,
+`npm run lint` from inside `functions/`) but no separate unit-test runner —
+the three pure modules it imports (`src/game/{remapPlan,targetGraph,
+playerNames}.js`) are already covered by Layer 0, and `killPlayer.js` itself
+has no logic that isn't more accurately exercised end-to-end at this layer.
+
+### Layer 2 — Security rules ✅
+
+`firestore.rules` exists (`test/firestore.rules.test.js`, run via `npm run
+test:rules`), scoped to the room's host via `hostId`. As anticipated, this
+gives the highest security-per-line-of-test ratio in the suite:
 
 - unauthenticated read of `rooms/{id}/players` → denied
 - authenticated non-host write to another room's player → denied
 - host write to own room → allowed
-- client write to `points` → denied (once scoring moves server-side)
+- client write to `points` → **still allowed**. Kills specifically no
+  longer take this path — they run server-side via `killPlayer` (item 4,
+  Layer 1b above), which the Admin SDK exempts from these rules entirely —
+  but every other player write (task-completion scoring, manual target
+  reset, open-season toggling) still goes through the client SDK, so a
+  signed-in host can still write `points` directly outside a kill. This
+  rules test still intentionally passes for that reason, not because it's
+  stale.
+
+`photos` is scoped to the host too, not "the mobile app's identity" as
+originally proposed — see backlog item 33 and the comment in `firestore.rules`.
+
+`storage.rules` (`allow read, write: if true`) is unchanged — out of scope for
+this phase; see backlog item 2.
+
+Adding real rules broke the Layer 1 suite's assumption that `dbCalls` could
+write unauthenticated: `test/emulatorHelpers.js` now signs in an anonymous
+user once per run and uses that uid as every seeded room's `hostId`, and
+`test:emulator` starts the `auth` emulator alongside `firestore` to make that
+possible.
 
 ### Layer 3 — Component tests (jsdom, Testing Library)
 
-Keep these few and shallow. Good candidates:
+Keep these few and shallow.
 
-- `ChatInput` — Enter on an empty box does not throw; unknown command toasts
-- `PhotosDisplay` — approve/deny/undo call the injected handlers with the right
-  arguments, given a fake snapshot
+- `PlayerAddition` ✅ — `PlayerAddition.test.jsx` (`dom` project's first test,
+  mocks `dbCalls`). Covers the in-flight submit guard added alongside backlog
+  item 34, plus clearing/re-enabling on success and failure.
+- `ChatInput` ✅ (partial) — `ChatInput.test.jsx` drives the real
+  `handleCommandExecution` switch (mocking only `dbCalls` and `RemapPlayers`)
+  for the `/kill` and `/add` case-insensitivity fixes from backlog item 1.
+  `jest.mock('../firebase_calls/dbCalls')` must use an explicit factory, not
+  auto-mock — auto-mocking still loads the real module, which pulls in
+  `utils/firebase.js`'s real init and touches `fetch`, undefined in jsdom.
+  Note: `getByPlaceholderText`/`findByPlaceholderText` did not reliably match
+  `react-autosuggest`'s rendered `<input>` in this environment despite the
+  attribute being present; `getByRole('textbox')` does.
+- `RequireAuth` ✅ — `RequireAuth.test.jsx` (backlog item 3). Mocks
+  `firebase/auth`'s `onAuthStateChanged` and `utils/firebase`'s `auth` export
+  (same explicit-factory reason as `ChatInput.test.jsx`). Covers the loading
+  spinner, rendering children when signed in, and redirecting to `/` when not.
+- `PhotosDisplay` ✅ — `PhotosDisplay.test.jsx` (backlog item 6). Mocks
+  `firebase/firestore`'s `onSnapshot` directly (not just `dbCalls`) to
+  simulate what a snapshot reports on mount. The key test never clicks
+  Approve — it mounts with an already-`approved` photo and proves Undo can
+  still revert it, which is the actual reload-recovery scenario item 6 was
+  about, not just "does the button work."
+
+Other good candidates:
+
+- `ChatInput` — the remaining commands (`/mission done`, `/revive`,
+  `/openseason`) aren't covered yet; Enter on an empty box does not throw;
+  unknown command toasts
 - `PlayersList` — renders a supplied roster, alive and dead sections separated
 
 Do **not** write component tests that assert game-state outcomes until backlog
@@ -430,10 +566,10 @@ layer that would have caught the `/kill`-vs-photo-approval divergence.
 | **0** ✅ | R1 (emulator safety + explicit flag), harness cleanup, CI green            | done     |
 | **1** ✅ | R2 + R3 extractions; Layer 0 tests for target graph, remap planner, parser | done     |
 | **2**    | Layer 1 emulator tests for `dbCalls`; `test:emulator` script               | 1–2 days |
-| **3**    | Write `firestore.rules`; Layer 2 rules tests                               | 1 day    |
+| **3** ✅ | Write `firestore.rules`; Layer 2 rules tests                               | done     |
 | **4**    | R4 + R5 + R6; Layer 4 flow tests; a handful of Layer 3 component tests     | 2–3 days |
 
-Phase 3 is the natural next step. The `dom` Jest project and its asset stubs are
+Phase 4 is the natural next step. The `dom` Jest project and its asset stubs are
 configured but still match no files, and `planRemap`'s output gives the phase 4
 flow tests a ready-made oracle.
 
@@ -487,8 +623,8 @@ Explicitly not worth the effort here:
 - **Snapshot tests of JSX.** Chakra-heavy markup, high churn, near-zero signal.
 - **Testing the Firebase SDK.** Mocking `getDocs` to assert `getDocs` was called
   proves nothing. Emulator or nothing.
-- **`src/components/old-components/`** (8 files, ~600 lines). Its imports are
-  already broken. Delete it (backlog item 14) rather than test it.
+- **`src/components/old-components/`** (8 files, ~600 lines, imports already
+  broken). Deleted rather than tested (backlog item 14).
 - **Coverage thresholds on day one.** Set them after Phase 2, and only on
   `src/game/`, where 90%+ is both achievable and meaningful.
 - **End-to-end browser tests.** Not until state management is consolidated;

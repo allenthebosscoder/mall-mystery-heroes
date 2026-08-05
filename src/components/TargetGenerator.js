@@ -18,9 +18,11 @@ import {
 } from '@chakra-ui/react';
 import { updateAssassinsForPlayer, updateTargetsForPlayer } from './firebase_calls/dbCalls';
 import { buildTargetGraph } from '../game/targetGraph';
+import CreateAlert from './CreateAlert';
 const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
     // The target/assassin adjacency lists for the round, built on open.
     const [graph, setGraph] = useState({ targets: {}, assassins: {} });
+    const createAlert = CreateAlert();
 
     //reference to players subcollection
     const { isOpen, onOpen, onClose } = useDisclosure();
@@ -45,7 +47,11 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
                 await updateAssassinsForPlayer(player, assassins[player] ?? [], roomID);
             }
         } catch (error) {
+            // dbCalls functions throw on failure rather than swallowing
+            // errors (docs/improvements.md item 10) — this catch previously
+            // only logged, with no UI feedback.
             console.error('Error adding targets to database: ', error);
+            createAlert('error', 'Error generating targets', error.message, 1500);
         }
     };
 

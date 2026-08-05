@@ -42,7 +42,6 @@ const DashBoard = () => {
                 await setDoc(roomRef, {
                     hostId: user.uid,
                     isGameActive: true,
-                    logs: [],
                     taskIndex: 1,
                     storageReference: [],
                 });

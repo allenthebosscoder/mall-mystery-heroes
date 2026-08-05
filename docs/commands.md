@@ -154,13 +154,15 @@ The `commands` array that backs the autosuggest is declared as:
 
 ```js
 const commands = [
-    { text: '/add [player] points', command: console.log('running') },
+    { text: '/add [player] points' },
     …
 ];
 ```
 
-`console.log('running')` is **evaluated at module load**, not stored as a
-callback — so importing `ChatInput` prints nine `running` lines to the console,
-and every `command` property is `undefined`. Nothing reads the property; dispatch
-happens through the `switch` on `commandLine`. The array is effectively a list of
-help strings.
+It's effectively a list of help strings — only `text` is ever read
+(`getSuggestions`/`getSuggestionValue`/`renderSuggestion`); dispatch happens
+through the `switch` on `commandLine`, parsed separately. Each entry used to
+also carry a `command: console.log('running')` field — evaluated at module
+load, not stored as a callback, so importing `ChatInput` printed nine
+`running` lines to the console for a property nothing read. Removed
+(`improvements.md` item 29).

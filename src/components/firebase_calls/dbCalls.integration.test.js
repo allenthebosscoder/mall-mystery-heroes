@@ -7,15 +7,21 @@
  * docs/data-model.md, which is otherwise reconstructed from call sites.
  */
 import {
+    addLogForRoom,
     addPlayerForRoom,
+    endGame,
     fetchAliveRosterForRoom,
     fetchAllPlayersForRoom,
+    fetchAssassinsForPlayer,
+    fetchLogsQueryByAscendingTimestampForRoom,
     fetchPlayerForRoom,
-    fetchPlayersByStatusForRoom,
-    killPlayerForRoom,
+    fetchTaskIndexThenIncrement,
+    updateIsAliveForPlayer,
+    updateIsCompleteToTrueForTaskByIndex,
     updatePointsForPlayer,
-    updateTargetsForPlayer,
 } from './dbCalls';
+import { doc, getDoc, getDocs } from 'firebase/firestore';
+import { db } from '../../utils/firebase';
 import { clearFirestore, seedRoom, shutdown } from '../../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
@@ -110,20 +116,46 @@ describe('addPlayerForRoom', () => {
         expect(data.score).toBe(10);
         expect(data.isAlive).toBe(true);
     });
+
+    it('does not create two players when two calls race on the same name', async () => {
+        // Reproduces the double-Enter-while-laggy bug: addPlayerForRoom's
+        // duplicate check and its write were not atomic, so two concurrent
+        // calls could both see "no duplicate" before either write landed.
+        await seedRoom(ROOM, []);
+
+        const results = await Promise.allSettled([
+            addPlayerForRoom('123', ROOM),
+            addPlayerForRoom('123', ROOM),
+        ]);
+
+        const fulfilled = results.filter((r) => r.status === 'fulfilled');
+        const rejected = results.filter((r) => r.status === 'rejected');
+        expect(fulfilled).toHaveLength(1);
+        expect(rejected).toHaveLength(1);
+        expect(rejected[0].reason.message).toBe('Player already exists');
+        expect(await fetchAllPlayersForRoom(ROOM)).toEqual(['123']);
+    });
 });
 
-describe('player lookups are case-sensitive', () => {
-    it.failing('finds a player by a differently-cased name (improvements item 1)', async () => {
-        // Commands lowercase their arguments, but every lookup queries the
-        // case-preserved `name` field, so a player entered as "Alice" cannot be
-        // referenced from the command bar. The fix is to query
-        // trimmedNameLowerCase, which addPlayerForRoom already writes.
-        // When that lands, this stops failing and the marker comes off.
+describe('player lookups are case- and whitespace-insensitive (improvements item 1)', () => {
+    it('fetchPlayerForRoom finds a player by a differently-cased name', async () => {
+        // Commands lowercase their arguments, but every lookup used to query
+        // the case-preserved `name` field, so a player entered as "Alice"
+        // could not be referenced from the command bar. Every lookup in
+        // dbCalls.js now queries trimmedNameLowerCase instead.
         await seedRoom(ROOM, [{ name: 'Alice' }]);
 
         const doc = await fetchPlayerForRoom('alice', ROOM);
 
-        expect(doc).toBeDefined();
+        expect(doc.data().name).toBe('Alice');
+    });
+
+    it('updatePointsForPlayer finds the player regardless of case', async () => {
+        await seedRoom(ROOM, [{ name: 'Alice', score: 10 }]);
+
+        await updatePointsForPlayer('alice', 5, ROOM);
+
+        expect((await fetchPlayerForRoom('Alice', ROOM)).data().score).toBe(15);
     });
 });
 
@@ -144,54 +176,132 @@ describe('updatePointsForPlayer', () => {
 
         expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(7);
     });
-});
 
-describe('updateTargetsForPlayer', () => {
-    it('keeps targetsLength in step with the array', async () => {
-        // targetsLength exists so Firestore can orderBy array size; the remap
-        // fallback path orders candidates by it.
-        await seedRoom(ROOM, [{ name: 'alice' }]);
+    it('does not drop an increment when two calls race (improvements item 7)', async () => {
+        // The old read-then-write shape let two concurrent calls both read
+        // the same base score and only one increment would stick.
+        // increment() is atomic server-side regardless of timing.
+        await seedRoom(ROOM, [{ name: 'alice', score: 0 }]);
 
-        await updateTargetsForPlayer('alice', ['bob', 'carol'], ROOM);
-
-        const data = (await fetchPlayerForRoom('alice', ROOM)).data();
-        expect(data.targets).toEqual(['bob', 'carol']);
-        expect(data.targetsLength).toBe(2);
-    });
-});
-
-describe('killPlayerForRoom', () => {
-    it('marks the target dead and zeroes their score', async () => {
-        await seedRoom(ROOM, [{ name: 'victim', score: 40 }, { name: 'other' }]);
-
-        await killPlayerForRoom('victim', ROOM);
-
-        const data = (await fetchPlayerForRoom('victim', ROOM)).data();
-        expect(data.isAlive).toBe(false);
-        expect(data.score).toBe(0);
-        expect(data.openSeason).toBe(false);
-    });
-
-    it('removes the victim from their assassins target lists', async () => {
-        await seedRoom(ROOM, [
-            { name: 'victim', assassins: ['hunter'], targets: ['prey'] },
-            { name: 'hunter', targets: ['victim'] },
-            { name: 'prey', assassins: ['victim'] },
+        await Promise.all([
+            updatePointsForPlayer('alice', 3, ROOM),
+            updatePointsForPlayer('alice', 4, ROOM),
         ]);
 
-        await killPlayerForRoom('victim', ROOM);
+        expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(7);
+    });
+});
 
-        expect((await fetchPlayerForRoom('hunter', ROOM)).data().targets).not.toContain('victim');
-        expect((await fetchPlayerForRoom('prey', ROOM)).data().assassins).not.toContain('victim');
+describe('fetchTaskIndexThenIncrement', () => {
+    it('returns sequential indices for sequential calls', async () => {
+        await seedRoom(ROOM, []);
+
+        expect(await fetchTaskIndexThenIncrement(ROOM)).toBe(1);
+        expect(await fetchTaskIndexThenIncrement(ROOM)).toBe(2);
+        expect(await fetchTaskIndexThenIncrement(ROOM)).toBe(3);
     });
 
-    it('moves the player from the alive list to the dead list', async () => {
-        await seedRoom(ROOM, [{ name: 'victim' }, { name: 'survivor' }]);
+    it('never hands out the same index twice under concurrency (improvements item 7)', async () => {
+        // The old read-then-write shape let two concurrent calls both read
+        // taskIndex=1 and both hand it out, making /mission done <index>
+        // ambiguous. The transaction serializes them instead.
+        await seedRoom(ROOM, []);
 
-        await killPlayerForRoom('victim', ROOM);
+        const indices = await Promise.all([
+            fetchTaskIndexThenIncrement(ROOM),
+            fetchTaskIndexThenIncrement(ROOM),
+            fetchTaskIndexThenIncrement(ROOM),
+        ]);
 
-        expect(await fetchPlayersByStatusForRoom(true, ROOM)).toEqual(['survivor']);
-        expect(await fetchPlayersByStatusForRoom(false, ROOM)).toEqual(['victim']);
+        expect(new Set(indices).size).toBe(3);
+    });
+});
+
+describe('addLogForRoom and fetchLogsQueryByAscendingTimestampForRoom (improvements item 22)', () => {
+    it('writes a doc with time/log/color, readable via the ascending-timestamp query', async () => {
+        await seedRoom(ROOM, []);
+
+        await addLogForRoom('game started', 'gray.400', ROOM);
+
+        const snapshot = await getDocs(fetchLogsQueryByAscendingTimestampForRoom(ROOM));
+        expect(snapshot.docs).toHaveLength(1);
+        expect(snapshot.docs[0].data()).toEqual({
+            time: expect.any(String),
+            log: 'game started',
+            color: 'gray.400',
+            timestamp: expect.anything(),
+        });
+    });
+
+    it('returns entries in the order they were written, not deduplicated', async () => {
+        await seedRoom(ROOM, []);
+
+        // Two identical entries — the old arrayUnion-based implementation
+        // silently dropped this pair (deep-equality dedup); a subcollection
+        // has no such behavior.
+        await addLogForRoom('first', 'gray.400', ROOM);
+        await addLogForRoom('first', 'gray.400', ROOM);
+        await addLogForRoom('second', 'red.400', ROOM);
+
+        const snapshot = await getDocs(fetchLogsQueryByAscendingTimestampForRoom(ROOM));
+        expect(snapshot.docs.map((docSnapshot) => docSnapshot.data().log)).toEqual([
+            'first',
+            'first',
+            'second',
+        ]);
+    });
+
+    it('does not write a logs field on the room document itself', async () => {
+        await seedRoom(ROOM, []);
+
+        await addLogForRoom('game started', 'gray.400', ROOM);
+
+        const roomSnapshot = await getDoc(doc(db, 'rooms', ROOM));
+        expect(roomSnapshot.data().logs).toBeUndefined();
+    });
+});
+
+describe('errors propagate instead of being swallowed (improvements item 10)', () => {
+    // A representative subset, not all ~40 functions — these are the ones
+    // touched by this session's other Tier 1 fixes. Before this item, every
+    // one of these silently resolved to `undefined` on failure.
+    it('fetchPlayerForRoom rejects for a nonexistent player', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(fetchPlayerForRoom('nobody', ROOM)).rejects.toThrow('Player not found');
+    });
+
+    it('updatePointsForPlayer rejects for a nonexistent player', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(updatePointsForPlayer('nobody', 5, ROOM)).rejects.toThrow();
+    });
+
+    it('updateIsAliveForPlayer rejects for a nonexistent player', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(updateIsAliveForPlayer('nobody', true, ROOM)).rejects.toThrow();
+    });
+
+    it('fetchAssassinsForPlayer rejects for a nonexistent player', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(fetchAssassinsForPlayer('nobody', ROOM)).rejects.toThrow();
+    });
+
+    // The rest of the ~40 dbCalls.js functions, picked back up here rather
+    // than as a new item — see improvements.md item 10 for the full list of
+    // what changed and why.
+    it('updateIsCompleteToTrueForTaskByIndex rejects for a nonexistent task index', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(updateIsCompleteToTrueForTaskByIndex(999, ROOM)).rejects.toThrow(
+            'Task not found'
+        );
+    });
+
+    it('endGame rejects for a nonexistent room', async () => {
+        await expect(endGame('nonexistent-room')).rejects.toThrow();
     });
 });
 

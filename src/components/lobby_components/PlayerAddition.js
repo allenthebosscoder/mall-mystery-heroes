@@ -11,6 +11,11 @@ const PlayerAddition = (props) => {
     const onPlayerAdded = props.onPlayerAdded;
     const createAlert = CreateAlert();
     const [isHover, setIsHover] = useState(false);
+    // Guards against a second submit firing before the first resolves — e.g.
+    // pressing Enter twice while the request is in flight. addPlayerForRoom
+    // is now atomic regardless (see its comment in dbCalls.js), but there's
+    // no reason to send a request that's going to be rejected as a duplicate.
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     //setes playerName to input
     const handleInputChange = (event) => {
@@ -19,9 +24,11 @@ const PlayerAddition = (props) => {
 
     //handles function to add player
     const handleAddPlayer = async () => {
+        if (isSubmitting) return;
         if (playerName.replace(/\s/g, '') === '') {
             return createAlert('error', 'Error', 'name cannot be blank', 1500);
         }
+        setIsSubmitting(true);
         try {
             await addPlayerForRoom(playerName, roomID);
         } catch (error) {
@@ -33,6 +40,8 @@ const PlayerAddition = (props) => {
                     ? 'name already exists'
                     : 'could not add player, please try again';
             return createAlert('error', 'Error', message, 1500);
+        } finally {
+            setIsSubmitting(false);
         }
         setPlayerName('');
         if (onPlayerAdded) onPlayerAdded(playerName);
@@ -53,6 +62,7 @@ const PlayerAddition = (props) => {
                         fontSize="16"
                         value={playerName}
                         onChange={handleInputChange}
+                        isDisabled={isSubmitting}
                         size="lg"
                         borderRadius="3xl"
                         ml="30%"

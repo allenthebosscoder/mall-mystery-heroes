@@ -5,23 +5,20 @@ import enter from '../../assets/enter-green.png';
 import { executionContext, gameContext } from '../Contexts';
 import {
     addPlayerToCompletedByForTask,
-    checkOpenSzn,
     fetchAlivePlayerNamesForRoom,
     fetchAllPlayersForRoom,
-    fetchPlayerForRoom,
     fetchPlayersByStatusForRoom,
-    fetchPointsForPlayerInRoom,
     fetchReferenceByIndexForTask,
-    fetchTargetsForPlayer,
     fetchTaskByIndexForRoom,
-    killPlayerForRoom,
     setOpenSznOfPlayerToValueForRoom,
     updateIsAliveForPlayer,
     updateIsCompleteToTrueForTaskByIndex,
     updatePointsForPlayer,
 } from '../firebase_calls/dbCalls';
 import RemapPlayers from '../RemapPlayers';
-import { parseCommand } from '../../game/commands';
+import { executeKill } from '../executeKill';
+import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
+import { normalizePlayerName } from '../../game/playerNames';
 import CreateAlert from '../CreateAlert';
 
 export default function ChatInput() {
@@ -81,17 +78,21 @@ export default function ChatInput() {
     );
 }
 
-// Commands used for game purposes
+// Commands used for game purposes — autosuggest options. `text` is the only
+// field ever read (getSuggestions/getSuggestionValue/renderSuggestion); this
+// used to also carry a `command: console.log('running')` field that did
+// nothing but print nine "running" lines at import time and store `undefined`
+// (improvements.md item 29).
 const commands = [
-    { text: '/add [player] points', command: console.log('running') },
-    { text: '/broadcast [message]', command: console.log('running') },
-    { text: '/kill [player] [assassin]', command: console.log('running') },
-    { text: '/leaderboard send', command: console.log('running') },
-    { text: '/mission done [player name] mission_index', command: console.log('running') },
-    { text: '/mission end mission_index', command: console.log('running') },
-    { text: '/openSeason [player] start/end', command: console.log('running') },
-    { text: '/revive [player]', command: console.log('running') },
-    { text: '/whisper [player] [message]', command: console.log('running') },
+    { text: '/add [player] points' },
+    { text: '/broadcast [message]' },
+    { text: '/kill [player] [assassin]' },
+    { text: '/leaderboard send' },
+    { text: '/mission done [player name] mission_index' },
+    { text: '/mission end mission_index' },
+    { text: '/openSeason [player] start/end' },
+    { text: '/revive [player]' },
+    { text: '/whisper [player] [message]' },
 ];
 
 // Filter suggestions based on current input
@@ -138,6 +139,16 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
     const commandLine = parsed.command;
     const args = parsed.args;
 
+    // Whitelisted but not implemented — previously these passed the
+    // whitelist, cleared the input, and did nothing with zero feedback
+    // (improvements item 21). Checked before the roster fetch below since
+    // none of these commands need it.
+    if (UNIMPLEMENTED_COMMANDS.includes(commandLine)) {
+        createAlert('info', 'Not implemented', `${commandLine} is not implemented yet`, 1500);
+        setValue('');
+        return;
+    }
+
     const {
         handleRemapping,
         handleKillPlayer,
@@ -150,253 +161,264 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
         handleTaskCompleted,
     } = xecutionContext; // retrieve contexts
 
-    const arrayOfPlayerNames = (await fetchAllPlayersForRoom(roomID)).map((name) =>
-        name.toLowerCase()
-    );
-    const handleTargetRegeneration = RemapPlayers(handleRemapping, createAlert); // initial remapping of players function
-    let arrayOfAlivePlayers;
-    let arrayOfDeadPlayers;
-    let playerName;
-    let arg;
-    let missionIndex;
+    // dbCalls functions throw on failure rather than swallowing errors
+    // (docs/improvements.md item 10), so this needs to catch them somewhere —
+    // wrapping the whole switch (and the roster fetch every case depends on),
+    // rather than every individual call, since there's no single case body
+    // simple enough to inline a try/catch without the branching logic
+    // becoming unreadable.
+    try {
+        const arrayOfPlayerNames = (await fetchAllPlayersForRoom(roomID)).map((name) =>
+            normalizePlayerName(name)
+        );
+        const handleTargetRegeneration = RemapPlayers(handleRemapping, createAlert); // initial remapping of players function
+        let arrayOfAlivePlayers;
+        let arrayOfDeadPlayers;
+        let playerName;
+        let arg;
+        let missionIndex;
 
-    switch (commandLine) {
-        case '/add':
-            // sanity check player input
-            if (arrayOfPlayerNames.includes(args[0])) {
-                // sanity check point input
-                if (!isNaN(Number(args[1]))) {
-                    await updatePointsForPlayer(args[0], Number(args[1]), roomID);
+        switch (commandLine) {
+            case '/add':
+                // sanity check player input — args aren't lowercased by parseCommand,
+                // unlike every other command here (improvements item 1)
+                const addPlayerName = args[0] ? normalizePlayerName(args[0]) : '';
+                if (arrayOfPlayerNames.includes(addPlayerName)) {
+                    // sanity check point input
+                    if (!isNaN(Number(args[1]))) {
+                        await updatePointsForPlayer(addPlayerName, Number(args[1]), roomID);
+                    } else {
+                        createAlert('error', 'Error', 'Please input valid points', 1500);
+                        console.error('Please input valid points');
+                    }
                 } else {
-                    createAlert('error', 'Error', 'Please input valid points', 1500);
-                    console.error('Please input valid points');
+                    createAlert('error', 'Error', `Player ${args[0]} is invalid`, 1500);
+                    console.error(`Player ${args[0]} is invalid.`);
                 }
-            } else {
-                createAlert('error', 'Error', `Player ${args[0]} is invalid`, 1500);
-                console.error(`Player ${args[0]} is invalid.`);
-            }
-            break;
-
-        case '/broadcast':
-            //TO DO
-            break;
-
-        case '/kill':
-            // sanity check target and assassin input
-            if (!args || args.length < 2) {
-                createAlert('error', 'Error', 'Missing Arguments', 1500);
-                console.error('Missing Arguments');
                 break;
-            }
 
-            const targetName = args[0] ? args[0].toLowerCase() : '';
-            const assassinName = args[1] ? args[1].toLowerCase() : '';
-            if (
-                arrayOfPlayerNames.includes(targetName) &&
-                arrayOfPlayerNames.includes(assassinName)
-            ) {
-                // check if target on assassins' target list or target is openSZN
-                const arrayOfTargetsOfAssassin = await fetchTargetsForPlayer(assassinName, roomID);
-                const isOpenSzn = await checkOpenSzn(roomID, assassinName);
-                if (isOpenSzn || arrayOfTargetsOfAssassin.includes(targetName)) {
-                    // update assassin points
-                    let currTargetPoints = await fetchPointsForPlayerInRoom(targetName, roomID);
-                    currTargetPoints = currTargetPoints >= 0 ? currTargetPoints : 0;
-                    await updatePointsForPlayer(assassinName, currTargetPoints, roomID);
+            case '/kill':
+                // sanity check target and assassin input
+                if (!args || args.length < 2) {
+                    createAlert('error', 'Error', 'Missing Arguments', 1500);
+                    console.error('Missing Arguments');
+                    break;
+                }
 
-                    // get target data before killing
-                    const targetDoc = await fetchPlayerForRoom(targetName, roomID);
-                    const playersNeedingTargets = targetDoc.data().assassins; // get target's assassins to update their targets
-                    const playersNeedingAssassins = targetDoc.data().targets; // get target's targets to update their assassins
+                const targetName = args[0] ? normalizePlayerName(args[0]) : '';
+                const assassinName = args[1] ? normalizePlayerName(args[1]) : '';
+                if (
+                    arrayOfPlayerNames.includes(targetName) &&
+                    arrayOfPlayerNames.includes(assassinName)
+                ) {
+                    // Validation, point transfer, the kill, unmapping, and
+                    // the remap that follows all happen atomically inside
+                    // executeKill now — a Cloud Function running in one
+                    // Firestore transaction (docs/improvements.md item 4),
+                    // shared with photo approval (item 5) so the two paths
+                    // can't diverge on what counts as a valid kill. It
+                    // throws — rather than returning an "invalid target"
+                    // result — for "not a valid target", which the outer
+                    // try/catch below turns into the same alert this used
+                    // to raise inline.
+                    const { targetWasOpenSzn, addedTargets, addedAssassins, remapLogs } =
+                        await executeKill(targetName, assassinName, roomID);
+                    await handleKillPlayer(targetName, assassinName, targetWasOpenSzn);
 
-                    // kill target
-                    await killPlayerForRoom(targetName, roomID); // kill target and update db
-                    await handleKillPlayer(targetName, assassinName, isOpenSzn);
-
-                    // update targets/assassins as needed
-                    console.log(`PnT: ${playersNeedingTargets}, PnA: ${playersNeedingAssassins}`);
-                    const arrayOfAlivePlayers = await fetchAlivePlayerNamesForRoom(roomID);
-                    const [targets, assassins] = await handleTargetRegeneration(
-                        playersNeedingTargets,
-                        playersNeedingAssassins,
-                        arrayOfAlivePlayers,
-                        roomID
-                    );
-                    handleAddNewAssassins(assassins);
-                    handleAddNewTargets(targets);
+                    for (const log of remapLogs) {
+                        await handleRemapping(log);
+                    }
+                    handleAddNewAssassins(addedAssassins);
+                    handleAddNewTargets(addedTargets);
                     handleSetShowMessageToTrue();
                 } else {
-                    createAlert(
-                        'error',
-                        'Error',
-                        `${targetName} is not a valid taret for ${assassinName}`,
-                        1500
+                    createAlert('error', 'Error', `Invalid players: ${args[0]}, ${args[1]}`, 1500);
+                    console.error(
+                        `One of the following inputs are invalid: Target - "${args[0]}", Assassin - "${args[1]}"`
                     );
-                    console.error(`"${targetName}" is not a valid target for "${assassinName}"`);
                 }
-            } else {
-                createAlert('error', 'Error', `Invalid players: ${args[0]}, ${args[1]}`, 1500);
-                console.error(
-                    `One of the following inputs are invalid: Target - "${args[0]}", Assassin - "${args[1]}"`
-                );
-            }
-            break;
+                break;
 
-        case '/leaderboard':
-            // TO DO
-            break;
+            case '/mission':
+                arg = args[0] ? args[0].toLowerCase() : '';
+                switch (arg) {
+                    case 'done':
+                        playerName = args[1] ? normalizePlayerName(args[1]) : '';
+                        missionIndex = args[2] ? Number(args[2]) : -1;
+                        if (missionIndex === -1) {
+                            createAlert('error', 'Error', `${args[2]} is not a valid index`, 1500);
+                            console.error(`${args[2]} is not a valid index`);
+                            break;
+                        }
 
-        case '/mission':
-            arg = args[0] ? args[0].toLowerCase() : '';
-            switch (arg) {
-                case 'done':
-                    playerName = args[1] ? args[1].toLowerCase() : '';
-                    missionIndex = args[2] ? Number(args[2]) : -1;
-                    if (missionIndex === -1) {
-                        createAlert('error', 'Error', `${args[2]} is not a valid index`, 1500);
-                        console.error(`${args[2]} is not a valid index`);
+                        // sanity check player input
+                        if (arrayOfPlayerNames.includes(playerName)) {
+                            // sanity check mission index
+                            const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
+                            const taskDocRef = await fetchReferenceByIndexForTask(
+                                missionIndex,
+                                roomID
+                            );
+                            if (!task) {
+                                createAlert('error', 'Error', 'Invalid task index', 1500);
+                                console.error('invalid task');
+                                break;
+                            }
+
+                            // check if player has completed task
+                            if (!task.completedBy.includes(playerName)) {
+                                //updates player scores for task types
+                                if (task.taskType === 'Task') {
+                                    const points = parseInt(task.pointValue);
+                                    await updatePointsForPlayer(playerName, points, roomID);
+                                } else if (task.taskType === 'Revival Mission') {
+                                    //updates player live status for revival missions.
+                                    // fetchPlayersByStatusForRoom returns case-preserved
+                                    // names, so this needs normalizing against the
+                                    // normalized playerName (improvements items 1, 35).
+                                    arrayOfDeadPlayers = (
+                                        await fetchPlayersByStatusForRoom(false, roomID)
+                                    ).map((name) => normalizePlayerName(name));
+                                    if (arrayOfDeadPlayers.includes(playerName)) {
+                                        await updateIsAliveForPlayer(playerName, true, roomID);
+                                        handlePlayerRevive(playerName);
+                                        arrayOfAlivePlayers =
+                                            await fetchAlivePlayerNamesForRoom(roomID);
+                                        console.log('xxx: ', playerName);
+                                        const [targets, assassins] = await handleTargetRegeneration(
+                                            [playerName],
+                                            [playerName],
+                                            arrayOfAlivePlayers,
+                                            roomID
+                                        );
+                                        handleAddNewAssassins(assassins);
+                                        handleAddNewTargets(targets);
+                                        handleSetShowMessageToTrue();
+                                    } else {
+                                        createAlert(
+                                            'error',
+                                            'Error',
+                                            `Player ${args[1]} is not dead`,
+                                            1500
+                                        );
+                                        console.error(`Player ${args[1]} is not dead`);
+                                    }
+                                }
+                                await addPlayerToCompletedByForTask(taskDocRef, playerName);
+                            } else {
+                                createAlert(
+                                    'error',
+                                    'Error',
+                                    `Player ${args[1]} has already completed the mission`,
+                                    1500
+                                );
+                                console.error(
+                                    `Player ${args[1]} has already completed the mission`
+                                );
+                            }
+                        } else {
+                            createAlert('error', 'Error', `Player ${args[1]} is invalid`, 1500);
+                            console.error(`Player ${args[1]} is invalid.`);
+                        }
                         break;
-                    }
 
-                    // sanity check player input
-                    if (arrayOfPlayerNames.includes(playerName)) {
-                        // sanity check mission index
+                    case 'end':
+                        missionIndex = args[1] ? Number(args[1]) : -1;
+                        if (missionIndex === -1) {
+                            createAlert('error', 'Error', `${args[2]} is not a valid index`, 1500);
+                            console.error(`${args[2]} is not a valid index`);
+                            break;
+                        }
+
+                        // sanity check mission index — mirrors "/mission
+                        // done"'s guard above. Previously missing here, so a
+                        // bad index threw on task.title below, after the
+                        // success toast had already fired (improvements
+                        // item 20).
                         const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
-                        const taskDocRef = await fetchReferenceByIndexForTask(missionIndex, roomID);
                         if (!task) {
                             createAlert('error', 'Error', 'Invalid task index', 1500);
                             console.error('invalid task');
                             break;
                         }
 
-                        // check if player has completed task
-                        if (!task.completedBy.includes(playerName)) {
-                            //updates player scores for task types
-                            if (task.taskType === 'Task') {
-                                const points = parseInt(task.pointValue);
-                                await updatePointsForPlayer(playerName, points, roomID);
-                            } else if (task.taskType === 'Revival Mission') {
-                                //updates player live status for revival missions
-                                arrayOfDeadPlayers = await fetchPlayersByStatusForRoom(
-                                    false,
-                                    roomID
-                                );
-                                if (arrayOfDeadPlayers.includes(playerName)) {
-                                    await updateIsAliveForPlayer(playerName, true, roomID);
-                                    handlePlayerRevive(playerName);
-                                    arrayOfAlivePlayers =
-                                        await fetchAlivePlayerNamesForRoom(roomID);
-                                    console.log('xxx: ', playerName);
-                                    const [targets, assassins] = await handleTargetRegeneration(
-                                        [playerName],
-                                        [playerName],
-                                        arrayOfAlivePlayers,
-                                        roomID
-                                    );
-                                    handleAddNewAssassins(assassins);
-                                    handleAddNewTargets(targets);
-                                    handleSetShowMessageToTrue();
-                                } else {
-                                    createAlert(
-                                        'error',
-                                        'Error',
-                                        `Player ${args[1]} is not dead`,
-                                        1500
-                                    );
-                                    console.error(`Player ${args[1]} is not dead`);
-                                }
-                            }
-                            await addPlayerToCompletedByForTask(taskDocRef, playerName);
-                        } else {
-                            createAlert(
-                                'error',
-                                'Error',
-                                `Player ${args[1]} has already completed the mission`,
-                                1500
-                            );
-                            console.error(`Player ${args[1]} has already completed the mission`);
-                        }
-                    } else {
-                        createAlert('error', 'Error', `Player ${args[1]} is invalid`, 1500);
-                        console.error(`Player ${args[1]} is invalid.`);
-                    }
-                    break;
-
-                case 'end':
-                    missionIndex = args[1] ? Number(args[1]) : -1;
-                    if (missionIndex === -1) {
-                        createAlert('error', 'Error', `${args[2]} is not a valid index`, 1500);
-                        console.error(`${args[2]} is not a valid index`);
-                        break;
-                    }
-
-                    createAlert('info', 'Completed', 'Task has been saved as completed', 1500);
-                    const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
-                    await updateIsCompleteToTrueForTaskByIndex(missionIndex, roomID);
-                    const taskTitle = task.title;
-                    handleTaskCompleted(taskTitle);
-                    break;
-                default:
-                    createAlert('error', 'Error', `Inavlid argument: ${args[0]}`, 1500);
-                    console.error(`Inavlid argument: ${args[0]}`);
-                    break;
-            }
-            break;
-
-        case '/openseason':
-            // TO DO: double check szn alrdy on/off
-            // sanity check openSeason target
-            playerName = args[0] ? args[0].toLowerCase() : '';
-            arg = args[1] ? args[1].toLowerCase() : '';
-            if (arrayOfPlayerNames.includes(playerName)) {
-                switch (arg) {
-                    case 'start':
-                        await setOpenSznOfPlayerToValueForRoom(playerName, true, roomID);
-                        handleOpenSznstarted(playerName);
-                        break;
-                    case 'end':
-                        await setOpenSznOfPlayerToValueForRoom(playerName, false, roomID);
-                        handleOpenSznended(playerName);
+                        await updateIsCompleteToTrueForTaskByIndex(missionIndex, roomID);
+                        createAlert('info', 'Completed', 'Task has been saved as completed', 1500);
+                        handleTaskCompleted(task.title);
                         break;
                     default:
-                        createAlert('error', 'Error', `${args[1]} is not a valid input`, 1500);
-                        console.error(`${args[1]} is not a valid input`);
+                        createAlert('error', 'Error', `Inavlid argument: ${args[0]}`, 1500);
+                        console.error(`Inavlid argument: ${args[0]}`);
                         break;
                 }
-            } else {
-                createAlert('error', 'Error', `${args[0]} is not a valid player`, 1500);
-                console.error(`${args[0]} is not a valid player`);
-            }
-            break;
+                break;
 
-        case '/revive':
-            arrayOfDeadPlayers = await fetchPlayersByStatusForRoom(false, roomID);
-            playerName = args[0] ? args[0].toLowerCase() : '';
-            // sanity check if player exists as dead player
-            if (arrayOfDeadPlayers.includes(playerName)) {
-                await updateIsAliveForPlayer(playerName, true, roomID);
-                const activePlayers = await fetchAlivePlayerNamesForRoom(roomID);
-                const [target, assassin] = await handleTargetRegeneration(
-                    [playerName],
-                    [playerName],
-                    activePlayers,
-                    roomID
+            case '/openseason':
+                // TO DO: double check szn alrdy on/off
+                // sanity check openSeason target
+                playerName = args[0] ? normalizePlayerName(args[0]) : '';
+                arg = args[1] ? args[1].toLowerCase() : '';
+                if (arrayOfPlayerNames.includes(playerName)) {
+                    switch (arg) {
+                        case 'start':
+                            await setOpenSznOfPlayerToValueForRoom(playerName, true, roomID);
+                            handleOpenSznstarted(playerName);
+                            break;
+                        case 'end':
+                            await setOpenSznOfPlayerToValueForRoom(playerName, false, roomID);
+                            handleOpenSznended(playerName);
+                            break;
+                        default:
+                            createAlert('error', 'Error', `${args[1]} is not a valid input`, 1500);
+                            console.error(`${args[1]} is not a valid input`);
+                            break;
+                    }
+                } else {
+                    createAlert('error', 'Error', `${args[0]} is not a valid player`, 1500);
+                    console.error(`${args[0]} is not a valid player`);
+                }
+                break;
+
+            case '/revive':
+                // fetchPlayersByStatusForRoom returns case-preserved names, so
+                // this needs normalizing against the normalized playerName
+                // (improvements items 1, 35).
+                arrayOfDeadPlayers = (await fetchPlayersByStatusForRoom(false, roomID)).map(
+                    (name) => normalizePlayerName(name)
                 );
-                handleAddNewAssassins(assassin);
-                handleAddNewTargets(target);
-                handleSetShowMessageToTrue();
-                handlePlayerRevive(playerName, createAlert);
-            }
-            break;
+                playerName = args[0] ? normalizePlayerName(args[0]) : '';
+                // sanity check if player exists as dead player
+                if (arrayOfDeadPlayers.includes(playerName)) {
+                    await updateIsAliveForPlayer(playerName, true, roomID);
+                    const activePlayers = await fetchAlivePlayerNamesForRoom(roomID);
+                    const [target, assassin] = await handleTargetRegeneration(
+                        [playerName],
+                        [playerName],
+                        activePlayers,
+                        roomID
+                    );
+                    handleAddNewAssassins(assassin);
+                    handleAddNewTargets(target);
+                    handleSetShowMessageToTrue();
+                    handlePlayerRevive(playerName, createAlert);
+                } else {
+                    // Previously no else branch here at all — reviving a
+                    // player who isn't dead (e.g. a typo, or a player
+                    // already revived) did nothing with zero feedback
+                    // (improvements item 21).
+                    createAlert('error', 'Error', `${args[0]} is not dead`, 1500);
+                    console.error(`${args[0]} is not dead`);
+                }
+                break;
 
-        case '/whisper':
-            // TO DO
-            break;
-
-        default:
-            createAlert('error', 'Error', `Unknown command: ${commandLine}`, 1500);
-            console.error('Unknown command:', commandLine);
-            break;
+            default:
+                createAlert('error', 'Error', `Unknown command: ${commandLine}`, 1500);
+                console.error('Unknown command:', commandLine);
+                break;
+        }
+    } catch (error) {
+        console.error(`Error executing ${commandLine}: `, error);
+        createAlert('error', 'Error', `${commandLine} failed: ${error.message}`, 1500);
     }
 
     setValue('');
