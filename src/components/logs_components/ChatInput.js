@@ -159,6 +159,8 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
         handleOpenSznended,
         handlePlayerRevive,
         handleTaskCompleted,
+        handleShowMissionCreation,
+        handleShowMissionList,
     } = xecutionContext; // retrieve contexts
 
     // dbCalls functions throw on failure rather than swallowing errors
@@ -345,6 +347,12 @@ const handleCommandExecution = async (value, setValue, roomID, xecutionContext, 
                         await updateIsCompleteToTrueForTaskByIndex(missionIndex, roomID);
                         createAlert('info', 'Completed', 'Task has been saved as completed', 1500);
                         handleTaskCompleted(task.title);
+                        break;
+                    case 'start':
+                        handleShowMissionCreation();
+                        break;
+                    case 'view':
+                        handleShowMissionList();
                         break;
                     default:
                         createAlert('error', 'Error', `Inavlid argument: ${args[0]}`, 1500);

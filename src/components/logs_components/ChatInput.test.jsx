@@ -45,6 +45,8 @@ const executionHandlers = {
     handleSetShowMessageToTrue: jest.fn(),
     handleRemapping: jest.fn(),
     handleTaskCompleted: jest.fn(),
+    handleShowMissionCreation: jest.fn(),
+    handleShowMissionList: jest.fn(),
 };
 
 const mountChatInput = () => {
@@ -197,6 +199,22 @@ describe('/mission end does not toast success before the write succeeds (improve
         );
         expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).toHaveBeenCalledWith(2, 'room-a');
         expect(await screen.findByText(/task has been saved as completed/i)).toBeInTheDocument();
+    });
+});
+
+describe('/mission start and /mission view open the mission modals (improvements item 15)', () => {
+    it('/mission start calls handleShowMissionCreation', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission start');
+
+        await waitFor(() => expect(executionHandlers.handleShowMissionCreation).toHaveBeenCalled());
+    });
+
+    it('/mission view calls handleShowMissionList', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission view');
+
+        await waitFor(() => expect(executionHandlers.handleShowMissionList).toHaveBeenCalled());
     });
 });
 
