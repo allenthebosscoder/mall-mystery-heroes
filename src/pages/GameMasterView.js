@@ -1,77 +1,87 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
 import PlayersList from '../components/player_listing/PlayersList';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { onSnapshot } from 'firebase/firestore';
 import { HStack, Heading, VStack, Box, Divider } from '@chakra-ui/react';
-// eslint-disable-next-line no-unused-vars -- scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
-import TaskExecution from '../components/task_components/TaskExecution';
+import TaskCreationModal from '../components/task_components/TaskCreationModal';
+import TaskListModal from '../components/task_components/TaskListModal';
 import HeaderExecution from '../components/header_components/HeaderExecution';
 import Log from '../components/logs_components/Log';
-import UnmapPlayers from '../components/UnmapPlayers';
+import CreateAlert from '../components/CreateAlert';
 import {
-    fetchPlayersByStatusForRoom,
-    fetchAllTasksForRoom,
-    fetchAllLogsForRoom,
-    updateLogsForRoom,
+    fetchPlayersQueryByDescendPointsThenIsAliveForRoom,
+    fetchLogsQueryByAscendingTimestampForRoom,
+    addLogForRoom,
     updateIsAliveForPlayer,
 } from '../components/firebase_calls/dbCalls';
 import RemapPlayerModal from '../components/RemapPlayerModal';
-// eslint-disable-next-line no-unused-vars -- taskContext is scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
-import { gameContext, taskContext, executionContext } from '../components/Contexts';
+import { gameContext, executionContext } from '../components/Contexts';
 import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
 
 const GameMasterView = () => {
     const { roomID } = useParams();
-    const { arrayOfPlayers } = useLocation().state || { arrayOfPlayers: [] };
-    const [, setArrayOfDeadPlayers] = useState([]);
-    const [arrayOfAlivePlayers, setArrayOfAlivePlayers] = useState([]);
-    const [, setArrayOfTasks] = useState([]);
+    const [players, setPlayers] = useState([]);
     const [, setCompletedTasks] = useState([]);
     const [logList, setLogList] = useState([]);
-    const unmapPlayers = UnmapPlayers();
+    const createAlert = CreateAlert();
     const [newTargets, setNewTargets] = useState({});
     const [newAssassins, setNewAssassins] = useState({});
     const [showRemapModal, setShowRemapModal] = useState(false);
+    const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
+    const [showTaskListModal, setShowTaskListModal] = useState(false);
+    const aliveNames = players.filter((player) => player.isAlive).map((player) => player.name);
 
-    //updates arrayOfAlivePlayers, arrayOfDeadPlayers, logs, and arrayOfTasks when roomID is updated
+    // Players and logs are both live subscriptions now, not fetched once and
+    // mutated by hand (docs/improvements.md items 13 and 22) — this is what
+    // used to disagree with PlayersList's own independent subscription and
+    // go stale across reloads/other tabs.
     useEffect(() => {
-        const fetchPlayers = async () => {
-            console.log(`fetching players and tasks in useEffect: ${roomID}`);
-            const deadPlayers = await fetchPlayersByStatusForRoom(false, roomID);
-            setArrayOfDeadPlayers(deadPlayers);
-            const alivePlayers = await fetchPlayersByStatusForRoom(true, roomID);
-            setArrayOfAlivePlayers(alivePlayers);
-        };
-        const fetchTaskForRooms = async () => {
-            const allTasks = await fetchAllTasksForRoom(roomID);
-            setArrayOfTasks(allTasks);
-        };
-
-        const fetchLogs = async () => {
-            const allLogs = await fetchAllLogsForRoom(roomID);
-            setLogList(allLogs);
-        };
-
-        if (roomID) {
-            fetchPlayers();
-            fetchTaskForRooms();
-            fetchLogs();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (!roomID) return undefined;
+        const playersQuery = fetchPlayersQueryByDescendPointsThenIsAliveForRoom(roomID);
+        const unsubscribe = onSnapshot(playersQuery, (snapshot) => {
+            setPlayers(
+                snapshot.docs.map((doc) => ({
+                    name: doc.data().name,
+                    score: doc.data().score,
+                    targets: doc.data().targets,
+                    openSeason: doc.data().openSeason,
+                    isAlive: doc.data().isAlive,
+                }))
+            );
+        });
+        return () => unsubscribe();
     }, [roomID]);
 
-    //updates loglist with new log
+    useEffect(() => {
+        if (!roomID) return undefined;
+        const logsQuery = fetchLogsQueryByAscendingTimestampForRoom(roomID);
+        const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
+            setLogList(snapshot.docs.map((doc) => doc.data()));
+        });
+        return () => unsubscribe();
+    }, [roomID]);
+
+    //adds a new log entry. The logs subcollection subscription above picks
+    // up the write and updates logList — no local append needed.
+    //
+    // Catches its own errors (docs/improvements.md item 10) rather than
+    // letting them propagate: addLog is called from many places (kills,
+    // revives, open season toggles, photo judgments), and a failed log write
+    // shouldn't block or appear to fail the primary action that triggered it.
     const addLog = async (newLog, color) => {
-        const newLogs = await updateLogsForRoom(newLog, color, roomID);
-        setLogList(newLogs);
-        return;
+        try {
+            await addLogForRoom(newLog, color, roomID);
+        } catch (error) {
+            console.error('Error adding log: ', error);
+            createAlert('warning', 'Log not saved', error.message, 1500);
+        }
     };
 
-    //removes player from alivePlayers and adds them to deadPlayers
+    // The players subscription above picks up the kill once executeKill's
+    // write lands — no local array mutation needed.
     const handleKillPlayer = async (killedPlayerName, assassinName, openSznstatus) => {
-        setArrayOfDeadPlayers((arrayOfDeadPlayers) => [...arrayOfDeadPlayers, killedPlayerName]);
-        setArrayOfAlivePlayers(arrayOfAlivePlayers.filter((name) => name !== killedPlayerName));
         if (openSznstatus === true) {
             handleOpenSznended(killedPlayerName);
             await addLog('open season has ended for ' + killedPlayerName, 'pink.400');
@@ -87,41 +97,36 @@ const GameMasterView = () => {
         await addLog('open season has ended for ' + openSznplayer, 'pink.400');
     };
 
-    //updates ArrayOfDeadPlayers and adds player to arrayOfAlivePlayers
+    // The players subscription above picks up the revive once
+    // updateIsAliveForPlayer's write lands — no local array mutation needed.
     const handlePlayerRevive = async (revivedPlayerName) => {
         await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
-        setArrayOfDeadPlayers((prevArrayOfDeadPlayers) =>
-            prevArrayOfDeadPlayers.filter((name) => name !== revivedPlayerName)
-        );
-        setArrayOfAlivePlayers((arrayOfAlivePlayers) => [
-            ...arrayOfAlivePlayers,
-            revivedPlayerName,
-        ]);
         await addLog(revivedPlayerName + ' was revived', 'blue.300');
     };
 
-    //updates arrayOfTasks when new task is added to db
-    // eslint-disable-next-line no-unused-vars -- scaffolding for the mission panel, commented out in the JSX below. See docs/improvements.md item 15.
+    // TaskList (docs/improvements.md item 15) owns its own live subscription
+    // to the tasks collection, so a new task shows up there without this
+    // needing to track a parallel copy — this only logs the event and
+    // closes the creation modal (docs/superpowers/specs/2026-08-04-
+    // mission-modal-ui-design.md — creation closes automatically on
+    // success).
     const handleNewTaskAdded = async (newTask) => {
-        setArrayOfTasks((arrayOfTasks) => [...arrayOfTasks, newTask]);
+        setShowTaskCreationModal(false);
         await addLog('Added new task: ' + newTask.title, 'yellow.400');
+    };
+
+    const handleShowMissionCreation = () => {
+        setShowTaskCreationModal(true);
+    };
+
+    const handleShowMissionList = () => {
+        setShowTaskListModal(true);
     };
 
     //updates completedTasks
     const handleTaskCompleted = async (task) => {
         setCompletedTasks((completedTasks) => [...completedTasks, task]);
         await addLog('Completed task: ' + task, 'green.400');
-    };
-
-    //removes player from alivePlayers and adds them to deadPlayers
-    // eslint-disable-next-line no-unused-vars -- never wired to any UI; kept as the counterpart to handlePlayerRevive.
-    const handleUndoRevive = async (revivedPlayerName) => {
-        setArrayOfDeadPlayers((arrayOfDeadPlayers) => [...arrayOfDeadPlayers, revivedPlayerName]);
-        setArrayOfAlivePlayers(arrayOfAlivePlayers.filter((name) => name !== revivedPlayerName));
-        if (revivedPlayerName) {
-            unmapPlayers(revivedPlayerName, roomID);
-        }
-        await addLog(revivedPlayerName + "'s revive was undone", 'gray');
     };
 
     //updates logList with remapped targets
@@ -150,10 +155,10 @@ const GameMasterView = () => {
         handlePlayerRevive,
         handleTaskCompleted,
         handleSetShowMessageToTrue,
+        handleShowMissionCreation,
+        handleShowMissionList,
         handleOpenSznstarted,
         handleOpenSznended,
-        setArrayOfAlivePlayers,
-        setArrayOfDeadPlayers,
         addLog,
     };
 
@@ -166,18 +171,25 @@ const GameMasterView = () => {
                     newAssassins={newAssassins}
                     onClose={() => setShowRemapModal(false)}
                 />
+                <TaskCreationModal
+                    isOpen={showTaskCreationModal}
+                    onClose={() => setShowTaskCreationModal(false)}
+                    handleNewTaskAdded={handleNewTaskAdded}
+                />
+                <TaskListModal
+                    isOpen={showTaskListModal}
+                    onClose={() => setShowTaskListModal(false)}
+                />
 
                 <Box h="6%" m="2px" marginX="4px">
-                    <HeaderExecution addLog={addLog} arrayOfAlivePlayers={arrayOfAlivePlayers} />
+                    <HeaderExecution addLog={addLog} arrayOfAlivePlayers={aliveNames} />
                 </Box>
 
                 <HStack sx={styles.gameDisplayWrapper}>
                     <Box sx={styles.playersListWrapper}>
-                        <Heading sx={styles.playerListHeader}>
-                            Players ({arrayOfPlayers.length})
-                        </Heading>
+                        <Heading sx={styles.playerListHeader}>Players ({players.length})</Heading>
                         <Divider />
-                        <PlayersList />
+                        <PlayersList players={players} />
                     </Box>
 
                     <Box sx={styles.logsWrapper}>
@@ -199,12 +211,6 @@ const GameMasterView = () => {
                             <Box sx={styles.photosBox}>
                                 <PhotosDisplay />
                             </Box>
-
-                            {/*<Box sx = {styles.taskBox}>
-                                <taskContext.Provider value = {{handleNewTaskAdded}}>
-                                    <TaskExecution />
-                                </taskContext.Provider>
-                            </Box>*/}
                         </VStack>
                     </executionContext.Provider>
                 </HStack>
@@ -266,16 +272,6 @@ const styles = {
     logInput: {
         flex: '1',
     },
-    taskBox: {
-        w: { base: '100%', md: '100%' },
-        h: '60%',
-        borderWidth: '2px',
-        borderRadius: '2xl',
-        overflow: 'auto',
-        p: '4px',
-        display: 'flex',
-        flexDirection: 'column',
-    },
     rightHandStack: {
         ml: '10px',
         mr: '16px',
@@ -285,6 +281,10 @@ const styles = {
     },
     photosBox: {
         w: { base: '100%', md: '100%' },
-        h: '95%',
+        // PhotosDisplay is the only child of rightHandStack again — the
+        // mission panel that used to share this space moved into on-demand
+        // modals instead (docs/superpowers/specs/2026-08-04-mission-modal-
+        // ui-design.md), so there's no sibling to split height with anymore.
+        h: '100%',
     },
 };
