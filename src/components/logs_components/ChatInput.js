@@ -342,6 +342,13 @@ export default function ChatInput() {
         });
 
         if (completion.applied) {
+            // If the completion applied to the command-word itself (tokenStart===0),
+            // prefer the full commands list so subcommands like '/mission start' remain visible.
+            if (completion.tokenStart === 0) {
+                setSuggestions(getSuggestions(currentValue));
+                return;
+            }
+
             const before = currentValue.slice(0, completion.tokenStart);
             const after = currentValue.slice(completion.tokenEnd);
             setSuggestions(
@@ -403,7 +410,18 @@ export default function ChatInput() {
                     // Prefer accepting the currently displayed suggestion (if any),
                     // since react-autosuggest manages highlighting and display.
                     if (suggestions.length > 0) {
-                        setValue(getSuggestionValue(highlightedSuggestion ?? suggestions[0]).trimEnd());
+                        // When accepting a visible suggestion, strip placeholder
+                        // bracket fields like `[player name]` but keep real names
+                        // (e.g. `[Alice Smith]` -> `Alice Smith`). We remove
+                        // common placeholder tokens entirely.
+                        const raw = getSuggestionValue(highlightedSuggestion ?? suggestions[0]);
+                        let accepted = String(raw || '');
+                        // remove common placeholder bracket items
+                        accepted = accepted.replace(/\[(?:player(?: name)?|assassin|message|mission_index|points)\]/ig, '');
+                        // unwrap bracketed real values
+                        accepted = accepted.replace(/\[([^\]]+)\]/g, '$1');
+                        accepted = accepted.replace(/\s+/g, ' ').trim();
+                        setValue(accepted);
                         setSuggestions([]);
                         return;
                     }
@@ -432,11 +450,20 @@ export default function ChatInput() {
                 if (completion.applied) {
                     const before = value.slice(0, completion.tokenStart);
                     const after = value.slice(completion.tokenEnd);
-                    const newValue = before + completion.replacement + (completion.appendSpace ? ' ' : '') + after;
-                    setValue(newValue.trimEnd());
+                    let newValue = before + completion.replacement + (completion.appendSpace ? ' ' : '') + after;
+                    // remove placeholder bracket tokens, unwrap real bracketed names
+                    newValue = newValue.replace(/\[(?:player(?: name)?|assassin|message|mission_index|points)\]/ig, '');
+                    newValue = newValue.replace(/\[([^\]]+)\]/g, '$1');
+                    newValue = newValue.replace(/\s+/g, ' ').trim();
+                    setValue(newValue);
                     setSuggestions((completion.candidates || []).map((c) => ({ text: String(c) })));
                 } else if (suggestions.length > 0) {
-                    setValue(getSuggestionValue(highlightedSuggestion ?? suggestions[0]));
+                    const raw = getSuggestionValue(highlightedSuggestion ?? suggestions[0]);
+                    let accepted = String(raw || '');
+                    accepted = accepted.replace(/\[(?:player(?: name)?|assassin|message|mission_index|points)\]/ig, '');
+                    accepted = accepted.replace(/\[([^\]]+)\]/g, '$1');
+                    accepted = accepted.replace(/\s+/g, ' ').trim();
+                    setValue(accepted);
                 }
             }
         },
