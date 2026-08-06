@@ -71,8 +71,10 @@ describe('parseCommand', () => {
         // only after parseCommand has already accepted it — an entry here
         // that isn't in KNOWN_COMMANDS would be dead, since parseCommand
         // would reject it as UNKNOWN_COMMAND first (improvements item 21).
-        UNIMPLEMENTED_COMMANDS.forEach((command) => {
-            expect(KNOWN_COMMANDS).toContain(command);
-        });
+        // UNIMPLEMENTED_COMMANDS is currently empty (/whisper, /broadcast,
+        // /leaderboard are all implemented) — this guards any future addition.
+        expect(UNIMPLEMENTED_COMMANDS.every((command) => KNOWN_COMMANDS.includes(command))).toBe(
+            true
+        );
     });
 });

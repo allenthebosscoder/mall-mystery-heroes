@@ -39,19 +39,20 @@ Tests:       123 passed, 123 total
 `npm run test:emulator` runs two further suites against the real Firestore,
 Auth, and Functions emulators together — `dbCalls.integration.test.js` (27
 tests) and `executeKill.integration.test.js` (7 tests), 34 tests total.
-`npm run test:rules` runs `test/firestore.rules.test.js` (17 tests) against
+`npm run test:rules` runs `test/firestore.rules.test.js` (19 tests) against
 Firestore alone.
 
 | Module                            | What it holds                                                                                                                                                                        | Tests |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
 | `src/game/targetGraph.js`         | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                                                       | 19    |
 | `src/game/remapPlan.js`           | `planRemap` — post-kill/revive matching, as a plan                                                                                                                                   | 16    |
-| `src/game/commands.js`            | `parseCommand` for the GM command bar; `UNIMPLEMENTED_COMMANDS` (item 21)                                                                                                            | 19    |
+| `src/game/commands.js`            | `parseCommand` for the GM command bar                                                                                                                                                | 19    |
+| `src/game/leaderboard.js`         | `buildLeaderboardStandings` — sorts and shapes standings for `/leaderboard` (item 21)                                                                                                | 4     |
 | `src/utils/firebaseEnv.js`        | Config reading, emulator flag, production guard                                                                                                                                      | 9     |
 | `src/game/photoJudgments.js`      | `splitPhotosByStatus` (item 6)                                                                                                                                                       | 5     |
 | `dbCalls.integration.test.js`     | The data layer against the Firestore emulator                                                                                                                                        | 27    |
 | `executeKill.integration.test.js` | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                          | 7     |
-| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                                                        | 17    |
+| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                                                        | 19    |
 | `PlayerAddition.test.jsx`         | The `dom` project's first test — see below                                                                                                                                           | 3     |
 | `ChatInput.test.jsx`              | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                              | 16    |
 | `RequireAuth.test.jsx`            | Route guard spinner/redirect/render states (item 3)                                                                                                                                  | 3     |
