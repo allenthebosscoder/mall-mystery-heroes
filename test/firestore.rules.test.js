@@ -184,3 +184,29 @@ describe('rooms/{roomId}/photos/{photoId} (interim: host-only, see firestore.rul
         );
     });
 });
+
+describe('rooms/{roomId}/playerMessages/{messageId} (interim: host-only, see firestore.rules comment)', () => {
+    it('denies a non-host write', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
+                type: 'broadcast',
+                recipient: null,
+                text: 'x',
+                standings: null,
+            })
+        );
+    });
+
+    it('allows the host to write', async () => {
+        const db = testEnv.authenticatedContext(HOST_UID).firestore();
+        await assertSucceeds(
+            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
+                type: 'broadcast',
+                recipient: null,
+                text: 'x',
+                standings: null,
+            })
+        );
+    });
+});

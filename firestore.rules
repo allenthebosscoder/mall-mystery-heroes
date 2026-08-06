@@ -14,9 +14,9 @@ rules_version = '2';
 //     ResetTargetsButton's manual reset, open-season toggling,
 //     addPlayerForRoom. Only kills moved server-side; auditing and
 //     re-homing everything else client-writable is separate, larger scope.
-//   - `photos` is scoped to the host, not "the mobile app's identity" as
-//     item 2 originally called for — no such app exists yet (item 33).
-//     Revisit once it does.
+//   - `photos` and `playerMessages` are scoped to the host, not "the
+//     mobile app's identity" as item 2 originally called for — no such
+//     app exists yet (item 33). Revisit once it does.
 //   - route guards (item 3) and storage.rules are separate concerns.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -52,6 +52,12 @@ service cloud.firestore {
 
       // Interim scope — see file header.
       match /photos/{photoId} {
+        allow read: if isSignedIn();
+        allow write: if isHostOfExistingRoom(roomId);
+      }
+
+      // Interim scope, same reasoning as photos above — see file header.
+      match /playerMessages/{messageId} {
         allow read: if isSignedIn();
         allow write: if isHostOfExistingRoom(roomId);
       }
