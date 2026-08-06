@@ -352,6 +352,21 @@ describe('Tab completion (shell-style, per-argument — docs/superpowers/specs/2
         await waitFor(() => expect(commandInput).toHaveValue('/mission done '));
     });
 
+    it('shows the whole command in context in the dropdown, not just the bare candidate (feedback: "super hard to know how to write commands")', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice Smith', isAlive: true }]);
+
+        await userEvent.type(commandInput, '/mission d');
+        // The dropdown shows "/mission done [player_name] [mission_index]",
+        // not just "done" — Tab still only fills the bare word (see above).
+        expect(
+            await screen.findByText('/mission done [player_name] [mission_index]')
+        ).toBeInTheDocument();
+
+        await userEvent.clear(commandInput);
+        await userEvent.type(commandInput, '/kill Al');
+        expect(await screen.findByText('/kill [Alice Smith] [assassin_name]')).toBeInTheDocument();
+    });
+
     it('fetches active missions on demand and completes a mission index', async () => {
         dbCalls.fetchTasksByCompletionForRoom.mockResolvedValue({
             docs: [{ data: () => ({ taskIndex: 1, isComplete: false }) }],
@@ -363,6 +378,31 @@ describe('Tab completion (shell-style, per-argument — docs/superpowers/specs/2
 
         await waitFor(() => expect(commandInput).toHaveValue('/mission end 1 '));
         expect(dbCalls.fetchTasksByCompletionForRoom).toHaveBeenCalledWith(false, 'room-a');
+    });
+
+    it('Enter accepts a highlighted suggestion instead of submitting a stale value (bug report: /mission start "does nothing")', async () => {
+        // react-autosuggest has its own built-in Enter handling: when a
+        // suggestion is highlighted (arrow keys, or a mouse resting over
+        // the dropdown — very easy to trigger while using the feature this
+        // is built for), it intercepts Enter to accept that suggestion,
+        // then *still* calls our onKeyDown afterward. Without a guard, that
+        // second call read the pre-acceptance value and submitted it —
+        // e.g. the still-ambiguous "/mission s" instead of the
+        // just-accepted "/mission start ".
+        const commandInput = mountChatInput();
+
+        await userEvent.type(commandInput, '/mission s');
+        expect(await screen.findByText('/mission start')).toBeInTheDocument();
+        await userEvent.type(commandInput, '{arrowdown}');
+        await userEvent.type(commandInput, '{enter}');
+
+        // First Enter only accepts the highlighted suggestion.
+        await waitFor(() => expect(commandInput).toHaveValue('/mission start '));
+        expect(executionHandlers.handleShowMissionCreation).not.toHaveBeenCalled();
+
+        // A second, unambiguous Enter actually submits it.
+        await userEvent.type(commandInput, '{enter}');
+        await waitFor(() => expect(executionHandlers.handleShowMissionCreation).toHaveBeenCalled());
     });
 });
 

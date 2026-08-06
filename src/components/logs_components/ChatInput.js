@@ -420,8 +420,11 @@ export default function ChatInput() {
 
     const buildSuggestionList = (currentValue, completion) => {
         if (!completion.applied) return [];
-        return completion.candidates.map((candidate) => ({
-            text: candidate,
+        return completion.candidates.map((candidate, index) => ({
+            // The dropdown shows the whole command in context (e.g.
+            // "/mission start", not just "start") via suggestionLines —
+            // accepting it still only fills the one slot being typed.
+            text: completion.suggestionLines[index],
             replacement: applyCandidate(currentValue, completion, candidate),
         }));
     };
@@ -475,6 +478,18 @@ export default function ChatInput() {
         onChange,
         onKeyDown: async (event) => {
             if (event.key === 'Enter') {
+                // react-autosuggest has its own built-in Enter handling: if
+                // a suggestion is highlighted (arrow keys, or just the
+                // mouse resting over the dropdown) it accepts that
+                // suggestion and calls preventDefault() *before* this
+                // handler runs, but still calls this handler afterward.
+                // Without this check, that meant submitting `value` from
+                // its state *before* the accepted suggestion applied — a
+                // stale, still-ambiguous command (e.g. "/mission s"
+                // instead of the just-accepted "/mission start ").
+                // Accepting a suggestion should never also submit it in
+                // the same keystroke; a second, unambiguous Enter does.
+                if (event.defaultPrevented) return;
                 submitCommand();
                 return;
             }

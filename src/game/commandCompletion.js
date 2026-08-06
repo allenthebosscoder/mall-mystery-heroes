@@ -17,6 +17,30 @@ const TOKEN = /\/\S+|\[[^\]]+\]|\S+/g;
 const MISSION_SUBCOMMANDS = ['done', 'end', 'start', 'view'];
 const OPEN_SEASON_VALUES = ['start', 'end'];
 
+// Placeholder labels for each command's arguments, in order — used only to
+// build the full-line preview shown in the suggestion dropdown (see
+// `describeCandidate`). Tab/selecting a suggestion still only ever fills
+// the one slot being typed; these labels are what's left *after* it, shown
+// so a GM can see the whole command's shape without memorizing it.
+const ARG_LABELS = {
+    '/add': ['[player_name]', '[points]'],
+    '/kill': ['[player_name]', '[assassin_name]'],
+    '/openseason': ['[player_name]', 'start|end'],
+    '/revive': ['[player_name]'],
+    '/whisper': ['[player_name]', '[message]'],
+    '/broadcast': ['[message]'],
+    '/leaderboard': ['send'],
+};
+
+// `/mission`'s remaining shape depends on which sub-command was picked, so
+// it's keyed separately rather than living in ARG_LABELS.
+const MISSION_ARG_LABELS = {
+    done: ['[player_name]', '[mission_index]'],
+    end: ['[mission_index]'],
+    start: [],
+    view: [],
+};
+
 const playerNames = (players) => players.map((player) => player.name);
 const deadPlayerNames = (players) =>
     players.filter((player) => player.isAlive === false).map((player) => player.name);
@@ -61,6 +85,43 @@ const matchCandidates = (candidates, typed) => {
         prefixLength = Math.min(prefixLength, i);
     }
     return { matches, commonPrefix: matches[0].slice(0, prefixLength) };
+};
+
+const bracketIfMultiWord = (value) => (/\s/.test(value) ? `[${value}]` : value);
+
+/**
+ * The full-line preview shown in the suggestion dropdown for one
+ * `candidate` at `slotIndex`: the command so far, `candidate` filled into
+ * its slot, and placeholder labels for whatever's still unfilled after it
+ * — e.g. typing "/mission d" shows "/mission done [player_name]
+ * [mission_index]", not just "done". Display only; what Tab/selecting
+ * actually inserts is still just the one slot (`applyCandidate` in
+ * ChatInput.js).
+ */
+const describeCandidate = (command, slotIndex, tokens, candidate) => {
+    if (slotIndex === 0) {
+        // The command word itself. /mission's own remaining shape depends
+        // on a sub-command that hasn't been chosen yet, so it's shown bare
+        // — the sub-command slot's own suggestions spell out each variant.
+        const labels = candidate === '/mission' ? [] : ARG_LABELS[candidate] || [];
+        return [candidate, ...labels].join(' ');
+    }
+
+    const typed = tokens.slice(1, slotIndex).map((token) => token.text);
+    const filled = bracketIfMultiWord(candidate);
+
+    let remaining;
+    if (command === '/mission') {
+        const sub = (
+            slotIndex === 1 ? candidate : (tokens[1]?.text || '').replace(/[[\]]/g, '')
+        ).toLowerCase();
+        const labels = MISSION_ARG_LABELS[sub] || [];
+        remaining = slotIndex === 1 ? labels : labels.slice(slotIndex - 1);
+    } else {
+        remaining = (ARG_LABELS[command] || []).slice(slotIndex);
+    }
+
+    return [command, ...typed, filled, ...remaining].join(' ');
 };
 
 /**
@@ -112,6 +173,7 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
  *   tokenEnd: number,
  *   commonPrefix: string,
  *   candidates: string[],
+ *   suggestionLines: string[],
  *   isUnique: boolean,
  * }}
  */
@@ -123,12 +185,12 @@ export const complete = (input, { players = [], missions = [] } = {}) => {
     const slotIndex = tokens.length - 1;
     const current = tokens[slotIndex];
     const typed = current.text.replace(/[[\]]/g, '');
+    const command = tokens[0].text.toLowerCase();
 
     let candidates;
     if (slotIndex === 0) {
         candidates = KNOWN_COMMANDS;
     } else {
-        const command = tokens[0].text.toLowerCase();
         if (!KNOWN_COMMANDS.includes(command)) return { applied: false };
         const args = tokens.slice(1, slotIndex).map((token) => token.text.replace(/[[\]]/g, ''));
         candidates = candidatesForSlot(command, slotIndex, args, { players, missions });
@@ -148,6 +210,9 @@ export const complete = (input, { players = [], missions = [] } = {}) => {
         tokenEnd: current.end,
         commonPrefix: needsBrackets ? `[${result.commonPrefix}]` : result.commonPrefix,
         candidates: result.matches,
+        suggestionLines: result.matches.map((candidate) =>
+            describeCandidate(command, slotIndex, tokens, candidate)
+        ),
         isUnique,
     };
 };

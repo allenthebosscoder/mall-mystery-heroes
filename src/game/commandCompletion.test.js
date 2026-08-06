@@ -21,6 +21,7 @@ describe('complete — command word (slot 0)', () => {
             tokenEnd: 3,
             commonPrefix: '/kill',
             candidates: ['/kill'],
+            suggestionLines: ['/kill [player_name] [assassin_name]'],
             isUnique: true,
         });
     });
@@ -187,6 +188,55 @@ describe('complete — unimplemented commands only complete the command word', (
             expect(result).toEqual({ applied: false });
         }
     );
+});
+
+describe('complete — suggestionLines show the whole command in context, not just the candidate', () => {
+    it('shows the full syntax for each command word, not just its name', () => {
+        const result = complete('/ki', {});
+        expect(result.suggestionLines).toEqual(['/kill [player_name] [assassin_name]']);
+    });
+
+    it('shows /mission bare at the command-word slot — its shape depends on an unpicked sub-command', () => {
+        const result = complete('/mi', {});
+        expect(result.suggestionLines).toEqual(['/mission']);
+    });
+
+    it('shows each /mission sub-command with its own full argument shape', () => {
+        const result = complete('/mission ', { players, missions });
+        expect(result.suggestionLines).toEqual([
+            '/mission done [player_name] [mission_index]',
+            '/mission end [mission_index]',
+            '/mission start',
+            '/mission view',
+        ]);
+    });
+
+    it('carries the already-typed sub-command and shows what remains for /mission done', () => {
+        const result = complete('/mission done ', { players, missions });
+        expect(result.suggestionLines).toEqual([
+            '/mission done [Alice Smith] [mission_index]',
+            '/mission done Alex [mission_index]',
+            '/mission done Bob [mission_index]',
+        ]);
+    });
+
+    it('shows nothing left to fill once the last argument is being completed', () => {
+        const result = complete('/mission done alice ', { players, missions });
+        expect(result.suggestionLines).toEqual(['/mission done alice 1', '/mission done alice 2']);
+    });
+
+    it('brackets a multi-word candidate in the preview the same way Tab would insert it', () => {
+        const result = complete('/kill Al', { players });
+        expect(result.suggestionLines).toEqual([
+            '/kill [Alice Smith] [assassin_name]',
+            '/kill Alex [assassin_name]',
+        ]);
+    });
+
+    it("shows a literal enum, not a placeholder, for /openseason's second argument", () => {
+        const result = complete('/openseason bob ', { players });
+        expect(result.suggestionLines).toEqual(['/openseason bob start', '/openseason bob end']);
+    });
 });
 
 describe('complete — no data provided', () => {
