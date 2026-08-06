@@ -1057,7 +1057,7 @@ had zero callers and was deleted along with the rest of that item's dead-code
 sweep. `DashBoard.handleHostRoom` is now the only room-creation path, so there
 is nothing left to disagree.
 
-### 25. No environment separation ⚠️ Partially addressed
+### 25. No environment separation 🚫 Not pursuing
 
 **Impact: medium · Effort: M**
 
@@ -1069,6 +1069,38 @@ Additionally, emulator connection is keyed on `NODE_ENV === 'development'`, whic
 `react-scripts start` always sets — so `npm start` can never be pointed at the
 real project without editing `utils/firebase.js`. A dedicated
 `REACT_APP_USE_EMULATORS` flag would decouple the two.
+
+**Resolved in part, the rest deliberately not pursued:** the emulator-flag
+half is fixed — `REACT_APP_USE_EMULATORS=true` now lives in
+`.env.development`, decoupled from `NODE_ENV` (see `src/utils/firebaseEnv.js`).
+
+The `.firebaserc` aliasing half — a real second Firebase project for `dev`,
+distinct from `prod` — was traced through and deliberately not pursued
+after discussion. Checked every place a `.firebaserc` alias actually gets
+used in this repo:
+
+- `npm start` always talks to the local emulators regardless of any alias
+  (`REACT_APP_USE_EMULATORS=true`).
+- `test:emulator`/`test:rules` use a hardcoded `demo-mall-mystery-heroes`
+  project ID, not a `.firebaserc` alias — Firebase treats any `demo-`-prefixed
+  ID as permanently emulator-only, incapable of reaching a real backend no
+  matter what.
+- `firebase:emulate` starts local emulators too — no real data touched
+  regardless of aliasing.
+- The only command that would touch the real project is a manual
+  `firebase deploy` — and since every alias already points at the same
+  project, there is no "wrong" alias to accidentally deploy to.
+
+So the risk this item describes — running a command against "dev" while
+believing it's a sandbox, and having it silently hit real data — has no
+actual moment where it could happen in this project's current workflow.
+It's real advice for a team environment with multiple contributors or
+scripted bulk/destructive testing against a "sandbox," neither of which
+applies here today. Revisit if either changes (a second contributor joins,
+or a need arises to run something destructive against non-production data)
+— at that point, provisioning an actual second Firebase project and
+pointing `dev` at it is the fix, not just renaming labels (the alias names
+are already distinct; only the underlying project IDs need to differ).
 
 ### 26. Deployment is not captured in the repository
 
