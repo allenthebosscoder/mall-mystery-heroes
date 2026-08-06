@@ -12,6 +12,7 @@ import CreateAlert from '../components/CreateAlert';
 import {
     fetchPlayersQueryByDescendPointsThenIsAliveForRoom,
     fetchLogsQueryByAscendingTimestampForRoom,
+    fetchRoomReferenceForRoom,
     addLogForRoom,
     updateIsAliveForPlayer,
 } from '../components/firebase_calls/dbCalls';
@@ -31,6 +32,7 @@ const GameMasterView = () => {
     const [showRemapModal, setShowRemapModal] = useState(false);
     const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
     const [showTaskListModal, setShowTaskListModal] = useState(false);
+    const [isGameActive, setIsGameActive] = useState(true);
     const aliveNames = players.filter((player) => player.isAlive).map((player) => player.name);
 
     // Players and logs are both live subscriptions now, not fetched once and
@@ -59,6 +61,20 @@ const GameMasterView = () => {
         const logsQuery = fetchLogsQueryByAscendingTimestampForRoom(roomID);
         const unsubscribe = onSnapshot(logsQuery, (snapshot) => {
             setLogList(snapshot.docs.map((doc) => doc.data()));
+        });
+        return () => unsubscribe();
+    }, [roomID]);
+
+    // isGameActive is set true at room creation and false by endGame
+    // (docs/improvements.md item 15's "relatedly" note) — this is what
+    // reads it, so a room whose game has ended stops accepting commands
+    // from any tab still open on it, not just the one that clicked "End
+    // Game" (which navigates itself away separately).
+    useEffect(() => {
+        if (!roomID) return undefined;
+        const roomRef = fetchRoomReferenceForRoom(roomID);
+        const unsubscribe = onSnapshot(roomRef, (snapshot) => {
+            setIsGameActive(snapshot.data()?.isGameActive ?? true);
         });
         return () => unsubscribe();
     }, [roomID]);
@@ -163,7 +179,7 @@ const GameMasterView = () => {
     };
 
     return (
-        <gameContext.Provider value={{ roomID, players }}>
+        <gameContext.Provider value={{ roomID, players, isGameActive }}>
             <Box sx={styles.container}>
                 <RemapPlayerModal
                     showRemapModal={showRemapModal}

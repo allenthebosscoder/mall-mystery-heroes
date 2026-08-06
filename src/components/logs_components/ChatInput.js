@@ -368,7 +368,7 @@ export default function ChatInput() {
     const [value, setValue] = useState('');
     const [suggestions, setSuggestions] = useState([]);
     const [highlightedSuggestion, setHighlightedSuggestion] = useState(null);
-    const { roomID, players = [] } = useContext(gameContext) || {};
+    const { roomID, players = [], isGameActive = true } = useContext(gameContext) || {};
     // Active missions for /mission done|end's mission-index completion —
     // fetched on demand the first time typing needs them, not an always-on
     // subscription (docs/superpowers/specs/2026-08-05-shell-style-command-
@@ -472,6 +472,10 @@ export default function ChatInput() {
     };
 
     const submitCommand = async () => {
+        // The text input is disabled once the game has ended, but the
+        // send icon next to it isn't a native <input> — nothing stops a
+        // click on it otherwise.
+        if (!isGameActive) return;
         await handleCommandExecution(
             value,
             setValue,
@@ -487,8 +491,9 @@ export default function ChatInput() {
     };
 
     const inputProps = {
-        placeholder: 'Input Texts/Commands Here ',
+        placeholder: isGameActive ? 'Input Texts/Commands Here ' : 'This game has ended',
         value,
+        disabled: !isGameActive,
         onChange,
         onKeyDown: async (event) => {
             if (event.key === 'Enter') {
@@ -551,6 +556,7 @@ export default function ChatInput() {
             />
             <Image
                 src={enter}
+                alt="Send"
                 style={styles.enterImage}
                 onClick={submitCommand}
                 _hover={{ opacity: '.3' }}

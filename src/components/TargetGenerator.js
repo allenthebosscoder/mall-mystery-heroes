@@ -16,7 +16,11 @@ import {
     Table,
     Thead,
 } from '@chakra-ui/react';
-import { updateAssassinsForPlayer, updateTargetsForPlayer } from './firebase_calls/dbCalls';
+import {
+    addLogForRoom,
+    updateAssassinsForPlayer,
+    updateTargetsForPlayer,
+} from './firebase_calls/dbCalls';
 import { buildTargetGraph } from '../game/targetGraph';
 import CreateAlert from './CreateAlert';
 const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
@@ -36,6 +40,16 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
     //actions that occur when clicking yes
     const onYesClose = async () => {
         await UpdateDatabase(arrayOfPlayers, graph);
+        // A real log entry, not the phantom `<ListItem>Game has begun!</ListItem>`
+        // Log.js used to hardcode above every real entry (docs/improvements.md
+        // item 23) — nothing in Firestore ever actually contained that text.
+        // Seeded here, at the moment the game actually begins, rather than at
+        // room creation, when no players exist yet.
+        try {
+            await addLogForRoom('Game has begun!', 'gray.400', roomID);
+        } catch (error) {
+            console.error('Error adding log: ', error);
+        }
         onClose();
         handleLobbyRoom();
     };

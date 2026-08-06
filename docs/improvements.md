@@ -785,7 +785,7 @@ path writes `taskIndex: 1`; leaving a second, disagreeing, unreferenced
 implementation of "create a room" in the same file most other Firestore
 writes flow through was exactly the kind of trap this item warned about.
 
-### 15. The mission feature is half-disconnected ⚠️ Partially addressed
+### 15. The mission feature is half-disconnected ✅ Resolved
 
 **Impact: medium · Effort: S**
 
@@ -843,10 +843,24 @@ a layout — see `docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md`.
 `RemapPlayerModal` pattern. The restore-vs-remove decision itself didn't
 change; only how the restored feature is presented did.
 
-**Not addressed:** the "relatedly" paragraph below, about `isGameActive`
-being written but never read — a narrower, separate gap this item's own
-text flagged in passing, not part of the "restore vs. remove" decision this
-resolution answers. Still open.
+**Follow-up, later session:** the "relatedly" gap below — `isGameActive`
+written but never read — picked up and closed. `GameMasterView` now
+subscribes to the room document itself (`fetchRoomReferenceForRoom`, a new
+`onSnapshot` alongside the existing players/logs ones) and threads
+`isGameActive` through `gameContext`. `ChatInput` disables its input and
+swaps its placeholder to "This game has ended" once it reads `false` —
+guarding both the text input (its own `disabled` attribute blocks Enter/Tab
+natively) and the separate send-icon click, which isn't a native `<input>`
+and needed its own check in `submitCommand`. This closes the gap for every
+tab still open on the room, not just the one that clicked "End Game" itself
+(which already navigated away separately, via `Endgamebutton`'s existing
+`navigate('/dashboard')`). New tests: `ChatInput.test.jsx` (disabled +
+placeholder + send-icon guard, all three confirmed failing against the
+pre-fix code before the fix), `GameMasterView.test.jsx` (isGameActive
+reaches context, both the default-true and reported-false cases). Verified
+live in two browser tabs against the running dev server, not just the test
+suite — ending the game in one tab visibly disables the input in the other,
+without a reload.
 
 Relatedly, `endGame` sets `isGameActive: false` and nothing ever reads it — a
 finished room still opens and accepts commands.
@@ -999,7 +1013,7 @@ tests: 3 emulator-backed (`dbCalls.integration.test.js`, including one
 proving two identical messages are no longer deduplicated) and 3 rules
 tests (`test/firestore.rules.test.js`).
 
-### 23. `Log.js` hardcodes a phantom first entry
+### 23. `Log.js` hardcodes a phantom first entry ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -1014,6 +1028,20 @@ function is gone — but the hardcoded `<ListItem>` itself, standing in for
 data that doesn't exist, is still the underlying issue.) Fix shape: either
 seed a real first log entry when a room is created and delete the hardcoded
 element, or accept it as permanent decoration and stop treating it as a log.
+
+**Resolution:** seeded a real entry, not left as decoration — but at "Begin
+Game" time (`TargetGenerator.js`'s `onYesClose`, via `addLogForRoom`), not
+at room creation. Room creation happens before any players exist yet; "Begin
+Game" is the moment the game actually starts, matching the message's own
+wording. Deleted the hardcoded `<ListItem>` from `Log.js` — every entry
+shown is now real subcollection data, no phantom exceptions. New test file
+`TargetGenerator.test.jsx` (none existed before): covers the confirmation
+dialog, that targets/assassins get written per player, the new log call,
+the handoff to the lobby callback, and — since this was untested before and
+the file already had its own error-catching per item 10 — that a rejected
+write surfaces a toast. Verified live against the running dev server: the
+log panel shows a real timestamped `[h:mm:ss AM/PM]: Game has begun!` entry
+after confirming target generation.
 
 ### 24. Room creation paths disagree ✅ Resolved
 
@@ -1122,7 +1150,7 @@ that would require mocking every page it transitively imports (Firebase
 auth, `dbCalls`, …) to verify library routing behavior that isn't this
 codebase's to test.
 
-### 31. Post-signup dashboard shows leftover debug placeholder text
+### 31. Post-signup dashboard shows leftover debug placeholder text ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -1132,6 +1160,14 @@ scaffolding rather than an intentional "create/host a room" step. `Dashboard`
 can't be skipped outright — a brand-new account has no room yet, so
 `Dashboard → Lobby → GameMasterView` is structurally required — but the
 placeholder copy and layout should be replaced with real UI.
+
+**Resolution:** replaced with a one-line `<Text>` explaining the single
+action available on the page ("Host a new room below to start a game as its
+Game Master"). No new test file — `DashBoard.js` is CLAUDE.md's one
+legacy exception that touches the Firestore SDK directly rather than going
+through `dbCalls.js`, and this change is copy-only, not logic; testing it
+would mean standing up Firebase SDK mocks solely to assert on static text.
+Verified live against the running dev server instead.
 
 ### 32. Confirm-password field has no show/hide toggle ✅ Resolved
 

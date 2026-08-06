@@ -24,7 +24,7 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatInput from './ChatInput';
 import { executionContext, gameContext } from '../Contexts';
@@ -67,10 +67,10 @@ const defaultPlayers = [
     { name: 'Bob', isAlive: true },
 ];
 
-const mountChatInput = (players = defaultPlayers) => {
+const mountChatInput = (players = defaultPlayers, isGameActive = true) => {
     render(
         <ChakraProvider>
-            <gameContext.Provider value={{ roomID: 'room-a', players }}>
+            <gameContext.Provider value={{ roomID: 'room-a', players, isGameActive }}>
                 <executionContext.Provider value={executionHandlers}>
                     <ChatInput />
                 </executionContext.Provider>
@@ -462,5 +462,32 @@ describe('a thrown dbCalls error surfaces to the GM (improvements item 10)', () 
         typeAndSubmit(commandInput, '/add Alice 5');
 
         expect(await screen.findByText(/\/add failed: network down/i)).toBeInTheDocument();
+    });
+});
+
+describe('a room whose game has ended stops accepting commands (docs/improvements.md item 15 — isGameActive was written but never read)', () => {
+    it('disables the input and swaps the placeholder once isGameActive is false', () => {
+        const commandInput = mountChatInput(defaultPlayers, false);
+
+        expect(commandInput).toBeDisabled();
+        expect(commandInput).toHaveAttribute('placeholder', 'This game has ended');
+    });
+
+    it('does not disable the input while the game is still active', () => {
+        const commandInput = mountChatInput(defaultPlayers, true);
+
+        expect(commandInput).not.toBeDisabled();
+        expect(commandInput).toHaveAttribute('placeholder', 'Input Texts/Commands Here ');
+    });
+
+    it('ignores a click on the send icon once the game has ended', async () => {
+        // The text input's own `disabled` attribute doesn't cover this
+        // separate clickable icon — submitCommand itself has to check too.
+        const commandInput = mountChatInput(defaultPlayers, false);
+        fireEvent.change(commandInput, { target: { value: '/add Alice 5' } });
+
+        await userEvent.click(screen.getByAltText('Send'));
+
+        expect(dbCalls.updatePointsForPlayer).not.toHaveBeenCalled();
     });
 });

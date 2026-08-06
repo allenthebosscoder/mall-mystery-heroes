@@ -28,12 +28,24 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchPlayersQueryByDescendPointsThenIsAliveForRoom: jest.fn(() => 'players-query'),
     fetchLogsQueryByAscendingTimestampForRoom: jest.fn(() => 'logs-query'),
+    fetchRoomReferenceForRoom: jest.fn(() => 'room-ref'),
     addLogForRoom: jest.fn(),
     updateIsAliveForPlayer: jest.fn(),
     endGame: jest.fn(),
 }));
 
-jest.mock('../components/logs_components/ChatInput', () => () => <div>chat-input-stub</div>);
+// Reads gameContext itself, unlike the other stubs — needed to verify
+// isGameActive actually reaches ChatInput via context (see the "isGameActive"
+// describe block below), since that's the entire point of the wiring this
+// file is testing, not just that GameMasterView renders without crashing.
+jest.mock('../components/logs_components/ChatInput', () => {
+    const { useContext } = require('react');
+    const { gameContext } = require('../components/Contexts');
+    return () => {
+        const { isGameActive } = useContext(gameContext);
+        return <div>chat-input-stub isGameActive={String(isGameActive)}</div>;
+    };
+});
 jest.mock('../components/photos_display_component/PhotosDisplay', () => () => (
     <div>photos-display-stub</div>
 ));
@@ -65,11 +77,15 @@ const mountGameMasterView = () => {
     );
 };
 
-/** Simulates onSnapshot reporting the given players immediately, and an
- * empty logs snapshot, regardless of mount order. */
+/** Simulates onSnapshot reporting the given players immediately, an empty
+ * logs snapshot, and an active game, regardless of mount order. */
 const mockPlayersSnapshot = (players) => {
     onSnapshot.mockImplementation((query, onNext) => {
-        onNext({ docs: query === 'players-query' ? asPlayerDocs(players) : [] });
+        if (query === 'room-ref') {
+            onNext({ data: () => ({ isGameActive: true }) });
+        } else {
+            onNext({ docs: query === 'players-query' ? asPlayerDocs(players) : [] });
+        }
         return () => {};
     });
 };
@@ -97,6 +113,10 @@ describe('the player roster is a live subscription, not stale state (improvement
         let onNext;
         onSnapshot.mockImplementation((query, callback) => {
             if (query === 'players-query') onNext = callback;
+            if (query === 'room-ref') {
+                callback({ data: () => ({ isGameActive: true }) });
+                return () => {};
+            }
             callback({
                 docs:
                     query === 'players-query'
@@ -142,5 +162,30 @@ describe('the player roster is a live subscription, not stale state (improvement
         expect(await screen.findByTestId('reset-targets-stub')).toHaveTextContent(
             JSON.stringify(['Alice'])
         );
+    });
+});
+
+describe("isGameActive is read, not just written (docs/improvements.md item 15's relatedly note)", () => {
+    it('defaults to active before the room subscription has reported anything', async () => {
+        onSnapshot.mockImplementation(() => () => {});
+
+        mountGameMasterView();
+
+        expect(await screen.findByText(/isGameActive=true/)).toBeInTheDocument();
+    });
+
+    it('passes isGameActive=false down through gameContext once endGame has fired', async () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            if (query === 'room-ref') {
+                onNext({ data: () => ({ isGameActive: false }) });
+            } else {
+                onNext({ docs: [] });
+            }
+            return () => {};
+        });
+
+        mountGameMasterView();
+
+        expect(await screen.findByText(/isGameActive=false/)).toBeInTheDocument();
     });
 });

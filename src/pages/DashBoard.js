@@ -1,7 +1,7 @@
 import React from 'react';
 import { auth, db } from '../utils/firebase';
 import { setDoc, doc } from 'firebase/firestore';
-import { Button, ButtonGroup, Flex, Heading } from '@chakra-ui/react';
+import { Button, ButtonGroup, Flex, Heading, Text } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { adjectives, uniqueNamesGenerator } from 'unique-names-generator';
@@ -69,7 +69,7 @@ const DashBoard = () => {
             <Heading as="h1" size="xl" mb={4}>
                 Mall Mystery Heroes DashBoard
             </Heading>
-            <div>OLD LOBBY DATA maybe?</div>
+            <Text color="gray.400">Host a new room below to start a game as its Game Master.</Text>
             <ButtonGroup mt={4}>
                 <Button colorScheme="teal" variant="outline" onClick={handleHostRoom}>
                     Host Room

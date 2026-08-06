@@ -311,6 +311,14 @@ export const endGame = async (roomID) => {
     await updateDoc(roomRef, { isGameActive: false });
 };
 
+// A reference to the room document itself, for onSnapshot — isGameActive
+// used to be written by endGame and never read anywhere (docs/improvements.md
+// item 15's "relatedly" note), so a room a GM had ended still fully accepted
+// commands from any tab still open on it.
+export const fetchRoomReferenceForRoom = (roomID) => {
+    return doc(db, 'rooms', roomID);
+};
+
 export const setOpenSznOfPlayerToValueForRoom = async (openSeasonPlayer, value, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
     const playerQuery = query(
