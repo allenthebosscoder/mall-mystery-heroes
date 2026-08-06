@@ -140,6 +140,8 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
             return slotIndex === 1 ? playerNames(players) : null;
         case '/kill':
             return slotIndex === 1 || slotIndex === 2 ? playerNames(players) : null;
+        case '/whisper':
+            return slotIndex === 1 ? playerNames(players) : null;
         case '/openseason':
             if (slotIndex === 1) return playerNames(players);
             if (slotIndex === 2) return OPEN_SEASON_VALUES;

@@ -4,6 +4,7 @@ import Autosuggest from 'react-autosuggest';
 import enter from '../../assets/enter-green.png';
 import { executionContext, gameContext } from '../Contexts';
 import {
+    addPlayerMessageForRoom,
     addPlayerToCompletedByForTask,
     fetchAlivePlayerNamesForRoom,
     fetchPlayersByStatusForRoom,
@@ -358,6 +359,38 @@ const handleCommandExecution = async (
                     // (improvements item 21).
                     createAlert('error', 'Error', `${args[0]} is not dead`, 1500);
                     console.error(`${args[0]} is not dead`);
+                }
+                break;
+
+            case '/whisper':
+                const whisperPlayerName = args[0] ? normalizePlayerName(args[0]) : '';
+                const whisperMessage = args.slice(1).join(' ').trim();
+                if (arrayOfPlayerNames.includes(whisperPlayerName)) {
+                    if (whisperMessage) {
+                        const whisperRecipientName = resolvePlayerDisplayName(
+                            whisperPlayerName,
+                            players
+                        );
+                        await addPlayerMessageForRoom(
+                            {
+                                type: 'whisper',
+                                recipient: whisperRecipientName,
+                                text: whisperMessage,
+                                standings: null,
+                            },
+                            roomID
+                        );
+                        await addLog(
+                            `Whisper sent to ${whisperRecipientName}: "${whisperMessage}"`,
+                            'teal.400'
+                        );
+                    } else {
+                        createAlert('error', 'Error', 'Whisper message cannot be blank', 1500);
+                        console.error('Whisper message cannot be blank');
+                    }
+                } else {
+                    createAlert('error', 'Error', `Player ${args[0]} is invalid`, 1500);
+                    console.error(`Player ${args[0]} is invalid.`);
                 }
                 break;
 

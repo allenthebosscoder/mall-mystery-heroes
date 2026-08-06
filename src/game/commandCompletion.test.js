@@ -112,6 +112,19 @@ describe('complete — /openseason', () => {
     });
 });
 
+describe('complete — /whisper', () => {
+    it('completes the player slot', () => {
+        const result = complete('/whisper B', { players });
+        expect(result.applied).toBe(true);
+        expect(result.commonPrefix).toBe('Bob');
+    });
+
+    it('does not suggest anything for the message slot — free text', () => {
+        const result = complete('/whisper bob hel', { players });
+        expect(result).toEqual({ applied: false });
+    });
+});
+
 describe('complete — /mission sub-command completes to the bare word, not a full skeleton', () => {
     it('offers all four sub-commands when nothing has been typed yet', () => {
         const result = complete('/mission ', { players, missions });
@@ -181,13 +194,10 @@ describe('complete — /mission start and /mission view take no arguments', () =
 });
 
 describe('complete — unimplemented commands only complete the command word', () => {
-    it.each(['/whisper', '/broadcast', '/leaderboard'])(
-        'does not suggest arguments for %s',
-        (command) => {
-            const result = complete(`${command} al`, { players });
-            expect(result).toEqual({ applied: false });
-        }
-    );
+    it.each(['/broadcast', '/leaderboard'])('does not suggest arguments for %s', (command) => {
+        const result = complete(`${command} al`, { players });
+        expect(result).toEqual({ applied: false });
+    });
 });
 
 describe('complete — suggestionLines show the whole command in context, not just the candidate', () => {

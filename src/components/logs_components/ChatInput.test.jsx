@@ -36,6 +36,7 @@ import { executeKill } from '../executeKill';
 // pulls in utils/firebase.js's real initialization (getFunctions() touches
 // `fetch`, undefined in jsdom).
 jest.mock('../firebase_calls/dbCalls', () => ({
+    addPlayerMessageForRoom: jest.fn(),
     addPlayerToCompletedByForTask: jest.fn(),
     fetchAlivePlayerNamesForRoom: jest.fn(),
     fetchPlayersByStatusForRoom: jest.fn(),
@@ -479,6 +480,45 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
     });
 });
 
+describe('/whisper (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md)', () => {
+    it('writes a playerMessages doc and logs a confirmation', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }]);
+        typeAndSubmit(commandInput, '/whisper alice watch your back');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'whisper',
+                    recipient: 'Alice',
+                    text: 'watch your back',
+                    standings: null,
+                },
+                'room-a'
+            )
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Whisper sent to Alice: "watch your back"',
+            'teal.400'
+        );
+    });
+
+    it('rejects a whisper to a player not on the roster', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }]);
+        typeAndSubmit(commandInput, '/whisper nobody hi');
+
+        expect(await screen.findByText(/player nobody is invalid/i)).toBeInTheDocument();
+        expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
+    });
+
+    it('rejects a whisper with a blank message', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }]);
+        typeAndSubmit(commandInput, '/whisper alice');
+
+        expect(await screen.findByText(/whisper message cannot be blank/i)).toBeInTheDocument();
+        expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
+    });
+});
+
 describe('silent no-ops now give feedback (improvements item 21)', () => {
     it('/revive on a player who is not dead shows an error instead of doing nothing', async () => {
         dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue([]); // nobody dead
@@ -490,7 +530,7 @@ describe('silent no-ops now give feedback (improvements item 21)', () => {
         expect(dbCalls.updateIsAliveForPlayer).not.toHaveBeenCalled();
     });
 
-    it.each(['/broadcast hello', '/leaderboard', '/whisper alice hi'])(
+    it.each(['/broadcast hello', '/leaderboard'])(
         '%s toasts "not implemented" instead of silently doing nothing',
         async (command) => {
             const [commandLine] = command.split(' ');
