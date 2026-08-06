@@ -233,7 +233,11 @@ inspection.
 
 ## Firebase Storage
 
-`storage.rules` grants `allow read, write: if true` on `/{allPaths=**}`.
+`storage.rules` requires `request.auth != null` on `/{allPaths=**}` —
+tightened from a previous `allow read, write: if true` (anyone,
+unauthenticated). Not scoped further (no per-room/per-host restriction)
+since there's no player-facing auth identity yet to scope a write to; see
+the rules file's own header comment.
 
 There is no Storage code in this repository anymore — `storageCalls.js`'s sole
 export, `fetchPhotoURLFromStorageForRoom`, had no callers and called

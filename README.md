@@ -61,8 +61,7 @@ REACT_APP_MESSAGINGSENDERID=
 REACT_APP_APPID=
 ```
 
-`.env` is gitignored. Note the existing file also carries a `DISCORD_TOKEN`,
-which no code in this repository reads — it belongs to the out-of-repo bot.
+`.env` is gitignored.
 
 ## Running locally
 

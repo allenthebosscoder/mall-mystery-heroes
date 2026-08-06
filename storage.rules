@@ -1,12 +1,24 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+// Minimum-viable tightening, same spirit as firestore.rules' item 2 (see
+// that file's header) — this was previously `allow read, write: if true`,
+// wide open to anyone on the internet, unauthenticated, no bucket path
+// scoped. Nothing in this repo uses Storage yet (no upload/download code
+// exists — see docs/data-model.md's Firebase Storage section), so no live
+// traffic depended on the old rule; this closes the hole before a future
+// mobile app starts writing kill-proof photos there.
+//
+// Not addressed here, on purpose: per-room/per-path scoping (e.g.
+// restricting a write to /rooms/{roomId}/... and checking the requester is
+// that room's host or a player in it, mirroring firestore.rules'
+// isHostOfExistingRoom). There's no real player-facing auth identity yet
+// (docs/architecture.md's mobile-app note, docs/improvements.md item 2/33)
+// to scope a player's own upload to, so "signed in" is as far as this can
+// meaningfully go today. Revisit alongside player identity work.
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }

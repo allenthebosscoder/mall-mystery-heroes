@@ -46,15 +46,16 @@ unknowns when changing the `photos` schema or the room document shape:
   app exists, kill-proof photos have no way to enter Firestore except
   manual/emulator seeding, and player messages have no way to leave it
   except manual/emulator inspection.
-- **Something Discord-related — unconfirmed, still unbuilt.** `.env`
-  carries a `DISCORD_TOKEN` that no code in this repository reads. This was
+- **Something Discord-related — no longer present.** `.env` used to carry a
+  `DISCORD_TOKEN` that no code in this repository ever read. It was
   previously guessed to be the real integration point for `/broadcast`,
   `/leaderboard`, and `/whisper`, on no more evidence than the stray env
-  var — those three commands are now implemented and target the
-  `playerMessages` collection / a future mobile app instead
-  (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
-  The Discord token itself remains unread by any code here, its purpose
-  still unconfirmed.
+  var — that guess is now moot on two counts: those three commands are
+  implemented and target the `playerMessages` collection / a future mobile
+  app instead
+  (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md),
+  and the token itself is gone from `.env` as of this writing. Whatever it
+  was for, if anything, is no longer this codebase's concern.
 
 ## Layers
 
