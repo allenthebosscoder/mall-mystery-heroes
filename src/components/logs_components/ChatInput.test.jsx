@@ -59,6 +59,9 @@ const executionHandlers = {
     handleTaskCompleted: jest.fn(),
     handleShowMissionCreation: jest.fn(),
     handleShowMissionList: jest.fn(),
+    handleOpenSznstarted: jest.fn(),
+    handleOpenSznended: jest.fn(),
+    handlePlayerRevive: jest.fn(),
     addLog: jest.fn(),
 };
 
@@ -101,7 +104,12 @@ describe('/kill (improvements item 4: executeKill is now a Cloud Function call)'
         typeAndSubmit(commandInput, '/kill alice bob');
 
         await waitFor(() => expect(executeKill).toHaveBeenCalledWith('alice', 'bob', 'room-a'));
-        expect(executionHandlers.handleKillPlayer).toHaveBeenCalledWith('alice', 'bob', false);
+        // executeKill itself still gets the normalized (lowercased) form —
+        // that's the matching key Firestore/the Cloud Function need. The
+        // handler that turns this into chat log text gets the player's
+        // actual stored casing instead (improvements: player names should
+        // reflect their real casing in chat, not the lowercased match key).
+        expect(executionHandlers.handleKillPlayer).toHaveBeenCalledWith('Alice', 'Bob', false);
     });
 
     it('rejects a kill for a name not on the roster without calling executeKill', async () => {
@@ -166,7 +174,7 @@ describe('open-season flag passed to handleKillPlayer (improvements item 8)', ()
         typeAndSubmit(commandInput, '/kill alice bob');
 
         await waitFor(() => expect(executionHandlers.handleKillPlayer).toHaveBeenCalled());
-        expect(executionHandlers.handleKillPlayer).toHaveBeenCalledWith('alice', 'bob', true);
+        expect(executionHandlers.handleKillPlayer).toHaveBeenCalledWith('Alice', 'Bob', true);
     });
 });
 
@@ -257,7 +265,7 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
     });
 
-    it('logs the completion to chat', async () => {
+    it('logs the completion to chat using the player\'s actual stored casing, not "bob"', async () => {
         dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask });
 
         const commandInput = mountChatInput();
@@ -265,7 +273,7 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
 
         await waitFor(() =>
             expect(executionHandlers.addLog).toHaveBeenCalledWith(
-                'bob completed mission: Find the clue',
+                'Bob completed mission: Find the clue',
                 'green.400'
             )
         );
@@ -294,7 +302,7 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
 
         await waitFor(() =>
             expect(executionHandlers.addLog).toHaveBeenCalledWith(
-                'bob completed mission: Find the clue',
+                'Bob completed mission: Find the clue',
                 'green.400'
             )
         );
@@ -424,6 +432,50 @@ describe('Tab completion (shell-style, per-argument — docs/superpowers/specs/2
         // A second, unambiguous Enter actually submits it.
         await userEvent.type(commandInput, '{enter}');
         await waitFor(() => expect(executionHandlers.handleShowMissionCreation).toHaveBeenCalled());
+    });
+});
+
+describe("chat log messages show a player's actual stored casing, not the lowercased matching key", () => {
+    it('/openseason start passes the actual casing to handleOpenSznstarted', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }]);
+        typeAndSubmit(commandInput, '/openseason alice start');
+
+        await waitFor(() =>
+            expect(dbCalls.setOpenSznOfPlayerToValueForRoom).toHaveBeenCalledWith(
+                'alice',
+                true,
+                'room-a'
+            )
+        );
+        expect(executionHandlers.handleOpenSznstarted).toHaveBeenCalledWith('Alice');
+    });
+
+    it('/openseason end passes the actual casing to handleOpenSznended', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }]);
+        typeAndSubmit(commandInput, '/openseason alice end');
+
+        await waitFor(() =>
+            expect(dbCalls.setOpenSznOfPlayerToValueForRoom).toHaveBeenCalledWith(
+                'alice',
+                false,
+                'room-a'
+            )
+        );
+        expect(executionHandlers.handleOpenSznended).toHaveBeenCalledWith('Alice');
+    });
+
+    it('a successful /revive passes the actual casing to handlePlayerRevive', async () => {
+        dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Alice']);
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: false }]);
+        typeAndSubmit(commandInput, '/revive alice');
+
+        await waitFor(() =>
+            expect(dbCalls.updateIsAliveForPlayer).toHaveBeenCalledWith('alice', true, 'room-a')
+        );
+        expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
+            'Alice',
+            expect.any(Function)
+        );
     });
 });
 

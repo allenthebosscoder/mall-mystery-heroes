@@ -19,7 +19,7 @@ import commandCompletion from '../../game/commandCompletion';
 import RemapPlayers from '../RemapPlayers';
 import { executeKill } from '../executeKill';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
-import { normalizePlayerName } from '../../game/playerNames';
+import { normalizePlayerName, resolvePlayerDisplayName } from '../../game/playerNames';
 import CreateAlert from '../CreateAlert';
 
 // handling for command execution
@@ -124,7 +124,15 @@ const handleCommandExecution = async (
                 ) {
                     const { targetWasOpenSzn, addedTargets, addedAssassins, remapLogs } =
                         await executeKill(targetName, assassinName, roomID);
-                    await handleKillPlayer(targetName, assassinName, targetWasOpenSzn);
+                    // targetName/assassinName are the normalized (lowercased)
+                    // matching keys — resolved back to actual stored casing
+                    // here since this is the point where they become chat
+                    // log text, not a lookup key.
+                    await handleKillPlayer(
+                        resolvePlayerDisplayName(targetName, players),
+                        resolvePlayerDisplayName(assassinName, players),
+                        targetWasOpenSzn
+                    );
 
                     for (const log of remapLogs) {
                         await handleRemapping(log);
@@ -197,7 +205,9 @@ const handleCommandExecution = async (
                                     ).map((name) => normalizePlayerName(name));
                                     if (arrayOfDeadPlayers.includes(playerName)) {
                                         await updateIsAliveForPlayer(playerName, true, roomID);
-                                        handlePlayerRevive(playerName);
+                                        handlePlayerRevive(
+                                            resolvePlayerDisplayName(playerName, players)
+                                        );
                                         arrayOfAlivePlayers =
                                             await fetchAlivePlayerNamesForRoom(roomID);
                                         const [targets, assassins] = await handleTargetRegeneration(
@@ -221,7 +231,7 @@ const handleCommandExecution = async (
                                 }
                                 await addPlayerToCompletedByForTask(taskDocRef, playerName);
                                 await addLog(
-                                    `${playerName} completed mission: ${task.title}`,
+                                    `${resolvePlayerDisplayName(playerName, players)} completed mission: ${task.title}`,
                                     'green.400'
                                 );
 
@@ -302,11 +312,11 @@ const handleCommandExecution = async (
                     switch (arg) {
                         case 'start':
                             await setOpenSznOfPlayerToValueForRoom(playerName, true, roomID);
-                            handleOpenSznstarted(playerName);
+                            handleOpenSznstarted(resolvePlayerDisplayName(playerName, players));
                             break;
                         case 'end':
                             await setOpenSznOfPlayerToValueForRoom(playerName, false, roomID);
-                            handleOpenSznended(playerName);
+                            handleOpenSznended(resolvePlayerDisplayName(playerName, players));
                             break;
                         default:
                             createAlert('error', 'Error', `${args[1]} is not a valid input`, 1500);
@@ -340,7 +350,7 @@ const handleCommandExecution = async (
                     handleAddNewAssassins(assassin);
                     handleAddNewTargets(target);
                     handleSetShowMessageToTrue();
-                    handlePlayerRevive(playerName, createAlert);
+                    handlePlayerRevive(resolvePlayerDisplayName(playerName, players), createAlert);
                 } else {
                     // Previously no else branch here at all — reviving a
                     // player who isn't dead (e.g. a typo, or a player
