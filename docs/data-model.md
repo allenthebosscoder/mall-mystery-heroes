@@ -210,6 +210,27 @@ the photo document itself was already durably `approved`.
 
 ---
 
+## `rooms/{roomID}/playerMessages/{autoId}`
+
+Player-facing messages from `/whisper`, `/broadcast`, and `/leaderboard`
+(docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
+**Designed to be read by a player-facing mobile app**, not by this
+codebase — the mirror case of `photos` above, which is designed to be
+_written_ by that same not-yet-existing app. Nothing in this repository
+reads a `playerMessages` document; today this collection has a writer
+(`dbCalls.addPlayerMessageForRoom`) but no reader at all, except manual
+inspection.
+
+| Field       | Type                                        | Notes                                                                                                           |
+| ----------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `type`      | `'whisper' \| 'broadcast' \| 'leaderboard'` | Discriminates which of the other fields is populated.                                                           |
+| `recipient` | `string \| null`                            | The player's real (display) name. Populated only for `'whisper'`; `null` means "everyone."                      |
+| `text`      | `string \| null`                            | Free-text body. Populated for `'whisper'`/`'broadcast'`; `null` for `'leaderboard'`.                            |
+| `standings` | `Array<{name, score, isAlive}> \| null`     | Populated only for `'leaderboard'` — structured, not pre-rendered text, so a real client can render its own UI. |
+| `timestamp` | `Timestamp`                                 | `serverTimestamp()`.                                                                                            |
+
+---
+
 ## Firebase Storage
 
 `storage.rules` grants `allow read, write: if true` on `/{allPaths=**}`.

@@ -162,24 +162,43 @@ Active/Completed tabs. Marking a mission done or closing it out is still
 only done via `/mission done`/`/mission end` — this popup has no actions
 of its own (docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md).
 
----
+### `/whisper <player> <message>`
 
-## Declared but not implemented
+Sends a private, player-facing message — visible (once a player-facing
+mobile app exists to show it) only to the named player. Writes to
+`rooms/{roomID}/playerMessages`
+(docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
 
-Tab only completes the command word itself for these — never their
-arguments (`commandCompletion.js` checks `UNIMPLEMENTED_COMMANDS` before
-offering anything else). They pass the whitelist check, so they consume the
-input and clear the box, but their `case` bodies are empty `// TO DO` stubs.
-**They fail silently.**
+| Check                                                    | Failure                           |
+| -------------------------------------------------------- | --------------------------------- |
+| Player in roster                                         | `Player {name} is invalid`        |
+| Message (everything after the player token) is non-empty | `Whisper message cannot be blank` |
 
-| Command        | Suggested syntax              |
-| -------------- | ----------------------------- |
-| `/broadcast`   | `/broadcast [message]`        |
-| `/leaderboard` | `/leaderboard send`           |
-| `/whisper`     | `/whisper [player] [message]` |
+Logs a GM-facing confirmation to chat: `Whisper sent to {name}: "{message}"`.
 
-All three imply an out-of-band delivery channel to players — most likely the
-Discord bot hinted at by the unused `DISCORD_TOKEN` in `.env`.
+### `/broadcast <message>`
+
+Sends a player-facing message visible to every player, once a mobile app
+exists to show it. Same `playerMessages` write as `/whisper`, with
+`recipient: null`.
+
+| Check                | Failure                             |
+| -------------------- | ----------------------------------- |
+| Message is non-empty | `Broadcast message cannot be blank` |
+
+Logs: `Broadcast sent: "{message}"`.
+
+### `/leaderboard send`
+
+Packages the live roster's current standings (sorted by score descending,
+dead players included) and sends that snapshot as a player-facing message.
+Takes no custom text — the second word must be the literal `send`.
+
+| Check                                                  | Failure                      |
+| ------------------------------------------------------ | ---------------------------- |
+| Second argument is literally `send` (case-insensitive) | `{arg} is not a valid input` |
+
+Logs: `Leaderboard sent to all players`.
 
 ---
 

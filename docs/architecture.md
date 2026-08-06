@@ -33,19 +33,28 @@ unknowns when changing the `photos` schema or the room document shape:
 
 - **A player-facing mobile app — does not currently exist, anywhere**
   ([improvements.md](./improvements.md) item 33). It is never referenced in
-  code, but its existence is implied: the `photos` collection is designed to
-  be read by such an app but is never written by anything in this repository
-  — nothing in `dbCalls.js` writes a photo document (the test helper that
-  once did was dead code, deleted per item 14). `firestore.rules`'s `photos`
-  block is scoped to the host rather than to a distinct mobile-app identity
-  for the same reason (item 2). Until this app exists, kill-proof photos
-  have no way to enter Firestore except manual/emulator seeding.
-- **Something Discord-related — unconfirmed, not just unbuilt.** `.env`
-  carries a `DISCORD_TOKEN` that no code in this repository reads.
-  Presumably a bot that broadcasts game events; the unimplemented
-  `/broadcast`, `/leaderboard`, and `/whisper` commands are the likely
-  intended integration point, but this is inference from a stray env var,
-  not a documented design.
+  code, but its existence is implied by two collections prepped for it, in
+  opposite directions: `photos` is designed to be _read_ by such an app but
+  is never _written_ by anything in this repository — nothing in
+  `dbCalls.js` writes a photo document (the test helper that once did was
+  dead code, deleted per item 14). `playerMessages`
+  (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md)
+  is the mirror case: written by `/whisper`, `/broadcast`, and
+  `/leaderboard`, but never read by anything in this repository either.
+  `firestore.rules` scopes both collections to the host rather than to a
+  distinct mobile-app identity, for the same reason (item 2). Until this
+  app exists, kill-proof photos have no way to enter Firestore except
+  manual/emulator seeding, and player messages have no way to leave it
+  except manual/emulator inspection.
+- **Something Discord-related — unconfirmed, still unbuilt.** `.env`
+  carries a `DISCORD_TOKEN` that no code in this repository reads. This was
+  previously guessed to be the real integration point for `/broadcast`,
+  `/leaderboard`, and `/whisper`, on no more evidence than the stray env
+  var — those three commands are now implemented and target the
+  `playerMessages` collection / a future mobile app instead
+  (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
+  The Discord token itself remains unread by any code here, its purpose
+  still unconfirmed.
 
 ## Layers
 
