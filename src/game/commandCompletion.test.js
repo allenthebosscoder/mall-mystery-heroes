@@ -132,6 +132,15 @@ describe('complete — /broadcast', () => {
     });
 });
 
+describe('complete — /leaderboard', () => {
+    it('completes the literal "send" argument', () => {
+        const result = complete('/leaderboard s', { players });
+        expect(result.applied).toBe(true);
+        expect(result.isUnique).toBe(true);
+        expect(result.commonPrefix).toBe('send');
+    });
+});
+
 describe('complete — /mission sub-command completes to the bare word, not a full skeleton', () => {
     it('offers all four sub-commands when nothing has been typed yet', () => {
         const result = complete('/mission ', { players, missions });
@@ -196,13 +205,6 @@ describe('complete — /mission start and /mission view take no arguments', () =
 
     it('has nothing to complete after "/mission view "', () => {
         const result = complete('/mission view ', { players, missions });
-        expect(result).toEqual({ applied: false });
-    });
-});
-
-describe('complete — unimplemented commands only complete the command word', () => {
-    it.each(['/leaderboard'])('does not suggest arguments for %s', (command) => {
-        const result = complete(`${command} al`, { players });
         expect(result).toEqual({ applied: false });
     });
 });

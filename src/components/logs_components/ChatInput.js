@@ -20,6 +20,7 @@ import commandCompletion from '../../game/commandCompletion';
 import RemapPlayers from '../RemapPlayers';
 import { executeKill } from '../executeKill';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
+import { buildLeaderboardStandings } from '../../game/leaderboard';
 import { normalizePlayerName, resolvePlayerDisplayName } from '../../game/playerNames';
 import CreateAlert from '../CreateAlert';
 
@@ -410,6 +411,21 @@ const handleCommandExecution = async (
                 } else {
                     createAlert('error', 'Error', 'Broadcast message cannot be blank', 1500);
                     console.error('Broadcast message cannot be blank');
+                }
+                break;
+
+            case '/leaderboard':
+                arg = args[0] ? args[0].toLowerCase() : '';
+                if (arg === 'send') {
+                    const standings = buildLeaderboardStandings(players);
+                    await addPlayerMessageForRoom(
+                        { type: 'leaderboard', recipient: null, text: null, standings },
+                        roomID
+                    );
+                    await addLog('Leaderboard sent to all players', 'teal.400');
+                } else {
+                    createAlert('error', 'Error', `${args[0]} is not a valid input`, 1500);
+                    console.error(`${args[0]} is not a valid input`);
                 }
                 break;
 

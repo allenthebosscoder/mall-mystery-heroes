@@ -148,6 +148,8 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
             return null;
         case '/revive':
             return slotIndex === 1 ? deadPlayerNames(players) : null;
+        case '/leaderboard':
+            return slotIndex === 1 ? ['send'] : null;
         case '/mission': {
             if (slotIndex === 1) return MISSION_SUBCOMMANDS;
             const sub = (args[0] || '').toLowerCase();

@@ -550,6 +550,43 @@ describe('/broadcast (docs/superpowers/specs/2026-08-06-player-messaging-mobile-
     });
 });
 
+describe('/leaderboard (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md)', () => {
+    it('writes the current standings and logs a confirmation', async () => {
+        const commandInput = mountChatInput([
+            { name: 'Alice', isAlive: true, score: 10 },
+            { name: 'Bob', isAlive: false, score: 20 },
+        ]);
+        typeAndSubmit(commandInput, '/leaderboard send');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'leaderboard',
+                    recipient: null,
+                    text: null,
+                    standings: [
+                        { name: 'Bob', score: 20, isAlive: false },
+                        { name: 'Alice', score: 10, isAlive: true },
+                    ],
+                },
+                'room-a'
+            )
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Leaderboard sent to all players',
+            'teal.400'
+        );
+    });
+
+    it('rejects an invalid argument', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/leaderboard nonsense');
+
+        expect(await screen.findByText(/nonsense is not a valid input/i)).toBeInTheDocument();
+        expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
+    });
+});
+
 describe('silent no-ops now give feedback (improvements item 21)', () => {
     it('/revive on a player who is not dead shows an error instead of doing nothing', async () => {
         dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue([]); // nobody dead
@@ -560,19 +597,6 @@ describe('silent no-ops now give feedback (improvements item 21)', () => {
         expect(await screen.findByText(/alice is not dead/i)).toBeInTheDocument();
         expect(dbCalls.updateIsAliveForPlayer).not.toHaveBeenCalled();
     });
-
-    it.each(['/leaderboard'])(
-        '%s toasts "not implemented" instead of silently doing nothing',
-        async (command) => {
-            const [commandLine] = command.split(' ');
-            const commandInput = mountChatInput();
-            typeAndSubmit(commandInput, command);
-
-            expect(
-                await screen.findByText(new RegExp(`${commandLine} is not implemented yet`, 'i'))
-            ).toBeInTheDocument();
-        }
-    );
 });
 
 describe('a thrown dbCalls error surfaces to the GM (improvements item 10)', () => {
