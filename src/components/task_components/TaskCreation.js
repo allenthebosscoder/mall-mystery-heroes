@@ -18,7 +18,7 @@ import {
 } from '../firebase_calls/dbCalls';
 import { gameContext, taskContext } from '../Contexts';
 
-const TaskCreation = () => {
+const TaskCreation = React.forwardRef((props, titleInputRef) => {
     const { handleNewTaskAdded } = useContext(taskContext);
     const { roomID } = useContext(gameContext);
     const [TaskTitle, setTaskTitle] = useState('');
@@ -148,6 +148,7 @@ const TaskCreation = () => {
         <Flex m="6px" direction="column">
             <Flex mb="4px">
                 <Input
+                    ref={titleInputRef}
                     sx={styles.titleInput}
                     value={TaskTitle}
                     onChange={handleTitleChange}
@@ -207,7 +208,8 @@ const TaskCreation = () => {
             </Flex>
         </Flex>
     );
-};
+});
+TaskCreation.displayName = 'TaskCreation';
 
 const styles = {
     titleInput: {

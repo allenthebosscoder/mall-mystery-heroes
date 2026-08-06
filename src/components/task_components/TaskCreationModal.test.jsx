@@ -67,6 +67,24 @@ describe('TaskCreationModal', () => {
         expect(onClose).toHaveBeenCalled();
     });
 
+    it('focuses the Task Title input on open, not the Close button (bug report: /mission start "does nothing")', async () => {
+        // Chakra's Modal always moves focus into itself when it opens
+        // (its focus trap requires *something* inside to be focused), and
+        // without an explicit initialFocusRef it lands on the first
+        // focusable descendant — ModalCloseButton here. /mission start
+        // opens this modal synchronously, while the Enter keystroke that
+        // submitted the command is still being dispatched; its keyup was
+        // landing on the now-focused Close button, and a focused button's
+        // native Enter-activates-on-keyup behavior clicked it, closing the
+        // modal the instant it opened. Pointing initialFocusRef at the
+        // Title input (a plain text input, with no activate-on-Enter
+        // behavior of its own) avoids the whole class of bug regardless of
+        // which key happens to still be in flight.
+        mountModal(true);
+
+        expect(await screen.findByPlaceholderText('Task Title')).toHaveFocus();
+    });
+
     it('calls handleNewTaskAdded with the new task on a successful creation', async () => {
         mountModal(true);
 

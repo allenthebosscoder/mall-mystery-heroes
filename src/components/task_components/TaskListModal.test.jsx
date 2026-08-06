@@ -63,4 +63,15 @@ describe('TaskListModal', () => {
 
         expect(onClose).toHaveBeenCalled();
     });
+
+    it('focuses the body container on open, not the Close button (bug report: same class as /mission start "does nothing")', async () => {
+        // Same mechanism as TaskCreationModal.test.jsx's equivalent test —
+        // see the comment there. TaskList is read-only, so there's no safe
+        // input to target; initialFocusRef instead points at the modal
+        // body container itself, a plain, non-activating element.
+        mountModal(true);
+
+        expect(await screen.findByText('Active (0)')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Close modal' })).not.toHaveFocus();
+    });
 });
