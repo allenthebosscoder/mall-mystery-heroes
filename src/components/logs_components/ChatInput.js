@@ -28,7 +28,14 @@ import CreateAlert from '../CreateAlert';
 // subscription (docs/superpowers/specs/2026-08-05-shell-style-command-
 // completion-design.md) — rather than a fresh `fetchAllPlayersForRoom` call
 // on every submission. One live source of truth instead of two.
-const handleCommandExecution = async (value, setValue, roomID, players, xecutionContext, createAlert) => {
+const handleCommandExecution = async (
+    value,
+    setValue,
+    roomID,
+    players,
+    xecutionContext,
+    createAlert
+) => {
     // Parsing lives in src/game/commands.js and is unit tested there.
     const parsed = parseCommand(value);
 
@@ -222,10 +229,7 @@ const handleCommandExecution = async (value, setValue, roomID, players, xecution
                                 // or 0 means unlimited, matching every
                                 // mission created before this field existed.
                                 const completedCount = task.completedBy.length + 1;
-                                if (
-                                    task.maxCompletions &&
-                                    completedCount >= task.maxCompletions
-                                ) {
+                                if (task.maxCompletions && completedCount >= task.maxCompletions) {
                                     await updateIsCompleteToTrueForTaskByIndex(
                                         missionIndex,
                                         roomID
@@ -451,7 +455,14 @@ export default function ChatInput() {
     };
 
     const submitCommand = async () => {
-        await handleCommandExecution(value, setValue, roomID, players, xecutionContext, createAlert);
+        await handleCommandExecution(
+            value,
+            setValue,
+            roomID,
+            players,
+            xecutionContext,
+            createAlert
+        );
         // The command bar just cleared — the mission cache is scoped to one
         // typing session, not the whole time the console is open.
         setActiveMissions([]);

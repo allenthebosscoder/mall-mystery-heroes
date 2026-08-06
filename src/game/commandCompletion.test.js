@@ -69,7 +69,7 @@ describe('complete — player-name slots', () => {
         expect(result.candidates).toEqual(['Alice Smith', 'Alex', 'Bob']);
     });
 
-    it('does not suggest players for /add\'s second (numeric) slot', () => {
+    it("does not suggest players for /add's second (numeric) slot", () => {
         const result = complete('/add alice 5', { players });
         expect(result).toEqual({ applied: false });
     });

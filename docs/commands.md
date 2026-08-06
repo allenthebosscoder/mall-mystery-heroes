@@ -27,14 +27,19 @@ Two parser caveats:
 
 - Pressing Enter on an **empty input** throws. `.match()` returns `null` and
   `.map()` is called on it before the `if (!parts) return null` guard runs.
-- The autosuggest inserts the literal help text, brackets included. Accepting the
-  suggestion for `/kill [player] [assassin]` and pressing Enter runs
-  `/kill player assassin` — the placeholders become the arguments. Suggestions
-  are a reference, not a template to submit.
-- **Tab accepts a suggestion** (improvements item 42) — the arrow-key-highlighted
-  one, or the first match if none is highlighted yet, same as accepting it by
-  click. The suggestion list itself is keyed off the input's current value
-  (previously off a stale one-keystroke-behind value — also item 42).
+- **Tab completion is shell-style, one argument at a time** (see
+  `docs/superpowers/specs/2026-08-05-shell-style-command-completion-design.md`),
+  not a whole-line guess. Tab resolves only the argument slot currently being
+  typed — the command word, a player name, a mission index, and so on — and
+  completes it to the longest prefix shared by every remaining match. A
+  unique match gets a trailing space appended so typing can continue straight
+  into the next argument; an ambiguous match stops at the shared prefix with
+  no trailing space, and the dropdown still lists every candidate. A
+  multi-word player name is wrapped in `[brackets]` automatically. Candidates
+  come from live data where it makes sense — the current player roster (via
+  `gameContext`, the same live subscription `GameMasterView` uses) and active
+  mission indices (fetched on demand the first time a `/mission …` slot needs
+  them, cached for that typing session).
 
 ## Argument case sensitivity
 
@@ -161,9 +166,11 @@ of its own (docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md).
 
 ## Declared but not implemented
 
-These appear in the autosuggest list and pass the whitelist check, so they
-consume the input and clear the box, but their `case` bodies are empty `// TO DO`
-stubs. **They fail silently.**
+Tab only completes the command word itself for these — never their
+arguments (`commandCompletion.js` checks `UNIMPLEMENTED_COMMANDS` before
+offering anything else). They pass the whitelist check, so they consume the
+input and clear the box, but their `case` bodies are empty `// TO DO` stubs.
+**They fail silently.**
 
 | Command        | Suggested syntax              |
 | -------------- | ----------------------------- |
@@ -178,19 +185,13 @@ Discord bot hinted at by the unused `DISCORD_TOKEN` in `.env`.
 
 ## Implementation note
 
-The `commands` array that backs the autosuggest is declared as:
-
-```js
-const commands = [
-    { text: '/add [player] points' },
-    …
-];
-```
-
-It's effectively a list of help strings — only `text` is ever read
-(`getSuggestions`/`getSuggestionValue`/`renderSuggestion`); dispatch happens
-through the `switch` on `commandLine`, parsed separately. Each entry used to
-also carry a `command: console.log('running')` field — evaluated at module
-load, not stored as a callback, so importing `ChatInput` printed nine
-`running` lines to the console for a property nothing read. Removed
-(`improvements.md` item 29).
+Completion is a pure function, `complete(input, { players, missions })` in
+`src/game/commandCompletion.js`, unit tested independently of any component
+(`src/game/commandCompletion.test.js`). It tokenizes the raw input the same
+way `parseCommand` does (`src/game/commands.js`'s own `TOKEN` regex, so a
+`[bracketed group]` is one argument, not several), works out which argument
+slot is currently being typed, and returns the candidates and shared prefix
+for that slot — nothing else. `ChatInput.js` calls it, applies the result to
+the input value, and is responsible for sourcing the live `players`/
+`missions` data the pure function needs; it does not decide the completion
+itself.

@@ -3,7 +3,7 @@
 ## Problem
 
 The chat bar's Tab-completion (shipped earlier this session, `improvements.md`
-item 42) matches the *entire* typed line against a static list of full
+item 42) matches the _entire_ typed line against a static list of full
 command strings (e.g. `/kill [player] [assassin]`) and completes the whole
 line at once. Used it, didn't like it: typing `/ki` and hitting Tab jumps
 straight to the full placeholder text, guessing arguments rather than
@@ -46,34 +46,34 @@ tokenization, so a bracketed multi-word name (`[Alice Smith]`) is still one
 slot, not two, consistent with how `parseCommand` already treats it.
 
 `/mission` is a special case: `parseCommand` treats it as a single known
-command whose *first argument* (`done`/`end`/`start`/`view`) selects the
+command whose _first argument_ (`done`/`end`/`start`/`view`) selects the
 actual behavior — the existing `/mission` case in `ChatInput.js` already
 works this way, with its own inner `switch`. The shape table mirrors that:
 `/mission`'s first argument slot is a literal enum (`done`, `end`, `start`,
 `view`), and which further slots follow depends on which of those four was
 typed. In the table below, each `/mission …` row's "Slot 1"/"Slot 2" are
-numbered relative to *that row* — i.e. counting from after the sub-command
+numbered relative to _that row_ — i.e. counting from after the sub-command
 word, the same way `docs/commands.md` already documents
 `/mission done <player> <index>` as its own entry rather than as `/mission`
 plus three trailing arguments.
 
-| Command                | Slot 1                    | Slot 2                 |
-| ----------------------- | -------------------------- | ------------------------ |
-| `/add`                 | player                    | number (no suggestions) |
-| `/kill`                | player                    | player                  |
-| `/mission done`        | player                    | active mission index    |
-| `/mission end`         | active mission index      | —                       |
-| `/mission start`       | — (opens a modal, no args) | —                       |
-| `/mission view`        | — (opens a modal, no args) | —                       |
-| `/openseason`          | player                    | literal: `start`, `end` |
-| `/revive`              | **dead** player only      | —                       |
-| `/whisper`, `/broadcast`, `/leaderboard` | unimplemented — command-word completion only, unchanged from today | — |
+| Command                                  | Slot 1                                                             | Slot 2                  |
+| ---------------------------------------- | ------------------------------------------------------------------ | ----------------------- |
+| `/add`                                   | player                                                             | number (no suggestions) |
+| `/kill`                                  | player                                                             | player                  |
+| `/mission done`                          | player                                                             | active mission index    |
+| `/mission end`                           | active mission index                                               | —                       |
+| `/mission start`                         | — (opens a modal, no args)                                         | —                       |
+| `/mission view`                          | — (opens a modal, no args)                                         | —                       |
+| `/openseason`                            | player                                                             | literal: `start`, `end` |
+| `/revive`                                | **dead** player only                                               | —                       |
+| `/whisper`, `/broadcast`, `/leaderboard` | unimplemented — command-word completion only, unchanged from today | —                       |
 
 "Dead player only" for `/revive` is a deliberate narrowing, not the full
 roster — you can only revive someone who's dead, so suggesting the living
 would just be noise. `/mission done`/`/mission end`'s mission-index slot
 only offers missions where `isComplete` is still `false` — completing
-*or ending* an already-ended mission is rejected outright by items 39/40
+_or ending_ an already-ended mission is rejected outright by items 39/40
 from this session, so suggesting a closed mission's index would only lead
 to that rejection.
 
@@ -82,12 +82,12 @@ to that rejection.
 - **Players**: `GameMasterView` already holds a live roster via its own
   `onSnapshot` subscription (`players` state, `src/pages/GameMasterView.js`).
   Today `ChatInput.js` ignores it and re-fetches the roster fresh via
-  `fetchAllPlayersForRoom` every time a command is *submitted* (not while
+  `fetchAllPlayersForRoom` every time a command is _submitted_ (not while
   typing — there's no roster available for suggestions at all right now).
   This design threads that same live list through `gameContext`, which
   currently provides just `{ roomID }` and becomes `{ roomID, players }`.
   `ChatInput.js` reads `players` from context for both the new
-  typing-time suggestions *and* the existing submit-time roster-membership
+  typing-time suggestions _and_ the existing submit-time roster-membership
   check, deleting the redundant `fetchAllPlayersForRoom` call entirely —
   one live source of truth instead of two, matching this session's
   `improvements.md` item 13 precedent (collapsing disagreeing state
@@ -122,7 +122,7 @@ to that rejection.
   (with a trailing space) instead of guessing the rest of the line.
   `/mission`'s own sub-command word (`done`/`end`/`start`/`view`) is the
   next slot after it, sourced from that literal four-value enum.
-- The existing dropdown continues to *display* every candidate for the
+- The existing dropdown continues to _display_ every candidate for the
   current slot (not just the longest-common-prefix result) — this is what
   answers "let me see all the existing player names" without requiring a
   full retype for each one; arrow keys + Enter still work to pick a specific

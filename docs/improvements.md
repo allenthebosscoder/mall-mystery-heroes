@@ -1356,18 +1356,33 @@ that callback and the `onChange` that updates `value` fire from the same
 pre-re-render closure, was always one keystroke behind what was actually
 typed. The suggestion list a GM saw never quite matched what they'd typed.
 
-**Resolution:** `onSuggestionsFetchRequested` now destructures `value` from
-its argument instead of closing over stale state. Separately,
-`react-autosuggest` has no built-in Tab handling (Tab just blurs the input
-by default) — a new `onSuggestionHighlighted` callback mirrors its
-arrow-key highlight into local state, and the input's `onKeyDown` now
-accepts that highlighted suggestion (or the first match, if the GM hasn't
-arrowed through the list) on Tab, calling `preventDefault()` so focus
-doesn't leave the input. 1 new regression test (`ChatInput.test.jsx`) types
-a unique command prefix and asserts Tab completes it to the full command —
-this test is what caught the staleness bug in the first place (it initially
-failed by completing to the wrong, alphabetically-first `/mission …`
-command instead).
+**Resolution (interim):** `onSuggestionsFetchRequested` now destructures
+`value` from its argument instead of closing over stale state, and Tab
+accepts the arrow-key-highlighted suggestion (or the first match) from a
+whole-line autosuggest list matched against static command-help strings
+like `/kill [player] [assassin]`.
+
+**Resolution (final):** using it revealed the interim version still guessed
+the _entire_ command in one Tab press, which wasn't what was wanted — a
+follow-up request asked for real shell-style behavior: complete one
+argument at a time, sourced from live data (actual player names, actual
+mission indices) rather than static placeholder text. Replaced the
+whole-line autosuggest matching with a pure per-argument completion engine,
+`complete()` in `src/game/commandCompletion.js` (unit tested independently
+in `commandCompletion.test.js`), per
+`docs/superpowers/specs/2026-08-05-shell-style-command-completion-design.md`.
+It tokenizes the input the same way `parseCommand` does, resolves only the
+argument slot currently being typed, and completes to the longest prefix
+shared by the remaining candidates — a unique match appends a trailing
+space so typing continues straight into the next argument; an ambiguous
+match stops at the shared prefix. Candidates come from `gameContext`'s live
+player roster and, for `/mission …` slots, active mission indices fetched
+on demand and cached for the typing session. See `docs/commands.md`'s
+"Parser caveats" and "Implementation note" sections for the mechanism, and
+`ChatInput.test.jsx`'s "Tab completion" block for the wiring-level
+regression tests (including one for a bug this rewrite fixed along the
+way: the old code blanket-trimmed the reconstructed input after every
+accepted completion, which silently stripped that trailing space).
 
 ---
 
