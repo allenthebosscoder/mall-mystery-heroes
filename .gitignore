@@ -11,6 +11,9 @@
 # production
 /build
 
+# firebase deploy's local cache — regenerated on every deploy, not shared state
+/.firebase
+
 # misc
 .DS_Store
 .env.local

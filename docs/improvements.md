@@ -1102,13 +1102,33 @@ or a need arises to run something destructive against non-production data)
 pointing `dev` at it is the fix, not just renaming labels (the alias names
 are already distinct; only the underlying project IDs need to differ).
 
-### 26. Deployment is not captured in the repository
+### 26. Deployment is not captured in the repository ⚠️ Partially addressed
 
 **Impact: medium · Effort: S**
 
 `firebase.json` configures functions, emulators, and storage rules but has **no
 `hosting` block**, and there is no CI configuration (`.github/` does not exist).
 How the built SPA reaches users is undocumented and unreproducible.
+
+**Correction:** the "no CI" half of this was already stale by the time it was
+picked up — `.github/workflows/ci.yml` exists and runs format-check, lint,
+tests, and a build on every push/PR to `main`. It just doesn't deploy
+anything; see below.
+
+**Resolution, hosting half:** the app had never been deployed anywhere —
+this was a first-time setup, not a documentation gap. Added a `hosting`
+block to `firebase.json` (`public: "build"`, plus a catch-all rewrite to
+`index.html` so this SPA's client-side routes like `/rooms/:roomID/lobby`
+don't 404 on a direct link or refresh) and ran `firebase deploy --only
+hosting`. Live at `https://mall-mystery-heroes.web.app` (and the equivalent
+`.firebaseapp.com`), verified both the root and a deep route resolve.
+
+**Deliberately not addressed:** automating this deploy through CI. There
+are no real users yet, so there's no pipeline worth automating — deploying
+is a manual `firebase deploy --only hosting` for now, run whenever there's
+something worth shipping. Automating it would mean storing a deploy
+credential as a GitHub secret, a real security decision better made once
+there's an actual launch to justify it. Revisit then.
 
 ### 27. Debug logs in the working tree ✅ Resolved
 
