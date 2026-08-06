@@ -125,6 +125,13 @@ describe('complete — /whisper', () => {
     });
 });
 
+describe('complete — /broadcast', () => {
+    it('does not suggest anything for the message slot — free text', () => {
+        const result = complete('/broadcast hel', { players });
+        expect(result).toEqual({ applied: false });
+    });
+});
+
 describe('complete — /mission sub-command completes to the bare word, not a full skeleton', () => {
     it('offers all four sub-commands when nothing has been typed yet', () => {
         const result = complete('/mission ', { players, missions });
@@ -194,7 +201,7 @@ describe('complete — /mission start and /mission view take no arguments', () =
 });
 
 describe('complete — unimplemented commands only complete the command word', () => {
-    it.each(['/broadcast', '/leaderboard'])('does not suggest arguments for %s', (command) => {
+    it.each(['/leaderboard'])('does not suggest arguments for %s', (command) => {
         const result = complete(`${command} al`, { players });
         expect(result).toEqual({ applied: false });
     });

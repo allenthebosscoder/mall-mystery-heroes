@@ -519,6 +519,37 @@ describe('/whisper (docs/superpowers/specs/2026-08-06-player-messaging-mobile-pr
     });
 });
 
+describe('/broadcast (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md)', () => {
+    it('writes a playerMessages doc and logs a confirmation', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/broadcast the game has started');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'broadcast',
+                    recipient: null,
+                    text: 'the game has started',
+                    standings: null,
+                },
+                'room-a'
+            )
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Broadcast sent: "the game has started"',
+            'teal.400'
+        );
+    });
+
+    it('rejects a blank broadcast', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/broadcast');
+
+        expect(await screen.findByText(/broadcast message cannot be blank/i)).toBeInTheDocument();
+        expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
+    });
+});
+
 describe('silent no-ops now give feedback (improvements item 21)', () => {
     it('/revive on a player who is not dead shows an error instead of doing nothing', async () => {
         dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue([]); // nobody dead
@@ -530,7 +561,7 @@ describe('silent no-ops now give feedback (improvements item 21)', () => {
         expect(dbCalls.updateIsAliveForPlayer).not.toHaveBeenCalled();
     });
 
-    it.each(['/broadcast hello', '/leaderboard'])(
+    it.each(['/leaderboard'])(
         '%s toasts "not implemented" instead of silently doing nothing',
         async (command) => {
             const [commandLine] = command.split(' ');

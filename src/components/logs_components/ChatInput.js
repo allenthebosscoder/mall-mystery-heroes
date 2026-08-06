@@ -394,6 +394,25 @@ const handleCommandExecution = async (
                 }
                 break;
 
+            case '/broadcast':
+                const broadcastMessage = args.join(' ').trim();
+                if (broadcastMessage) {
+                    await addPlayerMessageForRoom(
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: broadcastMessage,
+                            standings: null,
+                        },
+                        roomID
+                    );
+                    await addLog(`Broadcast sent: "${broadcastMessage}"`, 'teal.400');
+                } else {
+                    createAlert('error', 'Error', 'Broadcast message cannot be blank', 1500);
+                    console.error('Broadcast message cannot be blank');
+                }
+                break;
+
             default:
                 createAlert('error', 'Error', `Unknown command: ${commandLine}`, 1500);
                 console.error('Unknown command:', commandLine);
