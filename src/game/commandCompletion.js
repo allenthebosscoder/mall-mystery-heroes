@@ -1,158 +1,156 @@
+/**
+ * Shell-style, per-argument completion for the GM command bar
+ * (docs/superpowers/specs/2026-08-05-shell-style-command-completion-design.md).
+ *
+ * Pure and synchronous — no Firebase, no React. `ChatInput.js` is
+ * responsible for sourcing `players`/`missions` and applying the result;
+ * this module only decides what completes the argument currently being
+ * typed.
+ */
 import { KNOWN_COMMANDS, UNIMPLEMENTED_COMMANDS } from './commands';
 
-// Matches a leading /command, a [bracketed placeholder], or a bare word.
+// Mirrors src/game/commands.js's own TOKEN regex exactly, so a "slot" here
+// is the same unit parseCommand treats as one argument — a [bracketed
+// group] is one slot, not several.
 const TOKEN = /\/\S+|\[[^\]]+\]|\S+/g;
 
 const MISSION_SUBCOMMANDS = ['done', 'end', 'start', 'view'];
+const OPEN_SEASON_VALUES = ['start', 'end'];
 
-const enumValues = (pipeSeparated) => pipeSeparated.split('|');
+const playerNames = (players) => players.map((player) => player.name);
+const deadPlayerNames = (players) =>
+    players.filter((player) => player.isAlive === false).map((player) => player.name);
+const activeMissionIndices = (missions) =>
+    missions.filter((mission) => !mission.isComplete).map((mission) => String(mission.taskIndex));
 
-const longestCommonPrefixLength = (arr) => {
-    if (!arr || arr.length === 0) return 0;
-    if (arr.length === 1) return arr[0].length;
-    const lowered = arr.map((s) => String(s));
-    const minLen = Math.min(...lowered.map((s) => s.length));
-    let i = 0;
-    for (; i < minLen; i++) {
-        const ch = lowered[0][i].toLowerCase();
-        for (let j = 1; j < lowered.length; j++) {
-            if (lowered[j][i].toLowerCase() !== ch) return i;
-        }
+/**
+ * Tokenizes `input` the same way `parseCommand` does. If the string ends in
+ * whitespace, an extra empty token is appended — the GM has finished the
+ * previous argument and is now at a fresh, not-yet-typed slot.
+ */
+const tokenize = (input) => {
+    const tokens = [...input.matchAll(TOKEN)].map((match) => ({
+        text: match[0],
+        start: match.index,
+        end: match.index + match[0].length,
+    }));
+    if (input.endsWith(' ')) {
+        tokens.push({ text: '', start: input.length, end: input.length });
     }
-    return i;
+    return tokens;
 };
 
-const normalize = (s) => String(s || '');
+/**
+ * Narrows `candidates` to the ones matching `typed` as a case-insensitive
+ * prefix, and computes the longest common prefix across the matches — what
+ * Tab inserts. `null` if nothing matches.
+ */
+const matchCandidates = (candidates, typed) => {
+    const lowerTyped = typed.toLowerCase();
+    const matches = candidates.filter((candidate) =>
+        candidate.toLowerCase().startsWith(lowerTyped)
+    );
+    if (matches.length === 0) return null;
 
-const toPlayerNames = (players = []) => players.map((p) => p.name || p);
-
-const toDeadPlayerNames = (players = []) => players.filter((p) => p.isAlive === false).map((p) => p.name || p);
-
-const toActiveMissionIndices = (missions = []) => missions.filter((m) => !m.isComplete).map((m) => String(m.taskIndex));
-
-// Public API: pure, synchronous. ChatInput is responsible for fetching
-// missions and passing them in.
-export function complete(input, { players = [], missions = [] } = {}) {
-    const value = String(input ?? '');
-
-    // If the cursor is after a trailing space, do nothing per spec.
-    if (value.endsWith(' ') || value.length === 0) {
-        return { applied: false, candidates: [] };
-    }
-
-    // tokenization with positions
-    const tokens = [];
-    let match;
-    while ((match = TOKEN.exec(value)) !== null) {
-        tokens.push({ text: match[0], start: match.index, end: match.index + match[0].length });
-    }
-
-    if (tokens.length === 0) return { applied: false, candidates: [] };
-
-    const current = tokens[tokens.length - 1];
-    const tokenRaw = current.text;
-    const tokenStripped = tokenRaw.replace(/[[\]]/g, '');
-    const stripped = tokens.map((t) => t.text.replace(/[[\]]/g, ''));
-    const command = String(stripped[0] || '').toLowerCase();
-
-    const tokenIndex = tokens.length - 1; // slot index counting from 0 = command word
-
-    // Helper to produce case-insensitive candidate matching and compute replacement
-    const buildResult = (candidates, preserveBracketsForMultiWord = true) => {
-        const uniqueCandidates = candidates || [];
-        if (uniqueCandidates.length === 0) return { applied: false, candidates: [] };
-
-        const lowerToken = tokenStripped.toLowerCase();
-        const matches = uniqueCandidates.filter((c) => String(c).toLowerCase().startsWith(lowerToken));
-        // Prefer exact matches over longer prefix matches (e.g. '1' vs '123')
-        const exact = matches.find((m) => String(m).toLowerCase() === lowerToken);
-        const effectiveMatches = exact ? [exact] : matches;
-        if (matches.length === 0) return { applied: false, candidates: [] };
-        const lcpLen = longestCommonPrefixLength(effectiveMatches.map((m) => String(m)));
-        // Use the first effective match's casing for the prefix slice
-        const prefix = String(effectiveMatches[0]).slice(0, lcpLen);
-
-        let replacementRaw = prefix;
-        // If unique (or exact chosen), prefer the full candidate
-        if (effectiveMatches.length === 1) {
-            replacementRaw = String(effectiveMatches[0]);
+    let prefixLength = matches[0].length;
+    for (const candidate of matches.slice(1)) {
+        let i = 0;
+        while (i < prefixLength && candidate[i]?.toLowerCase() === matches[0][i].toLowerCase()) {
+            i++;
         }
-
-        // bracket wrapping for names with spaces
-        const needsBrackets = preserveBracketsForMultiWord && /\s/.test(replacementRaw);
-        const replacement = needsBrackets ? `[${replacementRaw}]` : replacementRaw;
-
-        return {
-            applied: true,
-            tokenStart: current.start,
-            tokenEnd: current.end,
-            replacement,
-            candidates: effectiveMatches,
-            appendSpace: effectiveMatches.length === 1 && String(effectiveMatches[0]).length === replacementRaw.length,
-        };
-    };
-
-    // Slot 0: command-word completion
-    if (tokenIndex === 0) {
-        return buildResult(KNOWN_COMMANDS);
+        prefixLength = Math.min(prefixLength, i);
     }
+    return { matches, commonPrefix: matches[0].slice(0, prefixLength) };
+};
 
-    // If the typed command is not known, don't suggest data-driven args.
-    if (!KNOWN_COMMANDS.includes(command)) {
-        // but if we're still typing the command word this would have been handled above
-        return { applied: false, candidates: [] };
-    }
+/**
+ * Candidate values for `command`'s argument at `slotIndex` (1-based — slot
+ * 0 is the command word itself, resolved separately since its candidates
+ * come from `KNOWN_COMMANDS`, not live data). `args` are the already-typed
+ * arguments before the current slot, bracket-stripped, needed only to
+ * resolve `/mission`'s sub-command-dependent shape. `null` means this
+ * position has nothing to suggest.
+ */
+const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
+    if (UNIMPLEMENTED_COMMANDS.includes(command)) return null;
 
-    // Handle unimplemented commands: only complete the command-word itself
-    if (UNIMPLEMENTED_COMMANDS.includes(command)) {
-        return { applied: false, candidates: [] };
-    }
-
-    // Special handling for /mission subcommands
-    if (command === '/mission') {
-        // slot 1 is the sub-command (done/end/start/view)
-        if (tokenIndex === 1) return buildResult(MISSION_SUBCOMMANDS);
-
-        const sub = String(stripped[1] || '').toLowerCase();
-        // /mission done <player> <index>
-        if (sub === 'done') {
-            if (tokenIndex === 2) return buildResult(toPlayerNames(players));
-            if (tokenIndex === 3) return buildResult(toActiveMissionIndices(missions), false);
-            return { applied: false, candidates: [] };
-        }
-
-        // /mission end <index>
-        if (sub === 'end') {
-            if (tokenIndex === 2) return buildResult(toActiveMissionIndices(missions), false);
-            return { applied: false, candidates: [] };
-        }
-
-        // /mission start/view take no args
-        return { applied: false, candidates: [] };
-    }
-
-    // Other commands mapping
     switch (command) {
         case '/add':
-            if (tokenIndex === 1) return buildResult(toPlayerNames(players));
-            return { applied: false, candidates: [] };
+            return slotIndex === 1 ? playerNames(players) : null;
         case '/kill':
-            if (tokenIndex === 1) return buildResult(toPlayerNames(players));
-            if (tokenIndex === 2) return buildResult(toPlayerNames(players));
-            return { applied: false, candidates: [] };
+            return slotIndex === 1 || slotIndex === 2 ? playerNames(players) : null;
         case '/openseason':
-            if (tokenIndex === 1) return buildResult(toPlayerNames(players));
-            if (tokenIndex === 2) return buildResult(enumValues('start|end'));
-            return { applied: false, candidates: [] };
+            if (slotIndex === 1) return playerNames(players);
+            if (slotIndex === 2) return OPEN_SEASON_VALUES;
+            return null;
         case '/revive':
-            if (tokenIndex === 1) return buildResult(toDeadPlayerNames(players));
-            return { applied: false, candidates: [] };
-        case '/whisper':
-            if (tokenIndex === 1) return buildResult(toPlayerNames(players));
-            return { applied: false, candidates: [] };
+            return slotIndex === 1 ? deadPlayerNames(players) : null;
+        case '/mission': {
+            if (slotIndex === 1) return MISSION_SUBCOMMANDS;
+            const sub = (args[0] || '').toLowerCase();
+            if (sub === 'done') {
+                if (slotIndex === 2) return playerNames(players);
+                if (slotIndex === 3) return activeMissionIndices(missions);
+            }
+            if (sub === 'end' && slotIndex === 2) return activeMissionIndices(missions);
+            return null;
+        }
         default:
-            return { applied: false, candidates: [] };
+            return null;
     }
-}
+};
 
-export default { complete };
+/**
+ * Given the raw, unsubmitted chat bar text, decides what completes the
+ * argument slot currently being typed.
+ *
+ * @param {string} input
+ * @param {{ players?: Array<{name: string, isAlive?: boolean}>, missions?: Array<{taskIndex: number|string, isComplete: boolean}> }} [data]
+ * @returns {{ applied: false } | {
+ *   applied: true,
+ *   tokenStart: number,
+ *   tokenEnd: number,
+ *   commonPrefix: string,
+ *   candidates: string[],
+ *   isUnique: boolean,
+ * }}
+ */
+export const complete = (input, { players = [], missions = [] } = {}) => {
+    const value = String(input ?? '');
+    const tokens = tokenize(value);
+    if (tokens.length === 0) return { applied: false };
+
+    const slotIndex = tokens.length - 1;
+    const current = tokens[slotIndex];
+    const typed = current.text.replace(/[[\]]/g, '');
+
+    let candidates;
+    if (slotIndex === 0) {
+        candidates = KNOWN_COMMANDS;
+    } else {
+        const command = tokens[0].text.toLowerCase();
+        if (!KNOWN_COMMANDS.includes(command)) return { applied: false };
+        const args = tokens.slice(1, slotIndex).map((token) => token.text.replace(/[[\]]/g, ''));
+        candidates = candidatesForSlot(command, slotIndex, args, { players, missions });
+    }
+
+    if (!candidates) return { applied: false };
+
+    const result = matchCandidates(candidates, typed);
+    if (!result) return { applied: false };
+
+    const isUnique = result.matches.length === 1;
+    const needsBrackets = /\s/.test(result.commonPrefix);
+
+    return {
+        applied: true,
+        tokenStart: current.start,
+        tokenEnd: current.end,
+        commonPrefix: needsBrackets ? `[${result.commonPrefix}]` : result.commonPrefix,
+        candidates: result.matches,
+        isUnique,
+    };
+};
+
+const commandCompletion = { complete };
+export default commandCompletion;

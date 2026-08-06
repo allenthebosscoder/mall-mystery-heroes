@@ -163,7 +163,7 @@ const GameMasterView = () => {
     };
 
     return (
-        <gameContext.Provider value={{ roomID }}>
+        <gameContext.Provider value={{ roomID, players }}>
             <Box sx={styles.container}>
                 <RemapPlayerModal
                     showRemapModal={showRemapModal}

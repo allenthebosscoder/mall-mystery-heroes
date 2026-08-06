@@ -9,6 +9,18 @@
  * left to verify here is ChatInput's own remaining job: normalize the typed
  * names, check them against the roster, call executeKill, and route its
  * response to the right handlers.
+ *
+ * The roster comes from `gameContext`'s `players` (GameMasterView's own
+ * live subscription), not a `fetchAllPlayersForRoom` call — see
+ * docs/superpowers/specs/2026-08-05-shell-style-command-completion-design.md.
+ * `mountChatInput` takes an optional roster; defaults to Alice/Bob for
+ * tests that don't care about the exact names.
+ *
+ * Tab-completion's actual matching logic (ambiguous prefixes, mission
+ * sub-command shapes, dead-player-only filtering, etc.) is unit tested
+ * directly in `src/game/commandCompletion.test.js`, which needs no
+ * component, no mocks, and no DOM — the tests here only prove the wiring:
+ * that the live roster and on-demand mission fetch actually reach it.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
@@ -26,10 +38,10 @@ import { executeKill } from '../executeKill';
 jest.mock('../firebase_calls/dbCalls', () => ({
     addPlayerToCompletedByForTask: jest.fn(),
     fetchAlivePlayerNamesForRoom: jest.fn(),
-    fetchAllPlayersForRoom: jest.fn(),
     fetchPlayersByStatusForRoom: jest.fn(),
     fetchReferenceByIndexForTask: jest.fn(),
     fetchTaskByIndexForRoom: jest.fn(),
+    fetchTasksByCompletionForRoom: jest.fn(),
     setOpenSznOfPlayerToValueForRoom: jest.fn(),
     updateIsAliveForPlayer: jest.fn(),
     updateIsCompleteToTrueForTaskByIndex: jest.fn(),
@@ -50,10 +62,15 @@ const executionHandlers = {
     addLog: jest.fn(),
 };
 
-const mountChatInput = () => {
+const defaultPlayers = [
+    { name: 'Alice', isAlive: true },
+    { name: 'Bob', isAlive: true },
+];
+
+const mountChatInput = (players = defaultPlayers) => {
     render(
         <ChakraProvider>
-            <gameContext.Provider value={{ roomID: 'room-a' }}>
+            <gameContext.Provider value={{ roomID: 'room-a', players }}>
                 <executionContext.Provider value={executionHandlers}>
                     <ChatInput />
                 </executionContext.Provider>
@@ -67,10 +84,9 @@ const typeAndSubmit = (input, text) => userEvent.type(input, `${text}{enter}`);
 
 beforeEach(() => {
     jest.clearAllMocks();
-    // Realistic roster: stored with the GM's original capitalization.
-    dbCalls.fetchAllPlayersForRoom.mockResolvedValue(['Alice', 'Bob']);
     dbCalls.fetchAlivePlayerNamesForRoom.mockResolvedValue(['Bob']);
     dbCalls.updatePointsForPlayer.mockResolvedValue(undefined);
+    dbCalls.fetchTasksByCompletionForRoom.mockResolvedValue({ docs: [] });
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
         addedTargets: {},
@@ -122,9 +138,10 @@ describe('/kill (improvements item 4: executeKill is now a Cloud Function call)'
 
 describe('/kill with a multi-word bracketed player name (improvements item 35)', () => {
     it('normalizes a name with an internal space before calling executeKill', async () => {
-        dbCalls.fetchAllPlayersForRoom.mockResolvedValue(['Alice Smith', 'Bob']);
-
-        const commandInput = mountChatInput();
+        const commandInput = mountChatInput([
+            { name: 'Alice Smith', isAlive: true },
+            { name: 'Bob', isAlive: true },
+        ]);
         // user-event v13's type() treats a bare `[` as special syntax —
         // `[[` escapes to a literal `[`. `]` needs no escaping. This types
         // the literal string "/kill [Alice Smith] bob".
@@ -285,17 +302,67 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
     });
 });
 
-describe('Tab accepts an autosuggest match (bug report: typing full commands is troublesome)', () => {
-    it('completes the input to the only matching suggestion on Tab', async () => {
+describe('Tab completion (shell-style, per-argument — docs/superpowers/specs/2026-08-05-shell-style-command-completion-design.md)', () => {
+    it('completes a unique command word and appends a trailing space, ready to keep typing', async () => {
+        // Regression test for the specific bug this redesign fixes: a
+        // trailing `.trim()` used to strip the space Tab had just added,
+        // so a GM couldn't keep typing straight into the next argument.
         const commandInput = mountChatInput();
 
-        await userEvent.type(commandInput, '/mission s');
-        expect(await screen.findByText('/mission start')).toBeInTheDocument();
-        expect(screen.queryByText('/mission done [player name] mission_index')).toBeNull();
-
+        await userEvent.type(commandInput, '/mi');
         await userEvent.tab();
 
-        expect(commandInput).toHaveValue('/mission start');
+        await waitFor(() => expect(commandInput).toHaveValue('/mission '));
+    });
+
+    it('completes a unique player name from the live roster (not a Firestore fetch)', async () => {
+        const commandInput = mountChatInput([
+            { name: 'Alice Smith', isAlive: true },
+            { name: 'Bob', isAlive: true },
+        ]);
+
+        await userEvent.type(commandInput, '/kill Alice');
+        await userEvent.tab();
+
+        // Wrapped in brackets — the completed name has an internal space.
+        await waitFor(() => expect(commandInput).toHaveValue('/kill [Alice Smith] '));
+    });
+
+    it('narrows an ambiguous match to the common prefix, without a trailing space', async () => {
+        const commandInput = mountChatInput([
+            { name: 'Alice', isAlive: true },
+            { name: 'Alicia', isAlive: true },
+        ]);
+
+        await userEvent.type(commandInput, '/kill Ali');
+        await userEvent.tab();
+
+        // "Alice" and "Alicia" only agree up through "Alic" — Tab advances
+        // that far and stops, with no trailing space since it's still
+        // ambiguous.
+        await waitFor(() => expect(commandInput).toHaveValue('/kill Alic'));
+    });
+
+    it('completes the /mission sub-command to the bare word, not the full argument skeleton', async () => {
+        const commandInput = mountChatInput();
+
+        await userEvent.type(commandInput, '/mission d');
+        await userEvent.tab();
+
+        await waitFor(() => expect(commandInput).toHaveValue('/mission done '));
+    });
+
+    it('fetches active missions on demand and completes a mission index', async () => {
+        dbCalls.fetchTasksByCompletionForRoom.mockResolvedValue({
+            docs: [{ data: () => ({ taskIndex: 1, isComplete: false }) }],
+        });
+        const commandInput = mountChatInput();
+
+        await userEvent.type(commandInput, '/mission end ');
+        await userEvent.tab();
+
+        await waitFor(() => expect(commandInput).toHaveValue('/mission end 1 '));
+        expect(dbCalls.fetchTasksByCompletionForRoom).toHaveBeenCalledWith(false, 'room-a');
     });
 });
 
@@ -320,9 +387,6 @@ describe('silent no-ops now give feedback (improvements item 21)', () => {
             expect(
                 await screen.findByText(new RegExp(`${commandLine} is not implemented yet`, 'i'))
             ).toBeInTheDocument();
-            // None of these need the roster — confirms the check short-circuits
-            // before the Firestore call, not just before the switch case.
-            expect(dbCalls.fetchAllPlayersForRoom).not.toHaveBeenCalled();
         }
     );
 });
