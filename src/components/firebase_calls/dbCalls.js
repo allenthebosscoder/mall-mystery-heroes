@@ -66,6 +66,17 @@ export const addLogForRoom = async (newLog, color, roomID) => {
     });
 };
 
+// Adds a player-facing message to the room's playerMessages subcollection —
+// the write-side half of a contract with the player mobile app that
+// doesn't exist yet (docs/superpowers/specs/2026-08-06-player-messaging-
+// mobile-prep-design.md), the same interim shape `photos` already uses.
+// `message` is `{ type, recipient, text, standings }` — see the spec for
+// which fields apply to which `type`.
+export const addPlayerMessageForRoom = async (message, roomID) => {
+    const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
+    await addDoc(messagesRef, { ...message, timestamp: serverTimestamp() });
+};
+
 //fetches all tasks by completion from database
 export const fetchTasksByCompletionForRoom = async (isComplete, roomID) => {
     const taskCollectionRef = collection(db, 'rooms', roomID, 'tasks');
