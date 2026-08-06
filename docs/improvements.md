@@ -968,13 +968,13 @@ after the write succeeds.
   and do nothing. They should at minimum toast "not implemented".
 
 **Resolution:** `/revive` gained the missing `else` branch, alerting
-"`<name>` is not dead". The other three now go through
-`src/game/commands.js`'s `UNIMPLEMENTED_COMMANDS` — exported but unused until
-now, apparently added in anticipation of exactly this fix — checked once at
-the top of `handleCommandExecution`, before the roster fetch (none of these
-three commands need it), rather than as three duplicated case bodies. 5 new
-tests: one for `/revive`, and a parameterized one covering all three
-unimplemented commands plus confirming the roster fetch is skipped for them.
+"`<name>` is not dead". `/whisper`, `/broadcast`, and `/leaderboard` are
+now fully implemented as a data-layer feature prepared for future mobile-app
+integration. They write to a new `rooms/{roomID}/playerMessages` Firestore
+subcollection, validated and confirmed in the chat log like every other
+command. See the design spec, `docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md`.
+Tests added across `src/game/leaderboard.js`, `ChatInput.test.jsx`, `commandCompletion.test.js`,
+and Firestore rules validation.
 
 ### 22. `logs` array will hit the document size limit ✅ Resolved
 
