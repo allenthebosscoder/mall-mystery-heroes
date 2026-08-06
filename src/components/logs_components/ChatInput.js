@@ -457,6 +457,20 @@ export default function ChatInput() {
         setSuggestions([]);
     };
 
+    // Applies `newValue` and refreshes the dropdown to match it — e.g.
+    // after "/mission" + Tab produces "/mission ", the very next thing a GM
+    // needs is the sub-command list (done/end/start/view), not an empty
+    // dropdown that only refills once they type a literal space themselves.
+    // Recomputing against `newValue` (not the pre-Tab `value` still in
+    // scope) is what `onSuggestionsFetchRequested` does for a typed change;
+    // Tab needs the same step since setValue here doesn't go through
+    // react-autosuggest's own onChange.
+    const applyValueAndRefreshSuggestions = async (newValue) => {
+        setValue(newValue);
+        const nextCompletion = await resolveCompletion(newValue);
+        setSuggestions(buildSuggestionList(newValue, nextCompletion));
+    };
+
     const submitCommand = async () => {
         await handleCommandExecution(
             value,
@@ -503,8 +517,7 @@ export default function ChatInput() {
             event.preventDefault();
 
             if (highlightedSuggestion) {
-                setValue(highlightedSuggestion.replacement);
-                setSuggestions([]);
+                await applyValueAndRefreshSuggestions(highlightedSuggestion.replacement);
                 return;
             }
 
@@ -514,8 +527,9 @@ export default function ChatInput() {
             const before = value.slice(0, completion.tokenStart);
             const after = value.slice(completion.tokenEnd);
             const space = completion.isUnique ? ' ' : '';
-            setValue(`${before}${completion.commonPrefix}${space}${after}`);
-            setSuggestions(buildSuggestionList(value, completion));
+            await applyValueAndRefreshSuggestions(
+                `${before}${completion.commonPrefix}${space}${after}`
+            );
         },
     };
 

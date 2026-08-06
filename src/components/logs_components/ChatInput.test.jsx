@@ -352,6 +352,27 @@ describe('Tab completion (shell-style, per-argument — docs/superpowers/specs/2
         await waitFor(() => expect(commandInput).toHaveValue('/mission done '));
     });
 
+    it('refreshes the dropdown for the next slot right after Tab, without needing a literal space typed first (bug report: "have to press space again")', async () => {
+        // Tab completing "/mission" to "/mission " used to leave the
+        // dropdown showing stale suggestions for the slot that was just
+        // filled (or empty), rebuilt from the value/completion captured
+        // *before* Tab's setValue took effect. The next slot's
+        // suggestions only appeared once the GM typed a literal space
+        // themselves, re-triggering onSuggestionsFetchRequested.
+        const commandInput = mountChatInput();
+
+        await userEvent.type(commandInput, '/mission');
+        await userEvent.tab();
+
+        await waitFor(() => expect(commandInput).toHaveValue('/mission '));
+        expect(
+            await screen.findByText('/mission done [player_name] [mission_index]')
+        ).toBeInTheDocument();
+        expect(screen.getByText('/mission end [mission_index]')).toBeInTheDocument();
+        expect(screen.getByText('/mission start')).toBeInTheDocument();
+        expect(screen.getByText('/mission view')).toBeInTheDocument();
+    });
+
     it('shows the whole command in context in the dropdown, not just the bare candidate (feedback: "super hard to know how to write commands")', async () => {
         const commandInput = mountChatInput([{ name: 'Alice Smith', isAlive: true }]);
 
