@@ -12,6 +12,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Auth from './auth';
+import { auth, googleProvider } from '../utils/firebase';
 
 jest.mock('firebase/auth', () => ({
     createUserWithEmailAndPassword: jest.fn(),
@@ -64,7 +65,19 @@ describe('Google Sign-In', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
 
-        expect(signInWithPopup).toHaveBeenCalled();
+        expect(signInWithPopup).toHaveBeenCalledWith(auth, googleProvider);
+    });
+
+    it('reads "Sign up with Google" on the signup page', async () => {
+        render(
+            <ChakraProvider>
+                <MemoryRouter>
+                    <Auth isLoginPage={false} />
+                </MemoryRouter>
+            </ChakraProvider>
+        );
+
+        expect(screen.getByRole('button', { name: 'Sign up with Google' })).toBeInTheDocument();
     });
 
     it('shows an error if Google sign-in fails', async () => {

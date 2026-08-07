@@ -58,4 +58,26 @@ describe('joinRoom', () => {
 
         await expect(joinRoom(ROOM, '  alice  ')).rejects.toThrow(/already taken/);
     });
+
+    it('rejects a roomId containing "/" rather than silently resolving to an unintended document', async () => {
+        await seedRoom('some-other-room', []);
+
+        await expect(joinRoom('SomeRoom/players/alice', 'Alice')).rejects.toThrow(
+            'roomId must not contain "/".'
+        );
+    });
+
+    it('rejects an all-whitespace playerName instead of crashing on doc("")', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(joinRoom(ROOM, '   ')).rejects.toThrow(
+            'roomId and playerName are both required.'
+        );
+    });
+
+    it('rejects joining a room the GM has already ended', async () => {
+        await seedRoom(ROOM, [], { isGameActive: false, endedAt: new Date() });
+
+        await expect(joinRoom(ROOM, 'Alice')).rejects.toThrow('This room is no longer active.');
+    });
 });

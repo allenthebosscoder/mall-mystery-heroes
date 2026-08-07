@@ -27,15 +27,27 @@ exports.joinRoom = functions.https.onCall(async (data, context) => {
     }
 
     const { roomId, playerName } = data;
-    if (!roomId || !playerName) {
+    if (
+        typeof roomId !== 'string' ||
+        typeof playerName !== 'string' ||
+        !roomId.trim() ||
+        !playerName.trim()
+    ) {
         throw new functions.https.HttpsError(
             'invalid-argument',
             'roomId and playerName are both required.'
         );
     }
+    if (roomId.includes('/')) {
+        throw new functions.https.HttpsError('invalid-argument', 'roomId must not contain "/".');
+    }
+
+    const trimmedLowercaseName = normalizePlayerName(playerName);
+    if (!trimmedLowercaseName) {
+        throw new functions.https.HttpsError('invalid-argument', 'playerName must not be blank.');
+    }
 
     const roomRef = db.collection('rooms').doc(roomId);
-    const trimmedLowercaseName = normalizePlayerName(playerName);
     const playerRef = roomRef.collection('players').doc(trimmedLowercaseName);
 
     return db.runTransaction(async (transaction) => {
@@ -47,6 +59,12 @@ exports.joinRoom = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError(
                 'failed-precondition',
                 'This game has already started.'
+            );
+        }
+        if (roomSnapshot.data().isGameActive === false || roomSnapshot.data().endedAt) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'This room is no longer active.'
             );
         }
 

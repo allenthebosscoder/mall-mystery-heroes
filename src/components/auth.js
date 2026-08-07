@@ -150,14 +150,6 @@ const Auth = (props) => {
                         </Box>
                     )}
                 </Box>
-                <Button
-                    variant="outline"
-                    colorScheme="brand"
-                    onClick={signInWithGoogle}
-                    borderWidth="3px"
-                >
-                    Sign in with Google
-                </Button>
                 {!passRules && !isLoginPage && (
                     <Text color="red.500" size="sm" fontStyle="italic">
                         Password needs to be at least 6 characters long.
@@ -217,6 +209,14 @@ const Auth = (props) => {
                         </Text>
                     </Link>
                 )}
+                <Button
+                    variant="outline"
+                    colorScheme="brand"
+                    onClick={signInWithGoogle}
+                    borderWidth="3px"
+                >
+                    {isLoginPage ? 'Sign in with Google' : 'Sign up with Google'}
+                </Button>
             </Stack>
         </Box>
     );

@@ -119,3 +119,17 @@ describe('a rejected target write shows an error instead of failing silently (im
         expect(await screen.findByText('network down')).toBeInTheDocument();
     });
 });
+
+describe('a rejected markGameAsStarted call aborts the handoff instead of silently continuing (final review finding 6)', () => {
+    it('surfaces the error via a toast and does not write targets or hand off to the lobby', async () => {
+        markGameAsStarted.mockRejectedValue(new Error('write failed'));
+        mountTargetGenerator();
+
+        await beginGame();
+
+        expect(await screen.findByText('write failed')).toBeInTheDocument();
+        expect(updateTargetsForPlayer).not.toHaveBeenCalled();
+        expect(updateAssassinsForPlayer).not.toHaveBeenCalled();
+        expect(handleLobbyRoom).not.toHaveBeenCalled();
+    });
+});

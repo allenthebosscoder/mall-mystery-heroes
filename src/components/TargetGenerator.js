@@ -40,6 +40,22 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
     };
     //actions that occur when clicking yes
     const onYesClose = async () => {
+        // gameStarted is the security gate joinRoom checks before letting a
+        // player self-register (docs/superpowers/specs/2026-08-06-player-
+        // access-and-room-lifecycle-design.md) — it must flip before the
+        // target graph goes live, not after, or there is a window where
+        // targets/assassins are fully written but the room still reads as
+        // joinable. A failure here is treated the same way a failed target
+        // write already is (see UpdateDatabase's catch below): alert and
+        // abort the handoff rather than silently continuing into a room
+        // that permanently under-reports its own state.
+        try {
+            await markGameAsStarted(roomID);
+        } catch (error) {
+            console.error('Error marking game as started: ', error);
+            createAlert('error', 'Error starting game', error.message, 1500);
+            return;
+        }
         await UpdateDatabase(arrayOfPlayers, graph);
         // A real log entry, not the phantom `<ListItem>Game has begun!</ListItem>`
         // Log.js used to hardcode above every real entry (docs/improvements.md
@@ -50,11 +66,6 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
             await addLogForRoom('Game has begun!', 'gray.400', roomID);
         } catch (error) {
             console.error('Error adding log: ', error);
-        }
-        try {
-            await markGameAsStarted(roomID);
-        } catch (error) {
-            console.error('Error marking game as started: ', error);
         }
         onClose();
         handleLobbyRoom();

@@ -23,13 +23,17 @@ const setRetentionDaysForTesting = (days) => {
 };
 
 const cleanupEndedRooms = functions.pubsub.schedule('every 24 hours').onRun(async () => {
-    const roomsSnapshot = await db.collection('rooms').get();
+    if (RETENTION_DAYS === null) return null;
+
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const roomsSnapshot = await db.collection('rooms').where('endedAt', '<=', cutoff).get();
     const rooms = roomsSnapshot.docs.map((doc) => ({
         id: doc.id,
         endedAt: doc.data().endedAt ? doc.data().endedAt.toDate() : null,
     }));
 
-    const expiredRoomIds = selectExpiredRooms(rooms, new Date(), RETENTION_DAYS);
+    const expiredRoomIds = selectExpiredRooms(rooms, now, RETENTION_DAYS);
 
     for (const roomId of expiredRoomIds) {
         await db.recursiveDelete(db.collection('rooms').doc(roomId));
