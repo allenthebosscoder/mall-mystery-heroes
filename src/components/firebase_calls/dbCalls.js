@@ -319,7 +319,19 @@ export const fetchAliveRosterForRoom = async (roomID) => {
 //ends the game
 export const endGame = async (roomID) => {
     const roomRef = doc(db, 'rooms', roomID);
-    await updateDoc(roomRef, { isGameActive: false });
+    await updateDoc(roomRef, { isGameActive: false, endedAt: serverTimestamp() });
+};
+
+// Marks the room's Lobby phase as over — written once, when "Confirm and
+// Begin Game" is clicked. Distinct from isGameActive, which is set true at
+// room creation and only goes false on explicit "End Game": it answers
+// "does this room still exist," not "has gameplay started"
+// (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
+// joinRoom (functions/callableFunctions/joinRoom.js) reads this field via
+// the Admin SDK to reject self-registration once it's true.
+export const markGameAsStarted = async (roomID) => {
+    const roomRef = doc(db, 'rooms', roomID);
+    await updateDoc(roomRef, { gameStarted: true });
 };
 
 // A reference to the room document itself, for onSnapshot — isGameActive

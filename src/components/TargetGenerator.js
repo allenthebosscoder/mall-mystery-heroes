@@ -18,6 +18,7 @@ import {
 } from '@chakra-ui/react';
 import {
     addLogForRoom,
+    markGameAsStarted,
     updateAssassinsForPlayer,
     updateTargetsForPlayer,
 } from './firebase_calls/dbCalls';
@@ -49,6 +50,11 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
             await addLogForRoom('Game has begun!', 'gray.400', roomID);
         } catch (error) {
             console.error('Error adding log: ', error);
+        }
+        try {
+            await markGameAsStarted(roomID);
+        } catch (error) {
+            console.error('Error marking game as started: ', error);
         }
         onClose();
         handleLobbyRoom();

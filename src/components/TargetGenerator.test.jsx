@@ -13,12 +13,14 @@ import userEvent from '@testing-library/user-event';
 import TargetGenerator from './TargetGenerator';
 import {
     addLogForRoom,
+    markGameAsStarted,
     updateAssassinsForPlayer,
     updateTargetsForPlayer,
 } from './firebase_calls/dbCalls';
 
 jest.mock('./firebase_calls/dbCalls', () => ({
     addLogForRoom: jest.fn(),
+    markGameAsStarted: jest.fn(),
     updateAssassinsForPlayer: jest.fn(),
     updateTargetsForPlayer: jest.fn(),
 }));
@@ -46,6 +48,7 @@ beforeEach(() => {
     updateTargetsForPlayer.mockResolvedValue(undefined);
     updateAssassinsForPlayer.mockResolvedValue(undefined);
     addLogForRoom.mockResolvedValue(undefined);
+    markGameAsStarted.mockResolvedValue(undefined);
 });
 
 describe('Begin Game confirmation', () => {
@@ -87,6 +90,14 @@ describe('confirming writes targets, logs the start, and hands off to the lobby 
         await waitFor(() =>
             expect(addLogForRoom).toHaveBeenCalledWith('Game has begun!', 'gray.400', 'room-a')
         );
+    });
+
+    it('marks the room as started', async () => {
+        mountTargetGenerator();
+
+        await beginGame();
+
+        await waitFor(() => expect(markGameAsStarted).toHaveBeenCalledWith('room-a'));
     });
 
     it('hands off to the lobby callback after the writes and the log', async () => {
