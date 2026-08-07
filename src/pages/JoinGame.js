@@ -20,7 +20,15 @@ const JoinGame = () => {
         setIsSubmitting(true);
 
         try {
-            await signInAnonymously(auth);
+            // signInAnonymously mints a new anonymous identity and replaces
+            // auth.currentUser whenever the current user isn't already
+            // anonymous — it does not layer a guest session on top of an
+            // existing one. A GM who is still signed in (e.g. tapped Join
+            // Game by mistake) must not lose their host session just by
+            // submitting this form.
+            if (!auth.currentUser) {
+                await signInAnonymously(auth);
+            }
             await joinRoom(trimmedGameId, playerName);
             writePlayerSession(trimmedGameId, playerName);
             navigate(`/rooms/${trimmedGameId}/waiting`);

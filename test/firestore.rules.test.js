@@ -102,6 +102,16 @@ describe('rooms/{roomId}', () => {
         await assertSucceeds(getDoc(doc(db, 'rooms', 'room-a')));
     });
 
+    it('allows a signed-in user to read a room ID that does not exist yet (checkForRoomIDDupes)', async () => {
+        // handleHostRoom / checkForRoomIDDupes reads a candidate room ID
+        // specifically expecting it not to exist yet. Nobody can be the
+        // host or a joined player of a room that was never created, so
+        // this must succeed (with an exists()===false snapshot) for any
+        // signed-in user, not error out or come back permission-denied.
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertSucceeds(getDoc(doc(db, 'rooms', 'totally-nonexistent-room-id')));
+    });
+
     it('allows the host to update their own room', async () => {
         const db = testEnv.authenticatedContext(HOST_UID).firestore();
         await assertSucceeds(updateDoc(doc(db, 'rooms', 'room-a'), { isGameActive: false }));

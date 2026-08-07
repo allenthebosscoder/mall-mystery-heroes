@@ -29,14 +29,29 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Both functions must be null-safe: DashBoard.handleHostRoom generates a
+    // candidate room ID and reads it via checkForRoomIDDupes specifically
+    // EXPECTING it not to exist yet. `get(path).data` on a nonexistent doc
+    // evaluates to `null`, and dereferencing `.hostId`/`.joinedUids` on that
+    // null is a rule-evaluation error (denied as permission-denied, not a
+    // clean "doesn't exist" result) — so `exists()` must be checked first,
+    // not `get(...).data != null` after the fact (that still lets the rest
+    // of the `||`/`&&` chain evaluate the dereference in this rules
+    // language's evaluator and error the same way). When the room doesn't
+    // exist, nobody can be its host or player either, so there is nothing to
+    // protect — these intentionally resolve `true` in that case, which is
+    // what lets checkForRoomIDDupes's read of a not-yet-created room ID
+    // succeed (with an exists()===false snapshot) instead of erroring.
     function isHostOfExistingRoom(roomId) {
+      let roomPath = /databases/$(database)/documents/rooms/$(roomId);
       return isSignedIn() &&
-        get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid;
+        (!exists(roomPath) || get(roomPath).data.hostId == request.auth.uid);
     }
 
     function isPlayerOfRoom(roomId) {
+      let roomPath = /databases/$(database)/documents/rooms/$(roomId);
       return isSignedIn() &&
-        request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.joinedUids;
+        (!exists(roomPath) || request.auth.uid in get(roomPath).data.get('joinedUids', []));
     }
 
     function isHostOrPlayerOfRoom(roomId) {

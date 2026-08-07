@@ -22,14 +22,29 @@ const PlayerWaiting = () => {
     useEffect(() => {
         if (!roomID) return undefined;
         const roomRef = fetchRoomReferenceForRoom(roomID);
-        const unsubscribe = onSnapshot(roomRef, (snapshot) => {
-            if (!snapshot.exists()) {
+        const unsubscribe = onSnapshot(
+            roomRef,
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    clearPlayerSession();
+                    navigate('/', { replace: true });
+                    return;
+                }
+                setGameStarted(snapshot.data()?.gameStarted ?? false);
+            },
+            (err) => {
+                // Defense-in-depth: a room-scoped read can also fail as an
+                // error event rather than a not-exists snapshot — e.g. in
+                // the moment between a room's deletion and any propagation
+                // delay, or any other permission error. Without this
+                // callback, onSnapshot swallows that error silently and the
+                // screen freezes forever with the local session never
+                // cleared.
+                console.error('Error watching room:', err);
                 clearPlayerSession();
                 navigate('/', { replace: true });
-                return;
             }
-            setGameStarted(snapshot.data()?.gameStarted ?? false);
-        });
+        );
         return () => unsubscribe();
     }, [roomID, navigate]);
 

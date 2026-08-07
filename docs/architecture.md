@@ -318,6 +318,15 @@ ID, `mall-mystery-heroes`. There is no environment separation.
 `hosting` block**, so how the built SPA is deployed is not captured in this
 repository.
 
+**`firestore.rules`, `functions`, and `hosting` must be deployed together.**
+`/join` calls the `joinRoom` Cloud Function, and the room-scoping rules'
+`isHostOfExistingRoom`/`isPlayerOfRoom` checks depend on `joinedUids`, which
+only `joinRoom` writes — deploying one without the other leaves the Join
+flow broken (the callable doesn't exist, or a joined player still can't read
+their own room). As of this writing, Hosting has been deployed once but
+Functions never has, so this ordering is not yet a solved problem, only a
+documented one.
+
 ## Build and test tooling
 
 Create React App 5 (`react-scripts`), Chakra UI 2 for all styling (no CSS

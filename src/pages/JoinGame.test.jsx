@@ -18,6 +18,7 @@ import { signInAnonymously } from 'firebase/auth';
 import JoinGame from './JoinGame';
 import { joinRoom } from '../components/joinRoom';
 import { readPlayerSession } from '../utils/playerSession';
+import { auth } from '../utils/firebase';
 
 jest.mock('firebase/auth', () => ({
     signInAnonymously: jest.fn(),
@@ -47,6 +48,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
     signInAnonymously.mockResolvedValue({ user: { uid: 'guest-uid' } });
+    auth.currentUser = null;
 });
 
 describe('JoinGame', () => {
@@ -59,6 +61,18 @@ describe('JoinGame', () => {
         expect(await screen.findByText('Waiting page')).toBeInTheDocument();
         expect(joinRoom).toHaveBeenCalledWith('Fluffy42317', 'Alice');
         expect(readPlayerSession()).toEqual({ roomID: 'Fluffy42317', playerName: 'Alice' });
+    });
+
+    it('does not call signInAnonymously when a GM is already signed in, but still joins', async () => {
+        auth.currentUser = { uid: 'host-uid' };
+        joinRoom.mockResolvedValue(undefined);
+        renderJoinGame();
+
+        await fillAndSubmit('Fluffy42317', 'Alice');
+
+        expect(await screen.findByText('Waiting page')).toBeInTheDocument();
+        expect(signInAnonymously).not.toHaveBeenCalled();
+        expect(joinRoom).toHaveBeenCalledWith('Fluffy42317', 'Alice');
     });
 
     it('trims whitespace from the game ID before joining', async () => {

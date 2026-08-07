@@ -90,6 +90,22 @@ describe('PlayerWaiting', () => {
         expect(readPlayerSession()).toBeNull();
     });
 
+    it('clears the session and redirects home when onSnapshot reports a permission error', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback, errorCallback) => {
+            errorCallback({
+                code: 'permission-denied',
+                message: 'Missing or insufficient permissions.',
+            });
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(await screen.findByText('Home page')).toBeInTheDocument();
+        expect(readPlayerSession()).toBeNull();
+    });
+
     it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {

@@ -3,13 +3,26 @@ import { Button, Stack, Image, Flex } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/mall-logo-white-2.png';
 import { readPlayerSession } from '../utils/playerSession';
+import { auth } from '../utils/firebase';
 
 const Homepage = () => {
     const navigate = useNavigate();
 
+    // Only redirect when there's an actual signed-in Firebase user backing
+    // the stored session, not just a localStorage entry — RequireAuth (which
+    // guards /rooms/:roomID/waiting) redirects back here whenever there's no
+    // signed-in Firebase user, and a stale localStorage session with no
+    // matching auth.currentUser (anonymous account deleted, IndexedDB
+    // cleared but localStorage wasn't, a token refresh failed) would
+    // otherwise bounce the visitor between here and there forever.
+    // auth.currentUser may briefly be null while Firebase Auth's async
+    // initialization is still resolving on a fresh page load — an
+    // acceptable tradeoff: worst case, a returning player very briefly sees
+    // the Host/Join buttons before Firebase Auth resolves, which is far
+    // better than an infinite redirect loop.
     useEffect(() => {
         const session = readPlayerSession();
-        if (session) {
+        if (session && auth.currentUser) {
             navigate(`/rooms/${session.roomID}/waiting`, { replace: true });
         }
     }, [navigate]);
