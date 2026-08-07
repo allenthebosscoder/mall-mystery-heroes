@@ -16,8 +16,9 @@ import Auth from './auth';
 jest.mock('firebase/auth', () => ({
     createUserWithEmailAndPassword: jest.fn(),
     signInWithEmailAndPassword: jest.fn(),
+    signInWithPopup: jest.fn(),
 }));
-jest.mock('../utils/firebase', () => ({ auth: {} }));
+jest.mock('../utils/firebase', () => ({ auth: {}, googleProvider: {} }));
 
 const mountSignUp = () =>
     render(
@@ -45,5 +46,41 @@ describe('confirm-password show/hide toggle (improvements item 32)', () => {
         // Toggling confirm-password's visibility must not affect the
         // separate password field's own show/hide state.
         expect(passwordInput).toHaveAttribute('type', 'password');
+    });
+});
+
+describe('Google Sign-In', () => {
+    it('calls signInWithPopup with the shared googleProvider and navigates to /dashboard', async () => {
+        const { signInWithPopup } = require('firebase/auth');
+        signInWithPopup.mockResolvedValue({ user: { uid: 'google-uid' } });
+
+        render(
+            <ChakraProvider>
+                <MemoryRouter>
+                    <Auth isLoginPage={true} />
+                </MemoryRouter>
+            </ChakraProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+        expect(signInWithPopup).toHaveBeenCalled();
+    });
+
+    it('shows an error if Google sign-in fails', async () => {
+        const { signInWithPopup } = require('firebase/auth');
+        signInWithPopup.mockRejectedValue(new Error('popup closed'));
+
+        render(
+            <ChakraProvider>
+                <MemoryRouter>
+                    <Auth isLoginPage={true} />
+                </MemoryRouter>
+            </ChakraProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }));
+
+        expect(await screen.findByText(/error signing in with google/i)).toBeInTheDocument();
     });
 });

@@ -1,4 +1,4 @@
-import { auth } from '../utils/firebase';
+import { auth, googleProvider } from '../utils/firebase';
 import {
     Button,
     Input,
@@ -11,7 +11,11 @@ import {
     Alert,
     AlertIcon,
 } from '@chakra-ui/react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+} from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import FilledEnterButton from './FilledEnterButton';
@@ -49,6 +53,16 @@ const Auth = (props) => {
         } catch (err) {
             console.error('Error signing up:', err);
             setErrorMessage('Error signing up. Please try again.');
+        }
+    };
+
+    const signInWithGoogle = async () => {
+        try {
+            await signInWithPopup(auth, googleProvider);
+            navigate('/dashboard');
+        } catch (err) {
+            setErrorMessage('Error signing in with Google. Please try again.');
+            console.error('Error signing in with Google:', err);
         }
     };
 
@@ -136,6 +150,14 @@ const Auth = (props) => {
                         </Box>
                     )}
                 </Box>
+                <Button
+                    variant="outline"
+                    colorScheme="brand"
+                    onClick={signInWithGoogle}
+                    borderWidth="3px"
+                >
+                    Sign in with Google
+                </Button>
                 {!passRules && !isLoginPage && (
                     <Text color="red.500" size="sm" fontStyle="italic">
                         Password needs to be at least 6 characters long.
