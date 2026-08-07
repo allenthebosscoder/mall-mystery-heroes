@@ -219,7 +219,7 @@ Gaps that remain, per [improvements.md](./improvements.md):
 
 ## Cloud Functions
 
-`functions/` contains two callables:
+`functions/` contains three callables and one scheduled function:
 
 - `targetFunction` — a stub that checks `context.auth` and echoes its input
   back. Nothing in the game depends on it; its only caller, a debug button
@@ -233,6 +233,23 @@ Gaps that remain, per [improvements.md](./improvements.md):
   `src/components/executeKill.js` is now a thin `httpsCallable` wrapper
   around it. This is the one place in the app where game logic runs
   server-side rather than in the browser.
+- `joinRoom` (`functions/callableFunctions/joinRoom.js`) — lets a player
+  self-register into a room from their own device, atomically checking for
+  a duplicate name and that the room is still in its Lobby phase, all
+  inside one Firestore transaction via the Admin SDK — the player-facing
+  counterpart to `dbCalls.addPlayerForRoom`
+  (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
+  `src/components/joinRoom.js` is its thin `httpsCallable` wrapper, same
+  shape as `executeKill.js`. Unlike `killPlayer`, there is no host-only
+  check — any signed-in caller (Google or anonymous/guest) may call it.
+- `cleanupEndedRooms` (`functions/scheduledFunctions/cleanupEndedRooms.js`)
+  — runs once every 24 hours, deleting any room (and everything under it)
+  whose `endedAt` is older than a retention window. The window is a
+  module-level constant, currently unset — the mechanism is fully built,
+  the actual duration is a deliberately deferred decision. The first
+  scheduled (as opposed to callable) function in this repo, and the first
+  tested via `firebase-functions-test`'s `wrap()` rather than a client
+  wrapper, since a cron job has no client caller to go through.
 
 `functions/index.js` additionally constructs an Express app with CORS and then
 never exports or uses it — pre-existing dead scaffolding, unrelated to
@@ -256,7 +273,8 @@ single `npm install` at the repo root installs both. `killPlayer.js` reuses
 use CommonJS `module.exports` rather than this codebase's usual ES
 `export`/`import` specifically so a plain Node `require()` from `functions/`
 works with no build step; the client's existing `import` of them is
-unaffected (webpack's CommonJS interop).
+unaffected (webpack's CommonJS interop). `joinRoom.js` reuses
+`playerNames.js` the same way, for the same reason.
 
 ## Configuration and environments
 

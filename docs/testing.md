@@ -42,31 +42,32 @@ tests) and `executeKill.integration.test.js` (7 tests), 34 tests total.
 `npm run test:rules` runs `test/firestore.rules.test.js` (19 tests) against
 Firestore alone.
 
-| Module                            | What it holds                                                                                                                                                                        | Tests |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
-| `src/game/targetGraph.js`         | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                                                       | 19    |
-| `src/game/remapPlan.js`           | `planRemap` — post-kill/revive matching, as a plan                                                                                                                                   | 16    |
-| `src/game/commands.js`            | `parseCommand` for the GM command bar                                                                                                                                                | 19    |
-| `src/game/leaderboard.js`         | `buildLeaderboardStandings` — sorts and shapes standings for `/leaderboard` (item 21)                                                                                                | 4     |
-| `src/utils/firebaseEnv.js`        | Config reading, emulator flag, production guard                                                                                                                                      | 9     |
-| `src/game/photoJudgments.js`      | `splitPhotosByStatus` (item 6)                                                                                                                                                       | 5     |
-| `dbCalls.integration.test.js`     | The data layer against the Firestore emulator                                                                                                                                        | 27    |
-| `executeKill.integration.test.js` | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                          | 7     |
-| `test/firestore.rules.test.js`    | Security rules against the Firestore emulator                                                                                                                                        | 19    |
-| `PlayerAddition.test.jsx`         | The `dom` project's first test — see below                                                                                                                                           | 3     |
-| `ChatInput.test.jsx`              | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                              | 16    |
-| `RequireAuth.test.jsx`            | Route guard spinner/redirect/render states (item 3)                                                                                                                                  | 3     |
-| `PhotosDisplay.test.jsx`          | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                                                 | 5     |
-| `PlayersList.test.jsx`            | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                                            | 4     |
-| `GameMasterView.test.jsx`         | Live header count and alive-only roster derivation (item 13)                                                                                                                         | 3     |
-| `src/game/playerNames.js`         | `normalizePlayerName` (item 35)                                                                                                                                                      | 4     |
-| `auth.test.jsx`                   | Confirm-password show/hide toggle (item 32)                                                                                                                                          | 1     |
-| `NotFound.test.jsx`               | 404 route content (item 30)                                                                                                                                                          | 1     |
-| `Endgamebutton.test.jsx`          | Only navigates away once `endGame` resolves; alerts instead of navigating on failure (item 10)                                                                                       | 2     |
-| `TaskCreation.test.jsx`           | Mission panel restored (item 15): create end to end, duplicate rejection, validation, failure toast                                                                                  | 4     |
-| `TaskList.test.jsx`               | Mission panel restored (item 15): active/completed split, doesn't crash when the fetch rejects                                                                                       | 2     |
-| `TaskCreationModal.test.jsx`      | Item 15's mission modal follow-up: renders `TaskCreation` when open, renders nothing when closed, closes on the Close button, forwards a successful creation to `handleNewTaskAdded` | 4     |
-| `TaskListModal.test.jsx`          | Item 15's mission modal follow-up: renders `TaskList` when open, renders nothing when closed, closes on the Close button                                                             | 3     |
+| Module                                               | What it holds                                                                                                                                                                        | Tests |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| `src/game/targetGraph.js`                            | `maxTargetsFor`, `shuffle`, `buildTargetGraph`                                                                                                                                       | 19    |
+| `src/game/remapPlan.js`                              | `planRemap` — post-kill/revive matching, as a plan                                                                                                                                   | 16    |
+| `src/game/commands.js`                               | `parseCommand` for the GM command bar                                                                                                                                                | 19    |
+| `src/game/leaderboard.js`                            | `buildLeaderboardStandings` — sorts and shapes standings for `/leaderboard` (item 21)                                                                                                | 4     |
+| `functions/scheduledFunctions/selectExpiredRooms.js` | `selectExpiredRooms` — pure room-retention selection, given `now` injected rather than read internally (item: player access/room lifecycle)                                          | 6     |
+| `src/utils/firebaseEnv.js`                           | Config reading, emulator flag, production guard                                                                                                                                      | 9     |
+| `src/game/photoJudgments.js`                         | `splitPhotosByStatus` (item 6)                                                                                                                                                       | 5     |
+| `dbCalls.integration.test.js`                        | The data layer against the Firestore emulator                                                                                                                                        | 27    |
+| `executeKill.integration.test.js`                    | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                          | 7     |
+| `test/firestore.rules.test.js`                       | Security rules against the Firestore emulator                                                                                                                                        | 19    |
+| `PlayerAddition.test.jsx`                            | The `dom` project's first test — see below                                                                                                                                           | 3     |
+| `ChatInput.test.jsx`                                 | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                              | 16    |
+| `RequireAuth.test.jsx`                               | Route guard spinner/redirect/render states (item 3)                                                                                                                                  | 3     |
+| `PhotosDisplay.test.jsx`                             | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                                                 | 5     |
+| `PlayersList.test.jsx`                               | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                                            | 4     |
+| `GameMasterView.test.jsx`                            | Live header count and alive-only roster derivation (item 13)                                                                                                                         | 3     |
+| `src/game/playerNames.js`                            | `normalizePlayerName` (item 35)                                                                                                                                                      | 4     |
+| `auth.test.jsx`                                      | Confirm-password show/hide toggle (item 32)                                                                                                                                          | 1     |
+| `NotFound.test.jsx`                                  | 404 route content (item 30)                                                                                                                                                          | 1     |
+| `Endgamebutton.test.jsx`                             | Only navigates away once `endGame` resolves; alerts instead of navigating on failure (item 10)                                                                                       | 2     |
+| `TaskCreation.test.jsx`                              | Mission panel restored (item 15): create end to end, duplicate rejection, validation, failure toast                                                                                  | 4     |
+| `TaskList.test.jsx`                                  | Mission panel restored (item 15): active/completed split, doesn't crash when the fetch rejects                                                                                       | 2     |
+| `TaskCreationModal.test.jsx`                         | Item 15's mission modal follow-up: renders `TaskCreation` when open, renders nothing when closed, closes on the Close button, forwards a successful creation to `handleNewTaskAdded` | 4     |
+| `TaskListModal.test.jsx`                             | Item 15's mission modal follow-up: renders `TaskList` when open, renders nothing when closed, closes on the Close button                                                             | 3     |
 
 The first six modules are pure and run in Jest's `node` project with no
 mocks and no Firebase; the rest need the emulator (`integration`, `rules`) or
@@ -460,30 +461,48 @@ never run in the same invocation.
 
 ### Layer 1b — Cloud Functions, against the Functions, Firestore, and Auth emulators together
 
-Target: `functions/callableFunctions/killPlayer.js` (backlog item 4).
+Targets: `functions/callableFunctions/killPlayer.js` (backlog item 4),
+`functions/callableFunctions/joinRoom.js`, and
+`functions/scheduledFunctions/cleanupEndedRooms.js` (player access/room
+lifecycle).
 
-`executeKill.integration.test.js` calls it exactly the way the real app
-does — through `httpsCallable`, via the thin `src/components/executeKill.js`
-wrapper — rather than importing the function's internals and invoking them
-directly (the `firebase-functions-test` shortcut this repo's devDependencies
-would otherwise support). That keeps the same "test through the real
-interface" stance Layer 1 already takes with `dbCalls.js`: assertions read
-back what actually landed in Firestore after a real callable-function HTTP
-round trip, not what the function's return value merely claims happened.
+`executeKill.integration.test.js` and `joinRoom.integration.test.js` both
+call their function exactly the way the real app does — through
+`httpsCallable`, via a thin wrapper (`src/components/executeKill.js`,
+`src/components/joinRoom.js`) — rather than importing the function's
+internals and invoking them directly (the `firebase-functions-test`
+shortcut this repo's devDependencies would otherwise support). That keeps
+the same "test through the real interface" stance Layer 1 already takes
+with `dbCalls.js`: assertions read back what actually landed in Firestore
+after a real callable-function HTTP round trip, not what the function's
+return value merely claims happened.
+
+`cleanupEndedRooms.integration.test.js` is the one exception: a scheduled
+function has no client-facing callable interface to go through — its only
+real caller is Cloud Scheduler. It uses `firebase-functions-test`'s
+`wrap()` to invoke the `.onRun()` handler directly instead, the first use
+of that shortcut in this repo, reserved for exactly the case Layer 1's
+"real interface" stance can't apply to.
 
 This requires the `functions` emulator running alongside `firestore` and
 `auth` — `test:emulator`'s `--only` flag lists all three. A second helper,
 `callableAsNonHost` (`test/emulatorHelpers.js`), spins up a second, separate
-Firebase app instance signed in as a different anonymous user, so the
-host-only authorization check (re-implemented in `killPlayer.js`, since the
-Admin SDK it runs under bypasses `firestore.rules` entirely) has something
-real to reject.
+Firebase app instance signed in as a different anonymous user, so
+`killPlayer.js`'s host-only authorization check (re-implemented there,
+since the Admin SDK it runs under bypasses `firestore.rules` entirely) has
+something real to reject. `joinRoom` has no equivalent check to test this
+way — any signed-in caller may call it, by design.
 
 `functions/` has its own lint config and script (`functions/.eslintrc.json`,
 `npm run lint` from inside `functions/`) but no separate unit-test runner —
-the three pure modules it imports (`src/game/{remapPlan,targetGraph,
-playerNames}.js`) are already covered by Layer 0, and `killPlayer.js` itself
-has no logic that isn't more accurately exercised end-to-end at this layer.
+`functions/**/*.test.js` rides the same `unit` Jest project as everything
+else. The pure modules `functions/` imports or contains
+(`src/game/{remapPlan,targetGraph,playerNames}.js`,
+`functions/scheduledFunctions/selectExpiredRooms.js`) are covered there.
+`killPlayer.js` and `joinRoom.js` themselves have no logic that isn't more
+accurately exercised end-to-end at this layer; `cleanupEndedRooms.js`
+splits the difference — its room-selection decision is pure and unit
+tested, its actual Firestore reads/deletes are exercised here.
 
 ### Layer 2 — Security rules ✅
 
