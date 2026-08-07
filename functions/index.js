@@ -16,3 +16,6 @@ exports.killPlayer = killPlayer
 
 const { joinRoom } = require("./callableFunctions/joinRoom")
 exports.joinRoom = joinRoom
+
+const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
+exports.cleanupEndedRooms = cleanupEndedRooms

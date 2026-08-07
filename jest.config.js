@@ -51,7 +51,10 @@ const config = {
             displayName: 'integration',
             testEnvironment: 'node',
             clearMocks: true,
-            testMatch: ['<rootDir>/src/**/*.integration.test.js'],
+            testMatch: [
+                '<rootDir>/src/**/*.integration.test.js',
+                '<rootDir>/functions/**/*.integration.test.js',
+            ],
             testPathIgnorePatterns: ['/node_modules/'],
             // Must be setupFiles, not setupFilesAfterEnv: the env vars have to be in
             // place before src/utils/firebase.js is first imported.
