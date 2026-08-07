@@ -1,43 +1,30 @@
-import React from 'react';
-import { Button, Stack, Image, Box, Flex, Divider } from '@chakra-ui/react';
+import React, { useEffect } from 'react';
+import { Button, Stack, Image, Flex } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/mall-logo-white-2.png';
+import { readPlayerSession } from '../utils/playerSession';
 
 const Homepage = () => {
     const navigate = useNavigate();
 
+    useEffect(() => {
+        const session = readPlayerSession();
+        if (session) {
+            navigate(`/rooms/${session.roomID}/waiting`, { replace: true });
+        }
+    }, [navigate]);
+
     return (
-        <Flex height="100vh" alignItems="center" justifyContent="center">
-            <Flex direction="row" alignItems="center" justifyContent="center">
-                <Stack direction="column" alignItems="center" textAlign="center">
-                    <Image
-                        src={logo}
-                        maxWidth="300px"
-                        maxHeight="300px"
-                        alt="logo white"
-                        mb={5} // Adds margin bottom to the Image
-                    />
-                </Stack>
-                <Divider orientation="vertical" height="440px" mx={8} />
-                <Box textAlign="center">
-                    <Stack direction="column" spacing={4}>
-                        <Button
-                            colorScheme="teal"
-                            variant="solid"
-                            onClick={() => navigate('/login')}
-                        >
-                            Log In
-                        </Button>
-                        <Button
-                            colorScheme="teal"
-                            variant="outline"
-                            onClick={() => navigate('/signup')}
-                        >
-                            Sign Up
-                        </Button>
-                    </Stack>
-                </Box>
-            </Flex>
+        <Flex height="100vh" alignItems="center" justifyContent="center" direction="column" p={4}>
+            <Image src={logo} maxWidth="250px" maxHeight="250px" alt="logo white" mb={8} />
+            <Stack direction="column" spacing={4} width="100%" maxWidth="320px">
+                <Button colorScheme="teal" variant="solid" onClick={() => navigate('/host')}>
+                    Host Game
+                </Button>
+                <Button colorScheme="teal" variant="outline" onClick={() => navigate('/join')}>
+                    Join Game
+                </Button>
+            </Stack>
         </Flex>
     );
 };
