@@ -10,6 +10,7 @@ import Lobby from './pages/Lobby';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import PasswordReset from './pages/PasswordReset';
+import PlayerWaiting from './pages/PlayerWaiting';
 import RequireAuth from './components/RequireAuth';
 import SignUp from './pages/SignUp';
 import theme from './theme'; // Import your custom theme
@@ -38,6 +39,14 @@ function App() {
                         element={
                             <RequireAuth>
                                 <Lobby />
+                            </RequireAuth>
+                        }
+                    />
+                    <Route
+                        path="/rooms/:roomID/waiting"
+                        element={
+                            <RequireAuth>
+                                <PlayerWaiting />
                             </RequireAuth>
                         }
                     />
