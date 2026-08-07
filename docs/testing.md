@@ -15,6 +15,7 @@ $ npm test
 PASS unit src/game/commands.test.js
 PASS unit src/game/commandCompletion.test.js
 PASS unit src/utils/firebaseEnv.test.js
+PASS unit src/utils/playerSession.test.js
 PASS unit src/game/remapPlan.test.js
 PASS unit src/game/targetGraph.test.js
 PASS unit src/game/photoJudgments.test.js
@@ -27,6 +28,10 @@ PASS dom src/components/logs_components/ChatInput.test.jsx
 PASS dom src/components/photos_display_component/PhotosDisplay.test.jsx
 PASS dom src/components/player_listing/PlayersList.test.jsx
 PASS dom src/pages/GameMasterView.test.jsx
+PASS dom src/pages/Homepage.test.jsx
+PASS dom src/pages/Host.test.jsx
+PASS dom src/pages/JoinGame.test.jsx
+PASS dom src/pages/PlayerWaiting.test.jsx
 PASS dom src/components/auth.test.jsx
 PASS dom src/pages/NotFound.test.jsx
 PASS dom src/components/header_components/Endgamebutton.test.jsx
@@ -36,8 +41,8 @@ PASS dom src/components/task_components/TaskCreationModal.test.jsx
 PASS dom src/components/task_components/TaskListModal.test.jsx
 PASS dom src/components/TargetGenerator.test.jsx
 
-Test Suites: 23 passed, 23 total
-Tests:       212 passed, 212 total
+Test Suites: 28 passed, 28 total
+Tests:       233 passed, 233 total
 ```
 
 `npm run test:emulator` runs four further suites against the real Firestore,
@@ -45,7 +50,7 @@ Auth, and Functions emulators together — `dbCalls.integration.test.js` (27
 tests), `executeKill.integration.test.js` (7 tests), `joinRoom.integration.test.js`
 (7 tests), and `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js`
 (4 tests), 45 tests total.
-`npm run test:rules` runs `test/firestore.rules.test.js` (19 tests) against
+`npm run test:rules` runs `test/firestore.rules.test.js` (34 tests) against
 Firestore alone.
 
 | Module                                                               | What it holds                                                                                                                                                                                | Tests |
@@ -61,7 +66,12 @@ Firestore alone.
 | `executeKill.integration.test.js`                                    | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                                  | 7     |
 | `joinRoom.integration.test.js`                                       | The `joinRoom` Cloud Function via `httpsCallable` (player access/room lifecycle): self-registration, duplicate name rejection, Lobby-phase gating, argument validation, ended-room rejection | 7     |
 | `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js` | The `cleanupEndedRooms` scheduled function via `firebase-functions-test` `wrap()`: room selection decision and actual deletion via the Admin SDK                                             | 4     |
-| `test/firestore.rules.test.js`                                       | Security rules against the Firestore emulator                                                                                                                                                | 19    |
+| `test/firestore.rules.test.js`                                       | Security rules against the Firestore emulator                                                                                                                                                | 34    |
+| `src/utils/playerSession.test.js`                                    | `savePlayerSession`/`loadPlayerSession`/`clearPlayerSession` — localStorage round-trip, malformed JSON, missing fields (item: join-flow UI and room scoping)                                 | 5     |
+| `src/pages/Homepage.test.jsx`                                        | "Host Game"/"Join Game" landing, redirecting straight to `/rooms/:roomID/waiting` when a player session is already stored (item: join-flow UI and room scoping)                              | 4     |
+| `src/pages/Host.test.jsx`                                            | Today's old `Homepage` (Log In / Sign Up choice), renamed and moved to `/host` (item: join-flow UI and room scoping)                                                                         | 2     |
+| `src/pages/JoinGame.test.jsx`                                        | Player self-registration form: success, whitespace trimming, and the room-not-found/already-started/inactive/name-taken error paths (item: join-flow UI and room scoping)                    | 6     |
+| `src/pages/PlayerWaiting.test.jsx`                                   | Post-join waiting screen: live status once `gameStarted` flips, redirect home if the room disappears, Leave clears the session (item: join-flow UI and room scoping)                         | 4     |
 | `PlayerAddition.test.jsx`                                            | The `dom` project's first test — see below                                                                                                                                                   | 3     |
 | `ChatInput.test.jsx`                                                 | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                                      | 16    |
 | `RequireAuth.test.jsx`                                               | Route guard spinner/redirect/render states (item 3)                                                                                                                                          | 3     |
@@ -519,6 +529,13 @@ test:rules`), scoped to the room's host via `hostId`. As anticipated, this
 gives the highest security-per-line-of-test ratio in the suite:
 
 - unauthenticated read of `rooms/{id}/players` → denied
+- a signed-in stranger — neither the room's host nor a player who has
+  joined it — reading `rooms/{id}` or any of its five subcollections →
+  denied, as of docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-
+  scoping-design.md. Previously this was "any signed-in user," full stop —
+  the gap that let a guest from one room read another room's data just by
+  knowing its ID.
+- a player present in the room's `joinedUids` reading the same → allowed
 - authenticated non-host write to another room's player → denied
 - host write to own room → allowed
 - client write to `points` → **still allowed**. Kills specifically no
@@ -530,11 +547,14 @@ gives the highest security-per-line-of-test ratio in the suite:
   rules test still intentionally passes for that reason, not because it's
   stale.
 
-`photos` is scoped to the host too, not "the mobile app's identity" as
-originally proposed — see backlog item 33 and the comment in `firestore.rules`.
+`photos` and `playerMessages` are scoped to "host or player of this room"
+for reads, host-only for writes — not to a distinct per-uploader identity,
+since no photo-upload code exists in this repository yet (backlog item 33).
 
-`storage.rules` (`allow read, write: if true`) is unchanged — out of scope for
-this phase; see backlog item 2.
+`storage.rules` requires `request.auth != null` but is not scoped per-room
+or per-player the way `firestore.rules` now is — no photo-upload code exists
+yet to scope a rule against; see backlog item 2 and docs/superpowers/specs/
+2026-08-07-join-flow-ui-and-room-scoping-design.md.
 
 Adding real rules broke the Layer 1 suite's assumption that `dbCalls` could
 write unauthenticated: `test/emulatorHelpers.js` now signs in an anonymous

@@ -76,17 +76,20 @@ src/index.js
 Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                              | Guarded |
-| ------------------------------- | ---------------- | ------------------------------------ | ------- |
-| `/`                             | `Homepage`       | Log in / sign up landing             |         |
-| `/login`                        | `Login`          | Email + password sign-in             |         |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email           |         |
-| `/signup`                       | `SignUp`         | Account creation                     |         |
-| `/dashboard`                    | `DashBoard`      | Host a new room, log out             | ✅      |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation | ✅      |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                | ✅      |
+| Path                            | Page             | Purpose                                          | Guarded |
+| ------------------------------- | ---------------- | ------------------------------------------------ | ------- |
+| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                |         |
+| `/host`                         | `Host`           | Log in / sign up choice (today's old `Homepage`) |         |
+| `/login`                        | `Login`          | Email + password sign-in                         |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                       |         |
+| `/signup`                       | `SignUp`         | Account creation                                 |         |
+| `/join`                         | `JoinGame`       | Player self-registration: game ID + name         |         |
+| `/dashboard`                    | `DashBoard`      | Host a new room, log out                         | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation             | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                            | ✅      |
+| `/rooms/:roomID/waiting`        | `PlayerWaiting`  | Post-join landing for a self-registered player   | ✅      |
 
-There is no catch-all `*` route, so an unknown URL renders a blank page.
+`NotFound` is the catch-all `*` route (`improvements.md` item 30).
 
 ### The `dbCalls.js` seam
 
@@ -191,31 +194,41 @@ the two consumers sit in different branches of the layout.
 
 ## Authentication and authorization
 
-Firebase Auth, email/password only, handled entirely by `src/components/auth.js`
-(shared by both `Login` and `SignUp` via an `isLoginPage` prop). Password reset
-goes through `sendPasswordResetEmail`. Google sign-in is initialized in
-`utils/firebase.js` (`googleProvider`) but never used.
+Three ways to sign in now: email/password (`src/components/auth.js`, shared
+by `Login` and `SignUp` via an `isLoginPage` prop; password reset goes
+through `sendPasswordResetEmail`), Google (`signInWithPopup` +
+`googleProvider`, additive on the same `auth.js` form for the GM), and
+anonymous/guest (`signInAnonymously`, used only by `JoinGame` — a player
+never sees a login screen at all).
 
 **Authorization is enforced at both the database and the route.**
-`firestore.rules` (registered in `firebase.json`) requires `request.auth !=
-null` for every read, and scopes every write under `rooms/{roomId}` —
-including the `players`, `tasks`, and `photos` subcollections — to
-`resource.data.hostId == request.auth.uid`. `rooms/{roomID}.hostId`, written
-once at room creation, is now read, by the rules engine. On top of that,
-`src/components/RequireAuth.js` wraps `/dashboard` and the two
-`/rooms/:roomID/*` routes, redirecting a signed-out visitor to `/` before the
-page renders at all — defense-in-depth, not a substitute for the rules.
+`firestore.rules` (registered in `firebase.json`) scopes every read under
+`rooms/{roomId}` — including all five subcollections — to whichever caller
+is either the room's host (`resource.data.hostId == request.auth.uid`) or a
+player who has joined it (`request.auth.uid` present in the room's
+`joinedUids`, appended to by `joinRoom`) — not simply "any signed-in user"
+(docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
+Writes stay host-only, unchanged. `rooms/{roomID}.hostId`, written once at
+room creation, and `joinedUids`, appended to on every self-registration, are
+both read by the rules engine via `get()`. On top of that,
+`src/components/RequireAuth.js` wraps `/dashboard` and every `/rooms/:roomID/*`
+route (including the new `/waiting`), redirecting a signed-out visitor to
+`/` before the page renders at all — defense-in-depth, not a substitute for
+the rules. `RequireAuth` accepts any signed-in user, anonymous included.
 
 Gaps that remain, per [improvements.md](./improvements.md):
 
-- `storage.rules` is still `allow read, write: if true` for all paths (item 2's
-  storage half, out of scope for the Firestore-rules pass).
+- `storage.rules` requires `request.auth != null` but is not scoped
+  per-room or per-player the way `firestore.rules` now is — no photo-upload
+  code exists yet to scope a rule against (docs/superpowers/specs/2026-08-07-
+  join-flow-ui-and-room-scoping-design.md).
 - All game logic remains client-side, so a signed-in host can still write any
   field on their own room's documents, including `score` directly — the rules
   stop other people from editing a room, not a host from writing anything to
   their own (item 4, item 10 in [testing.md](./testing.md#layer-2--security-rules-)).
-- `photos` is scoped to the host, not to a distinct mobile-app identity — no
-  such app exists in this repository (item 33).
+- `photos` is scoped to "host or player of this room," not to a distinct
+  per-photo-uploader identity — no photo-upload code exists in this
+  repository yet (item 33).
 
 ## Cloud Functions
 
@@ -239,17 +252,22 @@ Gaps that remain, per [improvements.md](./improvements.md):
   inside one Firestore transaction via the Admin SDK — the player-facing
   counterpart to `dbCalls.addPlayerForRoom`
   (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
+  Also records the joining `uid` on the new player doc and appends it to
+  the room's `joinedUids`, which is what `firestore.rules`' room-scoping
+  checks against
+  (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
   `src/components/joinRoom.js` is its thin `httpsCallable` wrapper, same
   shape as `executeKill.js`. Unlike `killPlayer`, there is no host-only
   check — any signed-in caller (Google or anonymous/guest) may call it.
 - `cleanupEndedRooms` (`functions/scheduledFunctions/cleanupEndedRooms.js`)
   — runs once every 24 hours, deleting any room (and everything under it)
   whose `endedAt` is older than a retention window. The window is a
-  module-level constant, currently unset — the mechanism is fully built,
-  the actual duration is a deliberately deferred decision. The first
-  scheduled (as opposed to callable) function in this repo, and the first
-  tested via `firebase-functions-test`'s `wrap()` rather than a client
-  wrapper, since a cron job has no client caller to go through.
+  module-level constant, currently `1` (24 hours) — enough time to review
+  standings and photos, or flag a mistake, before a room disappears
+  (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
+  The first scheduled (as opposed to callable) function in this repo, and
+  the first tested via `firebase-functions-test`'s `wrap()` rather than a
+  client wrapper, since a cron job has no client caller to go through.
 
 `functions/index.js` additionally constructs an Express app with CORS and then
 never exports or uses it — pre-existing dead scaffolding, unrelated to
