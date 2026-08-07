@@ -4,6 +4,7 @@ import './App.css';
 import DashBoard from './pages/DashBoard';
 import GameMasterView from './pages/GameMasterView';
 import Homepage from './pages/Homepage';
+import Host from './pages/Host';
 import Lobby from './pages/Lobby';
 import Login from './pages/Login';
 import NotFound from './pages/NotFound';
@@ -18,6 +19,7 @@ function App() {
             <BrowserRouter>
                 <Routes>
                     <Route path="/" element={<Homepage />} />
+                    <Route path="/host" element={<Host />} />
                     <Route
                         path="/dashboard"
                         element={
