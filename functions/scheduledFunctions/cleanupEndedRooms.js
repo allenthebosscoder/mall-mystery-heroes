@@ -8,10 +8,10 @@ if (admin.apps.length === 0) {
 
 const db = admin.firestore();
 
-// null = deliberate no-op. The mechanism is fully built; only the actual
-// duration is undecided (docs/superpowers/specs/2026-08-06-player-access-
-// and-room-lifecycle-design.md). Flip this to a number to turn it on.
-let RETENTION_DAYS = null;
+// 24 hours — enough time to review standings, kill photos, and flag any
+// last-minute mistake before a room's data disappears
+// (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
+let RETENTION_DAYS = 1;
 
 // Test-only seam — the alternative (injecting retentionDays as a
 // parameter to cleanupEndedRooms) would change this function's signature
