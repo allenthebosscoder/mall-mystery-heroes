@@ -1,5 +1,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+// Imported from the firestore subpath, not admin.firestore.FieldValue: the
+// Functions emulator wraps the top-level admin.firestore property in a
+// Function.prototype.bind() (see firebase-tools'
+// functionsEmulatorRuntime.js Proxied.getOriginal), and a bound function
+// carries none of the original's static properties — admin.firestore.FieldValue
+// is undefined under `npm run test:emulator` even though it resolves fine
+// outside the emulator. This subpath import isn't proxied the same way.
+const { FieldValue } = require('firebase-admin/firestore');
 const { normalizePlayerName } = require('../../src/game/playerNames');
 
 if (admin.apps.length === 0) {
@@ -79,11 +87,15 @@ exports.joinRoom = functions.https.onCall(async (data, context) => {
         transaction.set(playerRef, {
             name: playerName,
             trimmedNameLowerCase: trimmedLowercaseName,
+            uid: context.auth.uid,
             isAlive: true,
             score: 10,
             targets: [],
             assassins: [],
             openSeason: false,
+        });
+        transaction.update(roomRef, {
+            joinedUids: FieldValue.arrayUnion(context.auth.uid),
         });
     });
 });

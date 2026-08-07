@@ -97,6 +97,12 @@ describe('addPlayerForRoom', () => {
 
         await addPlayerForRoom('erin', ROOM);
         await clearFirestore();
+        // Reads are now room-scoped (isHostOrPlayerOfRoom in firestore.rules),
+        // so clearFirestore also wiped away this caller's proof of being the
+        // room's host — re-seed the room itself (not its players) so the
+        // query below is authorized. If addPlayerForRoom's write were still
+        // in flight, it would land here as a stray 'erin' doc.
+        await seedRoom(ROOM, []);
 
         expect(await fetchAllPlayersForRoom(ROOM)).toEqual([]);
     });

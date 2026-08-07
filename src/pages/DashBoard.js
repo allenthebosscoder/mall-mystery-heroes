@@ -43,6 +43,7 @@ const DashBoard = () => {
                     hostId: user.uid,
                     isGameActive: true,
                     gameStarted: false,
+                    joinedUids: [],
                     taskIndex: 1,
                     storageReference: [],
                 });

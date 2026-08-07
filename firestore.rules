@@ -3,6 +3,11 @@ rules_version = '2';
 // Minimum-viable rules for docs/improvements.md item 2. All game state is
 // scoped to the room's host: `hostId` is the creating user's auth.uid, set
 // once in DashBoard.handleHostRoom and never changed (docs/data-model.md).
+// Reads are additionally scoped to players who have actually joined a room
+// (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md)
+// — `joinedUids`, appended to by joinRoom's transaction, is what makes that
+// checkable from a rule at all, since Firestore rules can only fetch a
+// specific known path, not query "does any player doc have field X == Y."
 //
 // Not addressed here, on purpose (see docs/testing.md Phase 3 scope):
 //   - item 4's atomicity problem is resolved — kills now run inside a
@@ -14,9 +19,8 @@ rules_version = '2';
 //     ResetTargetsButton's manual reset, open-season toggling,
 //     addPlayerForRoom. Only kills moved server-side; auditing and
 //     re-homing everything else client-writable is separate, larger scope.
-//   - `photos` and `playerMessages` are scoped to the host, not "the
-//     mobile app's identity" as item 2 originally called for — no such
-//     app exists yet (item 33). Revisit once it does.
+//   - write access is unchanged (host-only) — this pass only widens who can
+//     *read* a room beyond its host.
 //   - route guards (item 3) and storage.rules are separate concerns.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -30,35 +34,44 @@ service cloud.firestore {
         get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == request.auth.uid;
     }
 
+    function isPlayerOfRoom(roomId) {
+      return isSignedIn() &&
+        request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.joinedUids;
+    }
+
+    function isHostOrPlayerOfRoom(roomId) {
+      return isHostOfExistingRoom(roomId) || isPlayerOfRoom(roomId);
+    }
+
     match /rooms/{roomId} {
-      allow read: if isSignedIn();
+      allow read: if isHostOrPlayerOfRoom(roomId);
       allow create: if isSignedIn() && request.resource.data.hostId == request.auth.uid;
       allow update, delete: if isHostOfExistingRoom(roomId);
 
       match /players/{playerId} {
-        allow read: if isSignedIn();
+        allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
       }
 
       match /tasks/{taskId} {
-        allow read: if isSignedIn();
+        allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
       }
 
       match /logs/{logId} {
-        allow read: if isSignedIn();
+        allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
       }
 
       // Interim scope — see file header.
       match /photos/{photoId} {
-        allow read: if isSignedIn();
+        allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
       }
 
       // Interim scope, same reasoning as photos above — see file header.
       match /playerMessages/{messageId} {
-        allow read: if isSignedIn();
+        allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
       }
     }

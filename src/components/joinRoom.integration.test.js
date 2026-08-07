@@ -10,6 +10,8 @@
  */
 import { joinRoom } from './joinRoom';
 import { fetchPlayerForRoom } from './firebase_calls/dbCalls';
+import { auth, db } from '../utils/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { clearFirestore, seedRoom, shutdown } from '../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
@@ -18,7 +20,7 @@ beforeEach(clearFirestore);
 afterAll(shutdown);
 
 describe('joinRoom', () => {
-    it('adds a new player to a room still in its Lobby phase', async () => {
+    it('adds a new player to a room still in its Lobby phase, recording who joined', async () => {
         await seedRoom(ROOM, []);
 
         await joinRoom(ROOM, 'Alice');
@@ -31,7 +33,11 @@ describe('joinRoom', () => {
             score: 10,
             targets: [],
             assassins: [],
+            uid: auth.currentUser.uid,
         });
+
+        const room = await getDoc(doc(db, 'rooms', ROOM));
+        expect(room.data().joinedUids).toContain(auth.currentUser.uid);
     });
 
     it('rejects joining a room that does not exist', async () => {
