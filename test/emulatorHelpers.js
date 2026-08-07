@@ -70,12 +70,14 @@ export const callableAsNonHost = (functionName) => {
  * Seeds a room with players. Writes the same fields `addPlayerForRoom` and
  * `DashBoard` write, so tests exercise realistic documents.
  */
-export const seedRoom = async (roomID, players = []) => {
+export const seedRoom = async (roomID, players = [], roomOverrides = {}) => {
     await setDoc(doc(db, 'rooms', roomID), {
         taskIndex: 1,
         hostId: await hostUid(),
         isGameActive: true,
+        gameStarted: false,
         storageReference: [],
+        ...roomOverrides,
     });
 
     for (const player of players) {

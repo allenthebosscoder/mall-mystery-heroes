@@ -13,3 +13,6 @@ exports.targetFunction = targetFunction
 
 const { killPlayer } = require("./callableFunctions/killPlayer")
 exports.killPlayer = killPlayer
+
+const { joinRoom } = require("./callableFunctions/joinRoom")
+exports.joinRoom = joinRoom
