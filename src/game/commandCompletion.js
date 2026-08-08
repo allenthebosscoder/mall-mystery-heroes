@@ -25,7 +25,7 @@ const OPEN_SEASON_VALUES = ['start', 'end'];
 const ARG_LABELS = {
     '/add': ['[player_name]', '[points]'],
     '/kill': ['[player_name]', '[assassin_name]'],
-    '/openseason': ['[player_name]', 'start|end'],
+    '/openseason': ['[player_name]', 'start/end'],
     '/revive': ['[player_name]'],
     '/whisper': ['[player_name]', '[message]'],
     '/broadcast': ['[message]'],
@@ -138,8 +138,22 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
     switch (command) {
         case '/add':
             return slotIndex === 1 ? playerNames(players) : null;
-        case '/kill':
-            return slotIndex === 1 || slotIndex === 2 ? playerNames(players) : null;
+        case '/kill': {
+            if (slotIndex === 1) return playerNames(players);
+            if (slotIndex === 2) {
+                // The assassin slot only offers players who are actually
+                // targeting the already-typed target — not the full
+                // roster. Case-insensitive since the target name was typed
+                // freehand and may not match the stored casing exactly.
+                const target = (args[0] || '').toLowerCase();
+                return players
+                    .filter((player) =>
+                        (player.targets || []).some((t) => t.toLowerCase() === target)
+                    )
+                    .map((player) => player.name);
+            }
+            return null;
+        }
         case '/whisper':
             return slotIndex === 1 ? playerNames(players) : null;
         case '/openseason':

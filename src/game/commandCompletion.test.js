@@ -1,9 +1,9 @@
 import { complete } from './commandCompletion';
 
 const players = [
-    { name: 'Alice Smith', isAlive: true },
-    { name: 'Alex', isAlive: true },
-    { name: 'Bob', isAlive: false },
+    { name: 'Alice Smith', isAlive: true, targets: ['Bob'] },
+    { name: 'Alex', isAlive: true, targets: [] },
+    { name: 'Bob', isAlive: false, targets: ['Alice Smith'] },
 ];
 
 const missions = [
@@ -58,10 +58,15 @@ describe('complete — player-name slots', () => {
     });
 
     it('completes the second player-name slot for /kill independently of the first', () => {
-        const result = complete('/kill [Alice Smith] Al', { players });
+        // Bob is the only player in the fixture who targets Alice Smith, so
+        // the assassin slot's candidates are scoped to just him — this also
+        // exercises the assassin-filtering behavior below, not just that
+        // the slot completes independently.
+        const result = complete('/kill [Alice Smith] B', { players });
         expect(result.applied).toBe(true);
         expect(result.tokenStart).toBe('/kill [Alice Smith] '.length);
-        expect(result.commonPrefix).toBe('Al');
+        expect(result.isUnique).toBe(true);
+        expect(result.commonPrefix).toBe('Bob');
     });
 
     it('offers every player when nothing has been typed yet for the slot', () => {
@@ -73,6 +78,31 @@ describe('complete — player-name slots', () => {
     it("does not suggest players for /add's second (numeric) slot", () => {
         const result = complete('/add alice 5', { players });
         expect(result).toEqual({ applied: false });
+    });
+});
+
+describe('complete — /kill assassin slot only offers players targeting the specified target', () => {
+    it('filters assassin candidates to players whose targets include the typed target', () => {
+        const result = complete('/kill Bob ', { players });
+        expect(result.applied).toBe(true);
+        expect(result.candidates).toEqual(['Alice Smith']);
+    });
+
+    it('offers nothing when nobody targets the specified target', () => {
+        const result = complete('/kill Alex ', { players });
+        expect(result).toEqual({ applied: false });
+    });
+
+    it('matches the typed target against targets arrays case-insensitively', () => {
+        const result = complete('/kill bob ', { players });
+        expect(result.applied).toBe(true);
+        expect(result.candidates).toEqual(['Alice Smith']);
+    });
+
+    it('does not filter the first (target) slot the same way', () => {
+        const result = complete('/kill ', { players });
+        expect(result.applied).toBe(true);
+        expect(result.candidates).toEqual(['Alice Smith', 'Alex', 'Bob']);
     });
 });
 
@@ -109,6 +139,14 @@ describe('complete — /openseason', () => {
         expect(result.applied).toBe(true);
         expect(result.isUnique).toBe(true);
         expect(result.commonPrefix).toBe('start');
+    });
+
+    it('previews the remaining start/end slot with a slash, not a pipe', () => {
+        // The pipe is an internal placeholder-list artifact, not something
+        // a GM should see — the command bar has no "or" syntax, so showing
+        // "start|end" reads as a literal, unrecognized argument value.
+        const result = complete('/openseason B', { players });
+        expect(result.suggestionLines).toEqual(['/openseason Bob start/end']);
     });
 });
 

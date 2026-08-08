@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import PlayersList from '../components/player_listing/PlayersList';
 import { useParams } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
@@ -34,6 +34,7 @@ const GameMasterView = () => {
     const [showTaskListModal, setShowTaskListModal] = useState(false);
     const [isGameActive, setIsGameActive] = useState(true);
     const aliveNames = players.filter((player) => player.isAlive).map((player) => player.name);
+    const logsBoxRef = useRef(null);
 
     // Players and logs are both live subscriptions now, not fetched once and
     // mutated by hand (docs/improvements.md items 13 and 22) — this is what
@@ -64,6 +65,15 @@ const GameMasterView = () => {
         });
         return () => unsubscribe();
     }, [roomID]);
+
+    // Keeps the logs panel pinned to the newest entry as it grows, instead
+    // of leaving the GM scrolled to wherever they happened to be when the
+    // next message arrived.
+    useEffect(() => {
+        const logsBox = logsBoxRef.current;
+        if (!logsBox) return;
+        logsBox.scrollTop = logsBox.scrollHeight;
+    }, [logList]);
 
     // isGameActive is set true at room creation and false by endGame
     // (docs/improvements.md item 15's "relatedly" note) — this is what
@@ -211,7 +221,7 @@ const GameMasterView = () => {
                     <Box sx={styles.logsWrapper}>
                         <Heading sx={styles.chatHeaderText}>Logs</Heading>
                         <Divider />
-                        <Box sx={styles.logsBox}>
+                        <Box sx={styles.logsBox} ref={logsBoxRef} data-testid="logs-box">
                             <Log logList={logList} />
                         </Box>
                         <Divider />

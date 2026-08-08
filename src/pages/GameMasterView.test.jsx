@@ -200,3 +200,48 @@ describe("isGameActive is read, not just written (docs/improvements.md item 15's
         expect(await screen.findByText(/isGameActive=false/)).toBeInTheDocument();
     });
 });
+
+describe('the logs panel auto-scrolls to the newest entry', () => {
+    it('scrolls to the bottom whenever a new log arrives', async () => {
+        let deliverLogs;
+        onSnapshot.mockImplementation((query, onNext) => {
+            if (query === 'room-ref') {
+                onNext({ data: () => ({ isGameActive: true }) });
+            } else if (query === 'players-query') {
+                onNext({ docs: [] });
+            } else {
+                deliverLogs = onNext;
+                onNext({ docs: [] });
+            }
+            return () => {};
+        });
+
+        mountGameMasterView();
+
+        const logsBox = await screen.findByTestId('logs-box');
+        // jsdom never computes real layout, so scrollHeight is always 0 —
+        // stub it to a value that would actually require scrolling, the
+        // same way a real, overflowing logs panel would report it.
+        Object.defineProperty(logsBox, 'scrollHeight', {
+            value: 500,
+            configurable: true,
+        });
+        logsBox.scrollTop = 0;
+
+        await act(async () => {
+            deliverLogs({
+                docs: [
+                    {
+                        data: () => ({
+                            time: '1:00:00 PM',
+                            log: 'Game has begun!',
+                            color: 'gray.400',
+                        }),
+                    },
+                ],
+            });
+        });
+
+        expect(logsBox.scrollTop).toBe(500);
+    });
+});
