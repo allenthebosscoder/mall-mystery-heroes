@@ -18,6 +18,16 @@ const PlayerGame = () => {
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
 
+    // Shared by both subscriptions below: a permission error or the watched
+    // doc disappearing both mean this session no longer belongs here (room
+    // deleted, or — for the player doc — the GM removed this player from the
+    // roster), so both bounce the same way a deleted room already does.
+    const handleSubscriptionError = (err) => {
+        console.error('Error watching room:', err);
+        clearPlayerSession();
+        navigate('/', { replace: true });
+    };
+
     // "Leave" (below) only ends this device's local session: it does not
     // remove the player from the room's roster, touch joinedUids, or
     // affect their targets/assassins. Actually leaving a game is a
@@ -36,20 +46,10 @@ const PlayerGame = () => {
                 }
                 setGameStarted(snapshot.data()?.gameStarted ?? false);
             },
-            (err) => {
-                // Defense-in-depth: a room-scoped read can also fail as an
-                // error event rather than a not-exists snapshot — e.g. in
-                // the moment between a room's deletion and any propagation
-                // delay, or any other permission error. Without this
-                // callback, onSnapshot swallows that error silently and the
-                // screen freezes forever with the local session never
-                // cleared.
-                console.error('Error watching room:', err);
-                clearPlayerSession();
-                navigate('/', { replace: true });
-            }
+            handleSubscriptionError
         );
         return () => unsubscribe();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomID, navigate]);
 
     // Only starts once the game has actually begun — no need to read the
@@ -58,10 +58,15 @@ const PlayerGame = () => {
     useEffect(() => {
         if (!roomID || !gameStarted) return undefined;
         const playerRef = fetchPlayerReferenceForRoom(playerName, roomID);
-        const unsubscribe = onSnapshot(playerRef, (snapshot) => {
-            setPlayerData(snapshot.data());
-        });
+        const unsubscribe = onSnapshot(
+            playerRef,
+            (snapshot) => {
+                setPlayerData(snapshot.data());
+            },
+            handleSubscriptionError
+        );
         return () => unsubscribe();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomID, gameStarted, playerName]);
 
     const handleLeave = async () => {

@@ -119,6 +119,26 @@ describe('PlayerGame', () => {
         expect(readPlayerSession()).toBeNull();
     });
 
+    it('clears the session and redirects home when the player-doc subscription reports a permission error', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback, errorCallback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                errorCallback({
+                    code: 'permission-denied',
+                    message: 'Missing or insufficient permissions.',
+                });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(await screen.findByText('Home page')).toBeInTheDocument();
+        expect(readPlayerSession()).toBeNull();
+    });
+
     it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
