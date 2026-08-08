@@ -150,6 +150,79 @@ describe('rooms/{roomId}', () => {
     });
 });
 
+describe('subcollections of a room ID that does not exist yet (regression: previous fix round made isHostOfExistingRoom/isPlayerOfRoom return true for a nonexistent room, which — since those two functions are shared by the subcollection rules below — opened a public read/write hole under any made-up room ID)', () => {
+    it('denies a signed-in stranger writing into players/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            setDoc(doc(db, 'rooms', 'totally-nonexistent-room-id', 'players', 'evil'), {
+                name: 'evil',
+                score: 0,
+            })
+        );
+    });
+
+    it('denies a signed-in stranger reading players/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            getDoc(doc(db, 'rooms', 'totally-nonexistent-room-id', 'players', 'anything'))
+        );
+    });
+
+    it('denies a signed-in stranger writing into tasks/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            setDoc(doc(db, 'rooms', 'totally-nonexistent-room-id', 'tasks', 'evil'), {
+                title: 'evil',
+                isComplete: false,
+            })
+        );
+    });
+
+    it('denies a signed-in stranger reading tasks/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            getDoc(doc(db, 'rooms', 'totally-nonexistent-room-id', 'tasks', 'anything'))
+        );
+    });
+
+    it('denies a signed-in stranger writing into logs/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'totally-nonexistent-room-id', 'logs'), {
+                log: 'evil',
+                color: 'gray',
+            })
+        );
+    });
+
+    it('denies a signed-in stranger reading logs/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(getDocs(collection(db, 'rooms', 'totally-nonexistent-room-id', 'logs')));
+    });
+
+    it('denies a signed-in stranger writing into photos/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'totally-nonexistent-room-id', 'photos'), {
+                url: 'evil',
+                status: 'pending',
+            })
+        );
+    });
+
+    it('denies a signed-in stranger writing into playerMessages/ under a nonexistent room', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'totally-nonexistent-room-id', 'playerMessages'), {
+                type: 'broadcast',
+                recipient: null,
+                text: 'evil',
+                standings: null,
+            })
+        );
+    });
+});
+
 describe('rooms/{roomId}/players/{playerId}', () => {
     it('denies an unauthenticated read', async () => {
         const db = testEnv.unauthenticatedContext().firestore();

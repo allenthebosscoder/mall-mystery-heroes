@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Button, Stack, Image, Flex } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
 import logo from '../assets/mall-logo-white-2.png';
 import { readPlayerSession } from '../utils/playerSession';
 import { auth } from '../utils/firebase';
@@ -12,19 +13,27 @@ const Homepage = () => {
     // the stored session, not just a localStorage entry — RequireAuth (which
     // guards /rooms/:roomID/waiting) redirects back here whenever there's no
     // signed-in Firebase user, and a stale localStorage session with no
-    // matching auth.currentUser (anonymous account deleted, IndexedDB
-    // cleared but localStorage wasn't, a token refresh failed) would
-    // otherwise bounce the visitor between here and there forever.
-    // auth.currentUser may briefly be null while Firebase Auth's async
-    // initialization is still resolving on a fresh page load — an
-    // acceptable tradeoff: worst case, a returning player very briefly sees
-    // the Host/Join buttons before Firebase Auth resolves, which is far
-    // better than an infinite redirect loop.
+    // matching signed-in user (anonymous account deleted, IndexedDB cleared
+    // but localStorage wasn't, a token refresh failed) would otherwise
+    // bounce the visitor between here and there forever.
+    // Firebase Auth restores a previously-signed-in user from IndexedDB
+    // asynchronously on page load, so a one-time synchronous read of
+    // auth.currentUser here would almost always see `null` even for a
+    // genuinely still-signed-in returning player. Subscribe via
+    // onAuthStateChanged instead — the same pattern RequireAuth uses to
+    // solve this same async-initialization problem — so the redirect fires
+    // once the real auth state is known. If it resolves to no user, just
+    // let the Host Game / Join Game buttons render; unlike RequireAuth this
+    // page has a legitimate "nothing to show yet" state that IS the
+    // buttons, so no loading spinner is needed here.
     useEffect(() => {
-        const session = readPlayerSession();
-        if (session && auth.currentUser) {
-            navigate(`/rooms/${session.roomID}/waiting`, { replace: true });
-        }
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            const session = readPlayerSession();
+            if (session && user) {
+                navigate(`/rooms/${session.roomID}/waiting`, { replace: true });
+            }
+        });
+        return unsubscribe;
     }, [navigate]);
 
     return (

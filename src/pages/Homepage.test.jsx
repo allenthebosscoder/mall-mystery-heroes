@@ -7,9 +7,11 @@
  * The redirect only fires when a stored session is backed by an actual
  * signed-in Firebase user (final-review fix: without that check, Homepage
  * and RequireAuth can form an infinite redirect loop when the localStorage
- * session outlives Firebase Auth's own state) — so '../utils/firebase' is
- * mocked here the way RequireAuth.test.jsx and ChatInput.test.jsx do, even
- * though this file previously needed no Firebase mocks at all.
+ * session outlives Firebase Auth's own state). Firebase Auth restores that
+ * user asynchronously, so Homepage subscribes via onAuthStateChanged
+ * exactly like RequireAuth does — 'firebase/auth' and '../utils/firebase'
+ * are mocked here the same way RequireAuth.test.jsx mocks them, controlling
+ * what the onAuthStateChanged callback receives in each test.
  * playerSession.js itself is left unmocked: it touches only real
  * (jsdom-provided) localStorage.
  */
@@ -18,11 +20,14 @@ import { ChakraProvider } from '@chakra-ui/react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
 import Homepage from './Homepage';
 import { writePlayerSession } from '../utils/playerSession';
-import { auth } from '../utils/firebase';
 
-jest.mock('../utils/firebase', () => ({ auth: { currentUser: null } }));
+jest.mock('firebase/auth', () => ({
+    onAuthStateChanged: jest.fn(),
+}));
+jest.mock('../utils/firebase', () => ({ auth: {} }));
 
 const renderHomepage = () =>
     render(
@@ -40,7 +45,11 @@ const renderHomepage = () =>
 
 beforeEach(() => {
     localStorage.clear();
-    auth.currentUser = null;
+    onAuthStateChanged.mockReset();
+    onAuthStateChanged.mockImplementation((auth, callback) => {
+        callback(null);
+        return () => {};
+    });
 });
 
 describe('Homepage', () => {
@@ -67,8 +76,11 @@ describe('Homepage', () => {
         expect(screen.getByText('Join page')).toBeInTheDocument();
     });
 
-    it('redirects straight to the waiting screen when a player session is stored and Firebase Auth has a signed-in user', () => {
-        auth.currentUser = { uid: 'test-uid' };
+    it('redirects straight to the waiting screen when a player session is stored and Firebase Auth reports a signed-in user', () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'test-uid' });
+            return () => {};
+        });
         writePlayerSession('Fluffy42317', 'Alice');
 
         renderHomepage();
@@ -77,8 +89,11 @@ describe('Homepage', () => {
         expect(screen.queryByRole('button', { name: 'Host Game' })).not.toBeInTheDocument();
     });
 
-    it('shows the Host/Join buttons (no redirect loop) when a session is stored but Firebase Auth has no signed-in user', () => {
-        auth.currentUser = null;
+    it('shows the Host/Join buttons (no redirect loop) when a session is stored but Firebase Auth reports no signed-in user', () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback(null);
+            return () => {};
+        });
         writePlayerSession('Fluffy42317', 'Alice');
 
         renderHomepage();

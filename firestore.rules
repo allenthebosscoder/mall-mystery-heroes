@@ -29,29 +29,35 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Both functions must be null-safe: DashBoard.handleHostRoom generates a
-    // candidate room ID and reads it via checkForRoomIDDupes specifically
-    // EXPECTING it not to exist yet. `get(path).data` on a nonexistent doc
-    // evaluates to `null`, and dereferencing `.hostId`/`.joinedUids` on that
-    // null is a rule-evaluation error (denied as permission-denied, not a
-    // clean "doesn't exist" result) — so `exists()` must be checked first,
-    // not `get(...).data != null` after the fact (that still lets the rest
-    // of the `||`/`&&` chain evaluate the dereference in this rules
-    // language's evaluator and error the same way). When the room doesn't
-    // exist, nobody can be its host or player either, so there is nothing to
-    // protect — these intentionally resolve `true` in that case, which is
-    // what lets checkForRoomIDDupes's read of a not-yet-created room ID
-    // succeed (with an exists()===false snapshot) instead of erroring.
+    // Both functions must be null-safe: `get(path).data` on a nonexistent
+    // doc evaluates to `null`, and dereferencing `.hostId`/`.joinedUids` on
+    // that null is a rule-evaluation error (denied as permission-denied,
+    // not a clean "doesn't exist" result) — so `exists()` must be checked
+    // first, and short-circuit to `false` via `&&`, not `!exists(..) ||`
+    // (that would make a nonexistent room's own OWN result true here, which
+    // is wrong: these two functions are reused verbatim by the five
+    // subcollections' rules below, and a Firestore subcollection document
+    // exists completely independently of its parent room document — a
+    // "nonexistent room is readable" result here would let a signed-in
+    // stranger create/read/delete arbitrary docs under
+    // rooms/<made-up-id>/players|tasks|logs|photos|playerMessages/*, a
+    // public, unrestricted write surface. So: strictly `false` whenever the
+    // room doesn't exist, full stop. DashBoard.handleHostRoom's
+    // checkForRoomIDDupes still needs to read a not-yet-created room ID
+    // without erroring — that carve-out is handled separately, ONLY on the
+    // room document's own `allow read` below, not in these two functions.
     function isHostOfExistingRoom(roomId) {
       let roomPath = /databases/$(database)/documents/rooms/$(roomId);
       return isSignedIn() &&
-        (!exists(roomPath) || get(roomPath).data.hostId == request.auth.uid);
+        exists(roomPath) &&
+        get(roomPath).data.hostId == request.auth.uid;
     }
 
     function isPlayerOfRoom(roomId) {
       let roomPath = /databases/$(database)/documents/rooms/$(roomId);
       return isSignedIn() &&
-        (!exists(roomPath) || request.auth.uid in get(roomPath).data.get('joinedUids', []));
+        exists(roomPath) &&
+        request.auth.uid in get(roomPath).data.get('joinedUids', []);
     }
 
     function isHostOrPlayerOfRoom(roomId) {
@@ -59,7 +65,13 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow read: if isHostOrPlayerOfRoom(roomId);
+      // The `!exists(...)` carve-out is intentionally only here, not inside
+      // isHostOfExistingRoom/isPlayerOfRoom: this is the one call site
+      // (DashBoard.handleHostRoom -> checkForRoomIDDupes) that legitimately
+      // reads a room ID expected NOT to exist yet, and it only ever reads
+      // the room document itself, never a subcollection of it.
+      allow read: if isSignedIn() &&
+        (!exists(/databases/$(database)/documents/rooms/$(roomId)) || isHostOrPlayerOfRoom(roomId));
       allow create: if isSignedIn() && request.resource.data.hostId == request.auth.uid;
       allow update, delete: if isHostOfExistingRoom(roomId);
 
