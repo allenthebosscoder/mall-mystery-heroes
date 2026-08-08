@@ -72,7 +72,7 @@ describe('PlayerGame', () => {
         expect(screen.getByText('Waiting for the host to start...')).toBeInTheDocument();
     });
 
-    it('updates the status line once gameStarted flips true', () => {
+    it('hides the waiting message once gameStarted flips true', () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
             if (ref === 'room-ref') {
@@ -83,7 +83,7 @@ describe('PlayerGame', () => {
 
         renderWaiting();
 
-        expect(screen.getByText('The game has started!')).toBeInTheDocument();
+        expect(screen.queryByText('Waiting for the host to start...')).not.toBeInTheDocument();
     });
 
     it('clears the session and redirects home when the room no longer exists', async () => {
@@ -135,5 +135,35 @@ describe('PlayerGame', () => {
         expect(signOut).toHaveBeenCalled();
         expect(readPlayerSession()).toBeNull();
         expect(await screen.findByText('Home page')).toBeInTheDocument();
+    });
+
+    it('subscribes to the player doc once gameStarted is true and shows the target', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ data: () => ({ isAlive: true, targets: ['Bob'] }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.getByText('Your target: Bob')).toBeInTheDocument();
+    });
+
+    it('does not subscribe to the player doc while still waiting for the host', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(fetchPlayerReferenceForRoom).not.toHaveBeenCalled();
     });
 });

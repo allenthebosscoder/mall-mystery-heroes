@@ -4,13 +4,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../utils/firebase';
-import { fetchRoomReferenceForRoom } from '../components/firebase_calls/dbCalls';
+import {
+    fetchRoomReferenceForRoom,
+    fetchPlayerReferenceForRoom,
+} from '../components/firebase_calls/dbCalls';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
     const navigate = useNavigate();
     const [gameStarted, setGameStarted] = useState(false);
+    const [playerData, setPlayerData] = useState(null);
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
 
@@ -48,6 +52,18 @@ const PlayerGame = () => {
         return () => unsubscribe();
     }, [roomID, navigate]);
 
+    // Only starts once the game has actually begun — no need to read the
+    // player's own doc while still in the waiting room, and it keeps the
+    // waiting screen's read footprint unchanged from before this doc.
+    useEffect(() => {
+        if (!roomID || !gameStarted) return undefined;
+        const playerRef = fetchPlayerReferenceForRoom(playerName, roomID);
+        const unsubscribe = onSnapshot(playerRef, (snapshot) => {
+            setPlayerData(snapshot.data());
+        });
+        return () => unsubscribe();
+    }, [roomID, gameStarted, playerName]);
+
     const handleLeave = async () => {
         try {
             await signOut(auth);
@@ -63,9 +79,10 @@ const PlayerGame = () => {
             <Heading size="lg" mb={2}>
                 {playerName || 'You'} joined {roomID}
             </Heading>
-            <Text mb={6}>
-                {gameStarted ? 'The game has started!' : 'Waiting for the host to start...'}
-            </Text>
+            {!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}
+            {gameStarted && playerData?.isAlive && (
+                <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
+            )}
             <Button colorScheme="red" variant="outline" onClick={handleLeave}>
                 Leave
             </Button>
