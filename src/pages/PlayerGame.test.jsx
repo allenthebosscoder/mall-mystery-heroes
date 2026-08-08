@@ -1,10 +1,13 @@
 /**
  * Layer 3 — component test, jsdom + Testing Library.
  *
- * Covers the post-join waiting screen: renders room/player info, updates
- * its status line when gameStarted flips, redirects home when the room
- * stops existing, and Leave signs out + clears the stored session
- * (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
+ * Covers the post-join waiting screen and the in-game target/status view:
+ * renders room/player info, updates its status line when gameStarted flips,
+ * redirects home when the room stops existing, shows the player's target(s)
+ * or a placeholder once the game has started, shows an eliminated state,
+ * and Leave signs out + clears the stored session
+ * (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md,
+ * docs/superpowers/specs/2026-08-08-player-target-view-design.md).
  * Explicit mock factories for 'firebase/auth', 'firebase/firestore', and
  * '../components/firebase_calls/dbCalls' — see RequireAuth.test.jsx and
  * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe here.
@@ -139,6 +142,23 @@ describe('PlayerGame', () => {
         expect(readPlayerSession()).toBeNull();
     });
 
+    it('clears the session and redirects home when the player doc no longer exists', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ exists: () => false });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(await screen.findByText('Home page')).toBeInTheDocument();
+        expect(readPlayerSession()).toBeNull();
+    });
+
     it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
@@ -163,7 +183,7 @@ describe('PlayerGame', () => {
             if (ref === 'room-ref') {
                 callback({ exists: () => true, data: () => ({ gameStarted: true }) });
             } else if (ref === 'player-ref') {
-                callback({ data: () => ({ isAlive: true, targets: ['Bob'] }) });
+                callback({ exists: () => true, data: () => ({ isAlive: true, targets: ['Bob'] }) });
             }
             return () => {};
         });
@@ -193,7 +213,7 @@ describe('PlayerGame', () => {
             if (ref === 'room-ref') {
                 callback({ exists: () => true, data: () => ({ gameStarted: true }) });
             } else if (ref === 'player-ref') {
-                callback({ data: () => ({ isAlive: true, targets: [] }) });
+                callback({ exists: () => true, data: () => ({ isAlive: true, targets: [] }) });
             }
             return () => {};
         });
@@ -209,7 +229,7 @@ describe('PlayerGame', () => {
             if (ref === 'room-ref') {
                 callback({ exists: () => true, data: () => ({ gameStarted: true }) });
             } else if (ref === 'player-ref') {
-                callback({ data: () => ({ isAlive: false, targets: [] }) });
+                callback({ exists: () => true, data: () => ({ isAlive: false, targets: [] }) });
             }
             return () => {};
         });

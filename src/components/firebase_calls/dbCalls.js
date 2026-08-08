@@ -204,9 +204,13 @@ export const fetchPlayerForRoom = async (playerName, roomID) => {
 // duplicate check and the write can run as one atomic transaction: a plain
 // query-then-addDoc lets two concurrent calls both see "no duplicate" before
 // either write lands (e.g. two Enter presses during UI lag), creating two
-// players with the same name. No other function in this file looks up a
-// player by document ID (all query by trimmedNameLowerCase), so this is safe
-// to change without touching them.
+// players with the same name. fetchPlayerReferenceForRoom now builds this
+// same doc ID directly to subscribe to a player's own doc, so this ID
+// scheme is a public contract, not just an internal safety property of this
+// function — changing it would break that lookup too. Player docs created
+// before this change keep their old auto-generated IDs, which
+// fetchPlayerReferenceForRoom cannot resolve; such players won't get a live
+// player-doc subscription.
 export const addPlayerForRoom = async (player, roomID) => {
     const trimmedLowercaseName = normalizePlayerName(player);
     const playerRef = doc(db, 'rooms', roomID, 'players', trimmedLowercaseName);

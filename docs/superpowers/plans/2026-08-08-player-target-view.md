@@ -21,9 +21,11 @@
 ## Task 1: `fetchPlayerReferenceForRoom` in `dbCalls.js`
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js`
 
 **Interfaces:**
+
 - Consumes: `doc` (already imported at the top of the file, `dbCalls.js:7`), `normalizePlayerName` (already imported, `dbCalls.js:25`).
 - Produces: `fetchPlayerReferenceForRoom(playerName, roomID) → DocumentReference`, for Task 3 to subscribe to via `onSnapshot`.
 
@@ -62,12 +64,14 @@ git commit -m "Add fetchPlayerReferenceForRoom to dbCalls.js"
 ## Task 2: Rename `PlayerWaiting` to `PlayerGame` (mechanical, no behavior change)
 
 **Files:**
+
 - Create: `src/pages/PlayerGame.js` (moved from `src/pages/PlayerWaiting.js`)
 - Create: `src/pages/PlayerGame.test.jsx` (moved from `src/pages/PlayerWaiting.test.jsx`)
 - Delete: `src/pages/PlayerWaiting.js`, `src/pages/PlayerWaiting.test.jsx`
 - Modify: `src/App.js`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `PlayerGame` (default export, same props/behavior as `PlayerWaiting` today) for `App.js` to route to; `fetchPlayerReferenceForRoom` mock wiring in the test file, ready for Task 3 to use (not yet exercised by any assertion).
 
@@ -84,6 +88,7 @@ In `src/pages/PlayerGame.js`, rename the component itself (the file's only chang
 ```js
 const PlayerGame = () => {
 ```
+
 ```js
 export default PlayerGame;
 ```
@@ -97,19 +102,23 @@ git mv src/pages/PlayerWaiting.test.jsx src/pages/PlayerGame.test.jsx
 In `src/pages/PlayerGame.test.jsx`:
 
 Change the import and describe block name:
+
 ```js
 import PlayerGame from './PlayerGame';
 ```
+
 ```js
 describe('PlayerGame', () => {
 ```
 
 Change every `<Route path="/rooms/:roomID/waiting" element={<PlayerWaiting />} />` to:
+
 ```jsx
 <Route path="/rooms/:roomID/waiting" element={<PlayerGame />} />
 ```
 
 Add the new mock alongside the existing one and give it a distinct return value so tests can branch on it later:
+
 ```js
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
@@ -118,12 +127,15 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
 ```
 
 In `beforeEach`, add:
+
 ```js
 fetchPlayerReferenceForRoom.mockReturnValue('player-ref');
 ```
+
 (also add `fetchPlayerReferenceForRoom` to the import from `dbCalls` at the top of the file, alongside `fetchRoomReferenceForRoom`).
 
 In every existing test's `onSnapshot.mockImplementation`, branch on the ref so only `'room-ref'` gets the room-shaped response — e.g. the first test becomes:
+
 ```js
 onSnapshot.mockImplementation((ref, callback) => {
     if (ref === 'room-ref') {
@@ -132,6 +144,7 @@ onSnapshot.mockImplementation((ref, callback) => {
     return () => {};
 });
 ```
+
 Apply the same `if (ref === 'room-ref') { ... }` guard to the other four `mockImplementation` bodies in this file (the "gameStarted flips true", "room no longer exists", "permission error", and "Leave" tests) — each currently calls `callback(...)` unconditionally; wrap that same call in the guard, changing nothing else about what each test asserts.
 
 - [ ] **Step 3: Update `App.js`**
@@ -139,6 +152,7 @@ Apply the same `if (ref === 'room-ref') { ... }` guard to the other four `mockIm
 ```js
 import PlayerGame from './pages/PlayerGame';
 ```
+
 (replaces the `PlayerWaiting` import, `App.js:12`)
 
 ```jsx
@@ -151,6 +165,7 @@ import PlayerGame from './pages/PlayerGame';
     }
 />
 ```
+
 (replaces `App.js:43-50` — path unchanged, component swapped)
 
 - [ ] **Step 4: Run the moved test file and confirm all 5 existing tests still pass**
@@ -169,7 +184,9 @@ Expected: both PASS.
 git add src/pages/PlayerGame.js src/pages/PlayerGame.test.jsx src/App.js
 git status
 ```
+
 (confirm `PlayerWaiting.js`/`PlayerWaiting.test.jsx` show as deleted, then:)
+
 ```bash
 git add -u
 git commit -m "Rename PlayerWaiting to PlayerGame ahead of in-game view work"
@@ -180,10 +197,12 @@ git commit -m "Rename PlayerWaiting to PlayerGame ahead of in-game view work"
 ## Task 3: Subscribe to the player doc once the game starts; render the target(s)
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `fetchPlayerReferenceForRoom(playerName, roomID)` (Task 1), `onSnapshot` (already imported in `PlayerGame.js`).
 - Produces: internal `playerData` state (`{ isAlive, targets } | null`), consumed by this same task's render logic and extended by Tasks 4-6.
 
@@ -235,15 +254,20 @@ Expected: FAIL — `Your target: Bob` not found (no target rendering exists yet)
 In `src/pages/PlayerGame.js`:
 
 ```js
-import { fetchRoomReferenceForRoom, fetchPlayerReferenceForRoom } from '../components/firebase_calls/dbCalls';
+import {
+    fetchRoomReferenceForRoom,
+    fetchPlayerReferenceForRoom,
+} from '../components/firebase_calls/dbCalls';
 ```
 
 Add state, alongside the existing `gameStarted` state:
+
 ```js
 const [playerData, setPlayerData] = useState(null);
 ```
 
 Add a second `useEffect`, after the existing room-subscription `useEffect`:
+
 ```js
 // Only starts once the game has actually begun — no need to read the
 // player's own doc while still in the waiting room, and it keeps the
@@ -259,17 +283,22 @@ useEffect(() => {
 ```
 
 Replace the existing single `<Text>` line —
+
 ```jsx
-<Text mb={6}>
-    {gameStarted ? 'The game has started!' : 'Waiting for the host to start...'}
-</Text>
+<Text mb={6}>{gameStarted ? 'The game has started!' : 'Waiting for the host to start...'}</Text>
 ```
+
 — with two separate conditional blocks (kept separate because Tasks 4 and 5 each extend only one of them):
+
 ```jsx
-{!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}
-{gameStarted && playerData?.isAlive && (
-    <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
-)}
+{
+    !gameStarted && <Text mb={6}>Waiting for the host to start...</Text>;
+}
+{
+    gameStarted && playerData?.isAlive && (
+        <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
+    );
+}
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -298,10 +327,12 @@ git commit -m "Show the player's target once the game starts"
 ## Task 4: "Waiting for your target..." when `targets` is empty
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `playerData` state from Task 3.
 - Produces: nothing new consumed elsewhere — a render-only branch.
 
@@ -333,21 +364,29 @@ Expected: FAIL — with the current code, `playerData.targets.join(', ')` render
 - [ ] **Step 3: Implement**
 
 In `src/pages/PlayerGame.js`, replace the alive-target block added in Task 3 —
+
 ```jsx
-{gameStarted && playerData?.isAlive && (
-    <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
-)}
+{
+    gameStarted && playerData?.isAlive && (
+        <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
+    );
+}
 ```
+
 — with:
+
 ```jsx
-{gameStarted && playerData?.isAlive && (
-    <Text mb={6}>
-        {playerData.targets.length > 0
-            ? `Your target: ${playerData.targets.join(', ')}`
-            : 'Waiting for your target...'}
-    </Text>
-)}
+{
+    gameStarted && playerData?.isAlive && (
+        <Text mb={6}>
+            {playerData.targets.length > 0
+                ? `Your target: ${playerData.targets.join(', ')}`
+                : 'Waiting for your target...'}
+        </Text>
+    );
+}
 ```
+
 The `{!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}` block from Task 3 is untouched by this step.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -367,10 +406,12 @@ git commit -m "Show a placeholder while a started game hasn't assigned a target 
 ## Task 5: Eliminated state
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `playerData.isAlive` from Task 3.
 - Produces: nothing new consumed elsewhere.
 
@@ -406,16 +447,20 @@ Expected: FAIL — nothing renders eliminated-state text yet (the `isAlive` guar
 - [ ] **Step 3: Implement**
 
 In `src/pages/PlayerGame.js`, add an eliminated branch alongside the alive branch built in Tasks 3-4:
+
 ```jsx
-{gameStarted && playerData && !playerData.isAlive && (
-    <>
-        <Heading size="md" mb={2}>
-            You&apos;ve been eliminated
-        </Heading>
-        <Text mb={6}>You may be revived if the host assigns you a revival mission.</Text>
-    </>
-)}
+{
+    gameStarted && playerData && !playerData.isAlive && (
+        <>
+            <Heading size="md" mb={2}>
+                You&apos;ve been eliminated
+            </Heading>
+            <Text mb={6}>You may be revived if the host assigns you a revival mission.</Text>
+        </>
+    );
+}
 ```
+
 Place this immediately after the alive-target block from Task 4 (the one starting `{gameStarted && playerData?.isAlive && ...}`), inside the same `<Flex>` — as a sibling `<>...</>`, not nested inside it.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -435,10 +480,12 @@ git commit -m "Show an eliminated state instead of a target once isAlive is fals
 ## Task 6: Player-doc subscription errors clear the session and redirect home
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `clearPlayerSession`, `navigate` (both already used by the existing room-subscription error handler in this file).
 - Produces: nothing new consumed elsewhere — this task extracts a small shared helper both `onSnapshot` error callbacks call.
 
@@ -474,6 +521,7 @@ Expected: FAIL — the player-doc `onSnapshot` call from Task 3 has no third (er
 - [ ] **Step 3: Implement**
 
 In `src/pages/PlayerGame.js`, extract the existing inline error-handling body (currently the second argument's callback body at the room subscription's error path) into a shared function defined above both effects:
+
 ```js
 // Shared by both subscriptions below: a permission error or the watched
 // doc disappearing both mean this session no longer belongs here (room
@@ -485,7 +533,9 @@ const handleSubscriptionError = (err) => {
     navigate('/', { replace: true });
 };
 ```
+
 Update the existing room-subscription `useEffect`'s error callback to call it:
+
 ```js
 const unsubscribe = onSnapshot(
     roomRef,
@@ -500,11 +550,17 @@ const unsubscribe = onSnapshot(
     handleSubscriptionError
 );
 ```
+
 Add the same third argument to the player-doc subscription from Task 3:
+
 ```js
-const unsubscribe = onSnapshot(playerRef, (snapshot) => {
-    setPlayerData(snapshot.data());
-}, handleSubscriptionError);
+const unsubscribe = onSnapshot(
+    playerRef,
+    (snapshot) => {
+        setPlayerData(snapshot.data());
+    },
+    handleSubscriptionError
+);
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -524,16 +580,19 @@ git commit -m "Handle player-doc subscription errors the same way as room errors
 ## Task 7: Docs and final gate
 
 **Files:**
+
 - Modify: `docs/architecture.md`
 - Modify: `docs/testing.md`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — documentation only.
 
 - [ ] **Step 1: Update `docs/architecture.md`**
 
 Change the routes table row (`docs/architecture.md:89`):
+
 ```
 | `/rooms/:roomID/waiting`        | `PlayerGame`     | Post-join landing for a self-registered player; shows their target once the game starts, or an eliminated state | ✅      |
 ```
@@ -541,9 +600,11 @@ Change the routes table row (`docs/architecture.md:89`):
 - [ ] **Step 2: Update `docs/testing.md`**
 
 Run the real suite and copy its actual output — do not hand-type counts:
+
 ```bash
 npx jest --selectProjects unit dom
 ```
+
 Update the illustrative `$ npm test` block and the module table's `PlayerWaiting.test.jsx` row (`docs/testing.md:35,74`) to reference `PlayerGame.test.jsx` with its real, current test count and a description covering the new target/eliminated states, and update the total suite/test counts shown in the doc to match this run's real output.
 
 - [ ] **Step 3: Run the full gate**
@@ -554,6 +615,7 @@ npm run lint
 npm test
 npm run build
 ```
+
 Expected: all four succeed with zero warnings/errors.
 
 - [ ] **Step 4: Commit**

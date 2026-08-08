@@ -52,19 +52,19 @@ sub-projects; see Scope below).
   Does not subscribe while `gameStarted` is `false` — no need to read the
   player doc before the game has started, and it keeps the "waiting"
   screen's read footprint unchanged from today.
-  - Same error-handling shape as the room subscription: a permission
-    error or the player doc vanishing (e.g. GM removed the player) clears
-    the local session and redirects to `/`.
+    - Same error-handling shape as the room subscription: a permission
+      error or the player doc vanishing (e.g. GM removed the player) clears
+      the local session and redirects to `/`.
 - Render logic:
-  - `!gameStarted` → unchanged: "Waiting for the host to start..." + Leave
-    button.
-  - `gameStarted && isAlive` → "Your target: {targets.joined}" if
-    `targets` is non-empty, else "Waiting for your target..." (covers the
-    brief window before target assignment runs). Renders the full
-    `targets` array, not just its first element — the schema allows more
-    than one.
-  - `gameStarted && !isAlive` → "You've been eliminated" + a line noting
-    they may be revived if the GM assigns them a revival mission.
+    - `!gameStarted` → unchanged: "Waiting for the host to start..." + Leave
+      button.
+    - `gameStarted && isAlive` → "Your target: {targets.joined}" if
+      `targets` is non-empty, else "Waiting for your target..." (covers the
+      brief window before target assignment runs). Renders the full
+      `targets` array, not just its first element — the schema allows more
+      than one.
+    - `gameStarted && !isAlive` → "You've been eliminated" + a line noting
+      they may be revived if the GM assigns them a revival mission.
 - Leave button: unchanged from today (clears local session only; does not
   touch room membership). Already explicitly deferred as its own future
   feature in the prior spec.

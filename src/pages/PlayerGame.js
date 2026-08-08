@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Flex, Heading, Text } from '@chakra-ui/react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
@@ -22,11 +22,14 @@ const PlayerGame = () => {
     // doc disappearing both mean this session no longer belongs here (room
     // deleted, or — for the player doc — the GM removed this player from the
     // roster), so both bounce the same way a deleted room already does.
-    const handleSubscriptionError = (err) => {
-        console.error('Error watching room:', err);
-        clearPlayerSession();
-        navigate('/', { replace: true });
-    };
+    const handleSubscriptionError = useCallback(
+        (err) => {
+            console.error('Error watching game state:', err);
+            clearPlayerSession();
+            navigate('/', { replace: true });
+        },
+        [navigate]
+    );
 
     // "Leave" (below) only ends this device's local session: it does not
     // remove the player from the room's roster, touch joinedUids, or
@@ -49,25 +52,28 @@ const PlayerGame = () => {
             handleSubscriptionError
         );
         return () => unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomID, navigate]);
+    }, [roomID, navigate, handleSubscriptionError]);
 
     // Only starts once the game has actually begun — no need to read the
     // player's own doc while still in the waiting room, and it keeps the
     // waiting screen's read footprint unchanged from before this doc.
     useEffect(() => {
-        if (!roomID || !gameStarted) return undefined;
+        if (!roomID || !gameStarted || !playerName) return undefined;
         const playerRef = fetchPlayerReferenceForRoom(playerName, roomID);
         const unsubscribe = onSnapshot(
             playerRef,
             (snapshot) => {
+                if (!snapshot.exists()) {
+                    clearPlayerSession();
+                    navigate('/', { replace: true });
+                    return;
+                }
                 setPlayerData(snapshot.data());
             },
             handleSubscriptionError
         );
         return () => unsubscribe();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [roomID, gameStarted, playerName]);
+    }, [roomID, gameStarted, playerName, navigate, handleSubscriptionError]);
 
     const handleLeave = async () => {
         try {
@@ -87,8 +93,8 @@ const PlayerGame = () => {
             {!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}
             {gameStarted && playerData?.isAlive && (
                 <Text mb={6}>
-                    {playerData.targets.length > 0
-                        ? `Your target: ${playerData.targets.join(', ')}`
+                    {(playerData.targets ?? []).length > 0
+                        ? `Your target: ${(playerData.targets ?? []).join(', ')}`
                         : 'Waiting for your target...'}
                 </Text>
             )}

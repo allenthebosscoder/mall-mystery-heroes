@@ -83,12 +83,14 @@ The colors in use, by event type:
 One document per player. Created by `dbCalls.addPlayerForRoom`, which runs the
 duplicate check and the write in a single transaction keyed on the document
 ID — this is what makes two concurrent adds of the same name safe (one
-succeeds, one rejects with `Player already exists`). No other function in
-`dbCalls.js` looks a player up by document ID; every lookup queries
-`trimmedNameLowerCase` (see below), so this ID scheme is an implementation
-detail of `addPlayerForRoom` rather than a public contract. Player docs
-created before this change keep their old auto-generated IDs — reads are
-unaffected since nothing queries by ID.
+succeeds, one rejects with `Player already exists`). `dbCalls.fetchPlayerReferenceForRoom`
+(used by `PlayerGame.js` to live-subscribe to a player's own doc) also builds
+this same ID directly from the player's name, so the ID scheme is now a
+public contract, not just an implementation detail of `addPlayerForRoom`.
+Player docs created before this change keep their old auto-generated IDs;
+those are invisible to `fetchPlayerReferenceForRoom`'s by-ID lookup, so such
+a player would not get a live player-doc subscription (everything that
+queries by `trimmedNameLowerCase` is unaffected).
 
 | Field                  | Type            | Initial                             | Notes                                                                                                                                                                                                                                                                                                             |
 | ---------------------- | --------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
