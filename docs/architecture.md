@@ -321,28 +321,40 @@ is no way to run the dev server against the real project without editing code.
 `.firebaserc` maps `default`, `dev`, and `prod` aliases all to the same project
 ID, `mall-mystery-heroes`. There is no environment separation.
 
-`firebase.json` configures functions, emulators, and storage rules. It has **no
-`hosting` block**, so how the built SPA is deployed is not captured in this
-repository.
+`firebase.json` configures functions, emulators, storage rules, and hosting.
+`npm run build` produces `build/`, which `firebase.json`'s `hosting.public`
+points at; `firebase deploy --only hosting` ships it.
+
+`hosting.headers` explicitly overrides Firebase Hosting's default
+`Cache-Control: max-age=3600` on `index.html` (the SPA shell every route
+rewrites to) down to `no-cache, no-store, must-revalidate` — without this, a
+browser or Firebase's own CDN edge can keep serving the _previous_ deploy's
+`index.html` (referencing the previous build's hashed JS/CSS filenames) for
+up to an hour after a new deploy, making a shipped fix look like it never
+went out. The hashed `/static/**` assets get the opposite treatment
+(`max-age=31536000, immutable`) — safe, since a changed file always gets a
+new content-hashed filename.
 
 **`firestore.rules`, `functions`, and `hosting` must be deployed together.**
 `/join` calls the `joinRoom` Cloud Function, and the room-scoping rules'
 `isHostOfExistingRoom`/`isPlayerOfRoom` checks depend on `joinedUids`, which
 only `joinRoom` writes — deploying one without the other leaves the Join
 flow broken (the callable doesn't exist, or a joined player still can't read
-their own room). As of this writing, Hosting has been deployed once but
-Functions never has, so this ordering is not yet a solved problem, only a
-documented one.
+their own room). As of this writing, Hosting has been deployed several
+times but Functions never has, so this ordering is not yet a solved
+problem, only a documented one.
 
 ## Build and test tooling
 
 Create React App 5 (`react-scripts`), Chakra UI 2 for all styling (no CSS
 modules; `App.css`/`index.css` are near-empty), React Router 6.
 
-`jest.config.js`, `jest.setup.js`, `jest.polyfills.js`, and `babel.config.js`
-configure a full Jest + Testing Library + jsdom stack with `collectCoverage: true`.
-**There are no test files.** `npm test` runs `react-scripts test`, which does not
-read `jest.config.js` at all — the standalone config is unused by any script.
+`jest.config.js` and `babel.config.js` configure a full Jest + Testing
+Library + jsdom stack. `npm test` runs `jest --selectProjects unit dom`
+directly (not `react-scripts test`), so it does read `jest.config.js`. See
+[testing.md](./testing.md) for the current suite — this note used to say
+"there are no test files," which stopped being true a long time ago and was
+never updated.
 
 ## Related documents
 
