@@ -81,7 +81,11 @@ const PlayerGame = () => {
             </Heading>
             {!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}
             {gameStarted && playerData?.isAlive && (
-                <Text mb={6}>{`Your target: ${playerData.targets.join(', ')}`}</Text>
+                <Text mb={6}>
+                    {playerData.targets.length > 0
+                        ? `Your target: ${playerData.targets.join(', ')}`
+                        : 'Waiting for your target...'}
+                </Text>
             )}
             <Button colorScheme="red" variant="outline" onClick={handleLeave}>
                 Leave

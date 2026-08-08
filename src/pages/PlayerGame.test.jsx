@@ -166,4 +166,20 @@ describe('PlayerGame', () => {
 
         expect(fetchPlayerReferenceForRoom).not.toHaveBeenCalled();
     });
+
+    it('shows a placeholder when alive but not yet assigned a target', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ data: () => ({ isAlive: true, targets: [] }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.getByText('Waiting for your target...')).toBeInTheDocument();
+    });
 });
