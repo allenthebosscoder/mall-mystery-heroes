@@ -7,7 +7,7 @@ import { auth } from '../utils/firebase';
 import { fetchRoomReferenceForRoom } from '../components/firebase_calls/dbCalls';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 
-const PlayerWaiting = () => {
+const PlayerGame = () => {
     const { roomID } = useParams();
     const navigate = useNavigate();
     const [gameStarted, setGameStarted] = useState(false);
@@ -73,4 +73,4 @@ const PlayerWaiting = () => {
     );
 };
 
-export default PlayerWaiting;
+export default PlayerGame;

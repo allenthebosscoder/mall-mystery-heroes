@@ -17,8 +17,11 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import PlayerWaiting from './PlayerWaiting';
-import { fetchRoomReferenceForRoom } from '../components/firebase_calls/dbCalls';
+import PlayerGame from './PlayerGame';
+import {
+    fetchRoomReferenceForRoom,
+    fetchPlayerReferenceForRoom,
+} from '../components/firebase_calls/dbCalls';
 import { writePlayerSession, readPlayerSession } from '../utils/playerSession';
 
 jest.mock('firebase/auth', () => ({
@@ -30,6 +33,7 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../utils/firebase', () => ({ auth: {} }));
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
+    fetchPlayerReferenceForRoom: jest.fn(),
 }));
 
 const renderWaiting = () =>
@@ -37,7 +41,7 @@ const renderWaiting = () =>
         <ChakraProvider>
             <MemoryRouter initialEntries={['/rooms/Fluffy42317/waiting']}>
                 <Routes>
-                    <Route path="/rooms/:roomID/waiting" element={<PlayerWaiting />} />
+                    <Route path="/rooms/:roomID/waiting" element={<PlayerGame />} />
                     <Route path="/" element={<div>Home page</div>} />
                 </Routes>
             </MemoryRouter>
@@ -48,14 +52,17 @@ beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
     fetchRoomReferenceForRoom.mockReturnValue('room-ref');
+    fetchPlayerReferenceForRoom.mockReturnValue('player-ref');
     signOut.mockResolvedValue(undefined);
 });
 
-describe('PlayerWaiting', () => {
+describe('PlayerGame', () => {
     it('shows the stored player name and room ID, waiting for the host', () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
-            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
             return () => {};
         });
 
@@ -68,7 +75,9 @@ describe('PlayerWaiting', () => {
     it('updates the status line once gameStarted flips true', () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
-            callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            }
             return () => {};
         });
 
@@ -80,7 +89,9 @@ describe('PlayerWaiting', () => {
     it('clears the session and redirects home when the room no longer exists', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
-            callback({ exists: () => false });
+            if (ref === 'room-ref') {
+                callback({ exists: () => false });
+            }
             return () => {};
         });
 
@@ -93,10 +104,12 @@ describe('PlayerWaiting', () => {
     it('clears the session and redirects home when onSnapshot reports a permission error', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback, errorCallback) => {
-            errorCallback({
-                code: 'permission-denied',
-                message: 'Missing or insufficient permissions.',
-            });
+            if (ref === 'room-ref') {
+                errorCallback({
+                    code: 'permission-denied',
+                    message: 'Missing or insufficient permissions.',
+                });
+            }
             return () => {};
         });
 
@@ -109,7 +122,9 @@ describe('PlayerWaiting', () => {
     it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
-            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
             return () => {};
         });
 
