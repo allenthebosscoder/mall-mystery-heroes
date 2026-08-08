@@ -182,4 +182,24 @@ describe('PlayerGame', () => {
 
         expect(screen.getByText('Waiting for your target...')).toBeInTheDocument();
     });
+
+    it('shows an eliminated message instead of a target once isAlive is false', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ data: () => ({ isAlive: false, targets: [] }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.getByText("You've been eliminated")).toBeInTheDocument();
+        expect(
+            screen.getByText(/you may be revived if the host assigns you a revival mission/i)
+        ).toBeInTheDocument();
+        expect(screen.queryByText(/your target/i)).not.toBeInTheDocument();
+    });
 });

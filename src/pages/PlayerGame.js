@@ -87,6 +87,16 @@ const PlayerGame = () => {
                         : 'Waiting for your target...'}
                 </Text>
             )}
+            {gameStarted && playerData && !playerData.isAlive && (
+                <>
+                    <Heading size="md" mb={2}>
+                        You&apos;ve been eliminated
+                    </Heading>
+                    <Text mb={6}>
+                        You may be revived if the host assigns you a revival mission.
+                    </Text>
+                </>
+            )}
             <Button colorScheme="red" variant="outline" onClick={handleLeave}>
                 Leave
             </Button>
