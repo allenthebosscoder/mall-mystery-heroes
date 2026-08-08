@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Button, Stack, Image, Flex } from '@chakra-ui/react';
+import { Button, Stack, Image, Flex, Heading } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import logo from '../assets/mall-logo-white-2.png';
@@ -38,7 +38,10 @@ const Homepage = () => {
 
     return (
         <Flex height="100vh" alignItems="center" justifyContent="center" direction="column" p={4}>
-            <Image src={logo} maxWidth="250px" maxHeight="250px" alt="logo white" mb={8} />
+            <Image src={logo} maxWidth="250px" maxHeight="250px" alt="logo white" mb={4} />
+            <Heading mb={8} color="brand.100" textAlign="center">
+                Mall Mystery Heroes
+            </Heading>
             <Stack direction="row" spacing={4} width="100%" maxWidth="320px">
                 <Button
                     colorScheme="teal"

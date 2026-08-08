@@ -22,7 +22,7 @@ const LoginPage = () => {
                 p={4}
             >
                 <Heading mb={8} color="brand.100" textAlign="center">
-                    Mall Mystery Heroes
+                    Log In
                 </Heading>
                 <Box display="flex" justifyContent="center" width="100%">
                     <Auth isLoginPage={true} />
