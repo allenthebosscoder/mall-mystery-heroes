@@ -27,7 +27,9 @@ PASS dom src/components/lobby_components/PlayerAddition.test.jsx
 PASS dom src/components/logs_components/ChatInput.test.jsx
 PASS dom src/components/photos_display_component/PhotosDisplay.test.jsx
 PASS dom src/components/player_listing/PlayersList.test.jsx
+PASS dom src/components/header_components/LogoutButton.test.jsx
 PASS dom src/pages/GameMasterView.test.jsx
+PASS dom src/pages/DashBoard.test.jsx
 PASS dom src/pages/Homepage.test.jsx
 PASS dom src/pages/JoinGame.test.jsx
 PASS dom src/pages/PlayerWaiting.test.jsx
@@ -40,8 +42,8 @@ PASS dom src/components/task_components/TaskCreationModal.test.jsx
 PASS dom src/components/task_components/TaskListModal.test.jsx
 PASS dom src/components/TargetGenerator.test.jsx
 
-Test Suites: 27 passed, 27 total
-Tests:       234 passed, 234 total
+Test Suites: 29 passed, 29 total
+Tests:       238 passed, 238 total
 ```
 
 `npm run test:emulator` runs four further suites against the real Firestore,
@@ -49,7 +51,7 @@ Auth, and Functions emulators together — `dbCalls.integration.test.js` (27
 tests), `executeKill.integration.test.js` (7 tests), `joinRoom.integration.test.js`
 (7 tests), and `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js`
 (4 tests), 45 tests total.
-`npm run test:rules` runs `test/firestore.rules.test.js` (34 tests) against
+`npm run test:rules` runs `test/firestore.rules.test.js` (45 tests) against
 Firestore alone.
 
 | Module                                                               | What it holds                                                                                                                                                                                | Tests |
@@ -65,11 +67,13 @@ Firestore alone.
 | `executeKill.integration.test.js`                                    | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                                  | 7     |
 | `joinRoom.integration.test.js`                                       | The `joinRoom` Cloud Function via `httpsCallable` (player access/room lifecycle): self-registration, duplicate name rejection, Lobby-phase gating, argument validation, ended-room rejection | 7     |
 | `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js` | The `cleanupEndedRooms` scheduled function via `firebase-functions-test` `wrap()`: room selection decision and actual deletion via the Admin SDK                                             | 4     |
-| `test/firestore.rules.test.js`                                       | Security rules against the Firestore emulator                                                                                                                                                | 34    |
-| `src/utils/playerSession.test.js`                                    | `savePlayerSession`/`loadPlayerSession`/`clearPlayerSession` — localStorage round-trip, malformed JSON, missing fields (item: join-flow UI and room scoping)                                 | 5     |
+| `test/firestore.rules.test.js`                                       | Security rules against the Firestore emulator, including the `allow list` grant that lets a host query their own rooms (item: dashboard removal)                                             | 45    |
+| `src/utils/playerSession.test.js`                                    | `writePlayerSession`/`readPlayerSession`/`clearPlayerSession` — localStorage round-trip, malformed JSON, missing fields (item: join-flow UI and room scoping)                                | 5     |
 | `src/pages/Homepage.test.jsx`                                        | "Host Game"/"Join Game" landing, redirecting straight to `/rooms/:roomID/waiting` when a player session is already stored (item: join-flow UI and room scoping)                              | 5     |
 | `src/pages/JoinGame.test.jsx`                                        | Player self-registration form: success, whitespace trimming, and the room-not-found/already-started/inactive/name-taken error paths (item: join-flow UI and room scoping)                    | 6     |
 | `src/pages/PlayerWaiting.test.jsx`                                   | Post-join waiting screen: live status once `gameStarted` flips, redirect home if the room disappears, Leave clears the session (item: join-flow UI and room scoping)                         | 4     |
+| `src/pages/DashBoard.test.jsx`                                       | No-UI redirect resolver: an existing active room routes to lobby or GameMasterView depending on `gameStarted`, no existing room creates one (item: dashboard removal)                        | 3     |
+| `src/components/header_components/LogoutButton.test.jsx`             | Signs out and navigates home when clicked (item: dashboard removal)                                                                                                                          | 1     |
 | `PlayerAddition.test.jsx`                                            | The `dom` project's first test — see below                                                                                                                                                   | 3     |
 | `ChatInput.test.jsx`                                                 | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals                                                      | 16    |
 | `RequireAuth.test.jsx`                                               | Route guard spinner/redirect/render states (item 3)                                                                                                                                          | 3     |

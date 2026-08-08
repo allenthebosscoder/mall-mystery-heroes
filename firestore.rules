@@ -70,8 +70,20 @@ service cloud.firestore {
       // (DashBoard.handleHostRoom -> checkForRoomIDDupes) that legitimately
       // reads a room ID expected NOT to exist yet, and it only ever reads
       // the room document itself, never a subcollection of it.
-      allow read: if isSignedIn() &&
+      allow get: if isSignedIn() &&
         (!exists(/databases/$(database)/documents/rooms/$(roomId)) || isHostOrPlayerOfRoom(roomId));
+      // Lets a returning GM find the room they're already hosting
+      // (DashBoard.js, docs/superpowers/specs/2026-08-08-dashboard-removal-design.md)
+      // instead of always creating a new one. Firestore denies a `list`
+      // query outright unless the rule is provably true for every possible
+      // result of that exact query shape — a plain `get()`-based check like
+      // isHostOfExistingRoom can't be verified that way (it depends on
+      // roomId, which a broad query doesn't fix in advance), so this checks
+      // resource.data directly instead, which Firestore CAN verify against
+      // the query's own `where('hostId', '==', uid)` filter. Deliberately
+      // narrower than `allow get` above: no equivalent "am I a player"
+      // list capability exists or is needed here.
+      allow list: if isSignedIn() && resource.data.hostId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.hostId == request.auth.uid;
       allow update, delete: if isHostOfExistingRoom(roomId);
 

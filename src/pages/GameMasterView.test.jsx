@@ -24,6 +24,17 @@ jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
 }));
 
+// Needed transitively: HeaderExecution now renders LogoutButton, which
+// imports 'firebase/auth' and '../../utils/firebase' directly (not through
+// dbCalls.js) — explicit factories, not auto-mock, same reason as every
+// other mock in this file (auto-mocking still loads the real
+// utils/firebase.js, which does real Firebase init at import time and
+// touches `fetch`, undefined in jsdom).
+jest.mock('firebase/auth', () => ({
+    signOut: jest.fn(),
+}));
+jest.mock('../utils/firebase', () => ({ auth: {} }));
+
 // Explicit factory, not auto-mock — see ChatInput.test.jsx for why.
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchPlayersQueryByDescendPointsThenIsAliveForRoom: jest.fn(() => 'players-query'),

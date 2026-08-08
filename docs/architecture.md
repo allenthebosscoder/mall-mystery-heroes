@@ -76,17 +76,17 @@ src/index.js
 Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                                           | Guarded |
-| ------------------------------- | ---------------- | ------------------------------------------------- | ------- |
-| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                 |         |
-| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here) |         |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                        |         |
-| `/signup`                       | `SignUp`         | Account creation                                  |         |
-| `/join`                         | `JoinGame`       | Player self-registration: game ID + name          |         |
-| `/dashboard`                    | `DashBoard`      | Host a new room, log out                          | ✅      |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation              | ✅      |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                             | ✅      |
-| `/rooms/:roomID/waiting`        | `PlayerWaiting`  | Post-join landing for a self-registered player    | ✅      |
+| Path                            | Page             | Purpose                                                                    | Guarded |
+| ------------------------------- | ---------------- | -------------------------------------------------------------------------- | ------- |
+| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                                          |         |
+| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here)                          |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                                                 |         |
+| `/signup`                       | `SignUp`         | Account creation                                                           |         |
+| `/join`                         | `JoinGame`       | Player self-registration: game ID + name                                   |         |
+| `/dashboard`                    | `DashBoard`      | No UI — resolves the GM's existing room or hosts a new one, then redirects | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation                                       | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                                                      | ✅      |
+| `/rooms/:roomID/waiting`        | `PlayerWaiting`  | Post-join landing for a self-registered player                             | ✅      |
 
 `NotFound` is the catch-all `*` route (`improvements.md` item 30).
 
@@ -209,7 +209,15 @@ player who has joined it (`request.auth.uid` present in the room's
 (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
 Writes stay host-only, unchanged. `rooms/{roomID}.hostId`, written once at
 room creation, and `joinedUids`, appended to on every self-registration, are
-both read by the rules engine via `get()`. On top of that,
+both read by the rules engine via `get()`. A separate `allow list` grant
+lets a host query `rooms` filtered to their own `hostId` — this is what
+`DashBoard.js` uses to find a room they're already running instead of
+creating a new one on every login
+(docs/superpowers/specs/2026-08-08-dashboard-removal-design.md); it's a
+distinct grant because Firestore only allows a `list`/query operation when
+the rule is provably true for every possible result of that exact query
+shape, which a `get()`-based check like `isHostOfExistingRoom` can't
+satisfy. On top of that,
 `src/components/RequireAuth.js` wraps `/dashboard` and every `/rooms/:roomID/*`
 route (including the new `/waiting`), redirecting a signed-out visitor to
 `/` before the page renders at all — defense-in-depth, not a substitute for

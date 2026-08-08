@@ -3,6 +3,7 @@ import { Image, Heading, HStack, Spacer } from '@chakra-ui/react';
 import whiteLogo from '../../assets/mall-logo-white-2.png';
 import ResetTargetsButton from './ResetTargetsButton';
 import Endgamebutton from './Endgamebutton';
+import LogoutButton from './LogoutButton';
 import { gameContext } from '../Contexts';
 
 const HeaderExecution = ({ addLog, arrayOfAlivePlayers }) => {
@@ -14,6 +15,7 @@ const HeaderExecution = ({ addLog, arrayOfAlivePlayers }) => {
             <Spacer />
             <ResetTargetsButton arrayOfPlayers={arrayOfAlivePlayers} addLog={addLog} />
             <Endgamebutton />
+            <LogoutButton />
         </HStack>
     );
 };

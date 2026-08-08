@@ -360,6 +360,27 @@ export const checkForRoomIDDupes = async (roomID) => {
     return !roomSnapshot.exists();
 };
 
+// Finds the room this host is currently running (isGameActive: true), so a
+// returning GM lands back in their existing room instead of getting a new
+// one created on every login (DashBoard.js,
+// docs/superpowers/specs/2026-08-08-dashboard-removal-design.md). The
+// firestore.rules `allow list` grant is scoped to exactly this query shape
+// (`where('hostId', '==', uid)`) — Firestore can only authorize a `list`
+// query when the rule is provably true for every possible result, so the
+// isGameActive filter happens here in JS rather than as a second `where`
+// clause. A host realistically has at most a couple of rooms, so filtering
+// client-side after one read is not a real cost.
+export const fetchActiveRoomForHost = async (hostId) => {
+    const roomsCollectionRef = collection(db, 'rooms');
+    const roomsQuery = query(roomsCollectionRef, where('hostId', '==', hostId));
+    const roomsSnapshot = await getDocs(roomsQuery);
+    const activeRoomDoc = roomsSnapshot.docs.find(
+        (roomDoc) => roomDoc.data().isGameActive === true
+    );
+    if (!activeRoomDoc) return null;
+    return { id: activeRoomDoc.id, gameStarted: activeRoomDoc.data().gameStarted };
+};
+
 // get task index and increment by 1
 //
 // Wrapped in a transaction so two concurrent mission creations can't read

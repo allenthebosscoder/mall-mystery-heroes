@@ -13,6 +13,14 @@
  * docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md
  * — PLAYER_UID below is a player who has joined room-a (present in its
  * joinedUids array); OTHER_UID is a signed-in stranger who has not.
+ *
+ * A separate `allow list` grant (docs/superpowers/specs/2026-08-08-
+ * dashboard-removal-design.md) lets a host query `rooms` filtered to their
+ * own hostId, so DashBoard.js can find a room they're already running
+ * instead of always creating a new one. Firestore only allows a `list`
+ * query when the rule is provably true for every possible result of that
+ * exact query shape — a `get()`-based check like isHostOfExistingRoom
+ * can't be proven that way, so this grant checks `resource.data` directly.
  */
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +37,8 @@ const {
     updateDoc,
     collection,
     addDoc,
+    query,
+    where,
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-mall-mystery-heroes';
@@ -110,6 +120,19 @@ describe('rooms/{roomId}', () => {
         // signed-in user, not error out or come back permission-denied.
         const db = testEnv.authenticatedContext(OTHER_UID).firestore();
         await assertSucceeds(getDoc(doc(db, 'rooms', 'totally-nonexistent-room-id')));
+    });
+
+    it('allows the host to list rooms filtered to their own hostId (DashBoard resume-room lookup)', async () => {
+        const db = testEnv.authenticatedContext(HOST_UID).firestore();
+        const roomsQuery = query(collection(db, 'rooms'), where('hostId', '==', HOST_UID));
+        const snapshot = await assertSucceeds(getDocs(roomsQuery));
+        expect(snapshot.docs.map((d) => d.id)).toEqual(['room-a']);
+    });
+
+    it('denies listing rooms filtered to someone elses hostId', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        const roomsQuery = query(collection(db, 'rooms'), where('hostId', '==', HOST_UID));
+        await assertFails(getDocs(roomsQuery));
     });
 
     it('allows the host to update their own room', async () => {
