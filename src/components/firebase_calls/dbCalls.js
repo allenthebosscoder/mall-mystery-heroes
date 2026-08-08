@@ -342,6 +342,16 @@ export const fetchRoomReferenceForRoom = (roomID) => {
     return doc(db, 'rooms', roomID);
 };
 
+// A reference to a specific player's document, for onSnapshot — lets
+// PlayerGame.js watch its own target/alive status live once the game
+// starts, the same way fetchRoomReferenceForRoom lets it watch
+// gameStarted. Keyed the same way every other player lookup in this file
+// is (trimmedNameLowerCase via normalizePlayerName) — addPlayerForRoom
+// already uses this exact value as the document ID (dbCalls.js:212).
+export const fetchPlayerReferenceForRoom = (playerName, roomID) => {
+    return doc(db, 'rooms', roomID, 'players', normalizePlayerName(playerName));
+};
+
 export const setOpenSznOfPlayerToValueForRoom = async (openSeasonPlayer, value, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
     const playerQuery = query(
