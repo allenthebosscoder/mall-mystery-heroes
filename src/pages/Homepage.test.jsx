@@ -35,7 +35,7 @@ const renderHomepage = () =>
             <MemoryRouter initialEntries={['/']}>
                 <Routes>
                     <Route path="/" element={<Homepage />} />
-                    <Route path="/host" element={<div>Host page</div>} />
+                    <Route path="/login" element={<div>Login page</div>} />
                     <Route path="/join" element={<div>Join page</div>} />
                     <Route path="/rooms/:roomID/waiting" element={<div>Waiting page</div>} />
                 </Routes>
@@ -60,12 +60,12 @@ describe('Homepage', () => {
         expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
     });
 
-    it('navigates to /host when Host Game is clicked', async () => {
+    it('navigates to /login when Host Game is clicked', async () => {
         renderHomepage();
 
         await userEvent.click(screen.getByRole('button', { name: 'Host Game' }));
 
-        expect(screen.getByText('Host page')).toBeInTheDocument();
+        expect(screen.getByText('Login page')).toBeInTheDocument();
     });
 
     it('navigates to /join when Join Game is clicked', async () => {

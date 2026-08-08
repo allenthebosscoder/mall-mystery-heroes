@@ -61,7 +61,7 @@ unknowns when changing the `photos` schema or the room document shape:
 
 ```
 src/index.js
-  └─ App.js ......................... ChakraProvider(theme) + BrowserRouter, 7 routes
+  └─ App.js ......................... ChakraProvider(theme) + BrowserRouter, 10 routes
        ├─ pages/ ................... one component per route
        ├─ components/ .............. feature-grouped UI, some non-UI "hook-alikes"
        │    └─ firebase_calls/
@@ -76,18 +76,17 @@ src/index.js
 Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                                          | Guarded |
-| ------------------------------- | ---------------- | ------------------------------------------------ | ------- |
-| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                |         |
-| `/host`                         | `Host`           | Log in / sign up choice (today's old `Homepage`) |         |
-| `/login`                        | `Login`          | Email + password sign-in                         |         |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                       |         |
-| `/signup`                       | `SignUp`         | Account creation                                 |         |
-| `/join`                         | `JoinGame`       | Player self-registration: game ID + name         |         |
-| `/dashboard`                    | `DashBoard`      | Host a new room, log out                         | ✅      |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation             | ✅      |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                            | ✅      |
-| `/rooms/:roomID/waiting`        | `PlayerWaiting`  | Post-join landing for a self-registered player   | ✅      |
+| Path                            | Page             | Purpose                                           | Guarded |
+| ------------------------------- | ---------------- | ------------------------------------------------- | ------- |
+| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                 |         |
+| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here) |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                        |         |
+| `/signup`                       | `SignUp`         | Account creation                                  |         |
+| `/join`                         | `JoinGame`       | Player self-registration: game ID + name          |         |
+| `/dashboard`                    | `DashBoard`      | Host a new room, log out                          | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation              | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                             | ✅      |
+| `/rooms/:roomID/waiting`        | `PlayerWaiting`  | Post-join landing for a self-registered player    | ✅      |
 
 `NotFound` is the catch-all `*` route (`improvements.md` item 30).
 

@@ -29,7 +29,6 @@ PASS dom src/components/photos_display_component/PhotosDisplay.test.jsx
 PASS dom src/components/player_listing/PlayersList.test.jsx
 PASS dom src/pages/GameMasterView.test.jsx
 PASS dom src/pages/Homepage.test.jsx
-PASS dom src/pages/Host.test.jsx
 PASS dom src/pages/JoinGame.test.jsx
 PASS dom src/pages/PlayerWaiting.test.jsx
 PASS dom src/components/auth.test.jsx
@@ -41,8 +40,8 @@ PASS dom src/components/task_components/TaskCreationModal.test.jsx
 PASS dom src/components/task_components/TaskListModal.test.jsx
 PASS dom src/components/TargetGenerator.test.jsx
 
-Test Suites: 28 passed, 28 total
-Tests:       233 passed, 233 total
+Test Suites: 27 passed, 27 total
+Tests:       234 passed, 234 total
 ```
 
 `npm run test:emulator` runs four further suites against the real Firestore,
@@ -68,8 +67,7 @@ Firestore alone.
 | `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js` | The `cleanupEndedRooms` scheduled function via `firebase-functions-test` `wrap()`: room selection decision and actual deletion via the Admin SDK                                             | 4     |
 | `test/firestore.rules.test.js`                                       | Security rules against the Firestore emulator                                                                                                                                                | 34    |
 | `src/utils/playerSession.test.js`                                    | `savePlayerSession`/`loadPlayerSession`/`clearPlayerSession` — localStorage round-trip, malformed JSON, missing fields (item: join-flow UI and room scoping)                                 | 5     |
-| `src/pages/Homepage.test.jsx`                                        | "Host Game"/"Join Game" landing, redirecting straight to `/rooms/:roomID/waiting` when a player session is already stored (item: join-flow UI and room scoping)                              | 4     |
-| `src/pages/Host.test.jsx`                                            | Today's old `Homepage` (Log In / Sign Up choice), renamed and moved to `/host` (item: join-flow UI and room scoping)                                                                         | 2     |
+| `src/pages/Homepage.test.jsx`                                        | "Host Game"/"Join Game" landing, redirecting straight to `/rooms/:roomID/waiting` when a player session is already stored (item: join-flow UI and room scoping)                              | 5     |
 | `src/pages/JoinGame.test.jsx`                                        | Player self-registration form: success, whitespace trimming, and the room-not-found/already-started/inactive/name-taken error paths (item: join-flow UI and room scoping)                    | 6     |
 | `src/pages/PlayerWaiting.test.jsx`                                   | Post-join waiting screen: live status once `gameStarted` flips, redirect home if the room disappears, Leave clears the session (item: join-flow UI and room scoping)                         | 4     |
 | `PlayerAddition.test.jsx`                                            | The `dom` project's first test — see below                                                                                                                                                   | 3     |

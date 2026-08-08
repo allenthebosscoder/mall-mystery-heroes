@@ -39,11 +39,21 @@ const Homepage = () => {
     return (
         <Flex height="100vh" alignItems="center" justifyContent="center" direction="column" p={4}>
             <Image src={logo} maxWidth="250px" maxHeight="250px" alt="logo white" mb={8} />
-            <Stack direction="column" spacing={4} width="100%" maxWidth="320px">
-                <Button colorScheme="teal" variant="solid" onClick={() => navigate('/host')}>
+            <Stack direction="row" spacing={4} width="100%" maxWidth="320px">
+                <Button
+                    colorScheme="teal"
+                    variant="solid"
+                    flex={1}
+                    onClick={() => navigate('/login')}
+                >
                     Host Game
                 </Button>
-                <Button colorScheme="teal" variant="outline" onClick={() => navigate('/join')}>
+                <Button
+                    colorScheme="teal"
+                    variant="outline"
+                    flex={1}
+                    onClick={() => navigate('/join')}
+                >
                     Join Game
                 </Button>
             </Stack>
