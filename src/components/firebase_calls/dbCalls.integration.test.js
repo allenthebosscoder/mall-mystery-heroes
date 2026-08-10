@@ -9,12 +9,14 @@
 import {
     addLogForRoom,
     addPlayerForRoom,
+    addPlayerMessageForRoom,
     endGame,
     fetchAliveRosterForRoom,
     fetchAllPlayersForRoom,
     fetchAssassinsForPlayer,
     fetchLogsQueryByAscendingTimestampForRoom,
     fetchPlayerForRoom,
+    fetchPlayerMessagesQueryForRoom,
     fetchTaskIndexThenIncrement,
     updateIsAliveForPlayer,
     updateIsCompleteToTrueForTaskByIndex,
@@ -264,6 +266,45 @@ describe('addLogForRoom and fetchLogsQueryByAscendingTimestampForRoom (improveme
 
         const roomSnapshot = await getDoc(doc(db, 'rooms', ROOM));
         expect(roomSnapshot.data().logs).toBeUndefined();
+    });
+});
+
+describe('addPlayerMessageForRoom and fetchPlayerMessagesQueryForRoom', () => {
+    it('returns messages in the order they were written', async () => {
+        await seedRoom(ROOM, []);
+
+        await addPlayerMessageForRoom(
+            { type: 'broadcast', recipient: null, text: 'first', standings: null },
+            ROOM
+        );
+        await addPlayerMessageForRoom(
+            { type: 'broadcast', recipient: null, text: 'second', standings: null },
+            ROOM
+        );
+
+        const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+        expect(snapshot.docs.map((docSnapshot) => docSnapshot.data().text)).toEqual([
+            'first',
+            'second',
+        ]);
+    });
+
+    it('includes the timestamp field written by addPlayerMessageForRoom', async () => {
+        await seedRoom(ROOM, []);
+
+        await addPlayerMessageForRoom(
+            { type: 'whisper', recipient: 'Alice', text: 'psst', standings: null },
+            ROOM
+        );
+
+        const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+        expect(snapshot.docs[0].data()).toEqual({
+            type: 'whisper',
+            recipient: 'Alice',
+            text: 'psst',
+            standings: null,
+            timestamp: expect.anything(),
+        });
     });
 });
 

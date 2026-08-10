@@ -86,6 +86,15 @@ export const addPlayerMessageForRoom = async (message, roomID) => {
     await addDoc(messagesRef, { ...message, timestamp: serverTimestamp() });
 };
 
+// A query of a room's playerMessages in write order, for onSnapshot — lets
+// MessageFeed (src/components/player_messages_components/MessageFeed.js)
+// watch incoming /whisper, /broadcast, and /leaderboard messages live.
+// Mirrors fetchLogsQueryByAscendingTimestampForRoom's exact shape.
+export const fetchPlayerMessagesQueryForRoom = (roomID) => {
+    const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
+    return query(messagesRef, orderBy('timestamp', 'asc'));
+};
+
 //fetches all tasks by completion from database
 export const fetchTasksByCompletionForRoom = async (isComplete, roomID) => {
     const taskCollectionRef = collection(db, 'rooms', roomID, 'tasks');
