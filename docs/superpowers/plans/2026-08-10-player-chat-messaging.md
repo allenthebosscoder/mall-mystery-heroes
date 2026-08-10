@@ -24,10 +24,12 @@
 ## Task 1: `fetchPlayerMessagesQueryForRoom` in `dbCalls.js`
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js`
 - Modify: `src/components/firebase_calls/dbCalls.integration.test.js`
 
 **Interfaces:**
+
 - Consumes: `collection`, `query`, `orderBy` (already imported in `dbCalls.js`), `addPlayerMessageForRoom` (already exists, `dbCalls.js:84-87`).
 - Produces: `fetchPlayerMessagesQueryForRoom(roomID) → Query`, for Task 3's `MessageFeed` to subscribe to via `onSnapshot`.
 
@@ -136,10 +138,12 @@ git commit -m "Add fetchPlayerMessagesQueryForRoom to dbCalls.js"
 ## Task 2: `MessageComposer` (disabled placeholder UI)
 
 **Files:**
+
 - Create: `src/components/player_messages_components/MessageComposer.js`
 - Create: `src/components/player_messages_components/MessageComposer.test.jsx`
 
 **Interfaces:**
+
 - Consumes: nothing (no props, no Firebase, no data layer).
 - Produces: `MessageComposer` (default export, no props), for Task 6 to mount into `PlayerGame.js`.
 
@@ -245,10 +249,12 @@ git commit -m "Add MessageComposer as a disabled placeholder UI"
 ## Task 3: `MessageFeed` — subscribe, filter, render text messages
 
 **Files:**
+
 - Create: `src/components/player_messages_components/MessageFeed.js`
 - Create: `src/components/player_messages_components/MessageFeed.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `fetchPlayerMessagesQueryForRoom(roomID)` (Task 1), `normalizePlayerName` (`src/game/playerNames.js`, already exists).
 - Produces: `MessageFeed` (default export, props `{ roomID, playerName }`), consumed by this same task's tests and extended by Tasks 4-5, then mounted by Task 6.
 
@@ -303,7 +309,12 @@ describe('MessageFeed', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
                 docs: asMessageDocs([
-                    { type: 'broadcast', recipient: null, text: 'Game starts soon!', standings: null },
+                    {
+                        type: 'broadcast',
+                        recipient: null,
+                        text: 'Game starts soon!',
+                        standings: null,
+                    },
                 ]),
             });
             return () => {};
@@ -318,7 +329,12 @@ describe('MessageFeed', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
                 docs: asMessageDocs([
-                    { type: 'whisper', recipient: 'Alice', text: 'You are being hunted', standings: null },
+                    {
+                        type: 'whisper',
+                        recipient: 'Alice',
+                        text: 'You are being hunted',
+                        standings: null,
+                    },
                 ]),
             });
             return () => {};
@@ -466,10 +482,12 @@ git commit -m "Add MessageFeed: live subscription filtered to broadcasts and thi
 ## Task 4: `MessageFeed` — render leaderboard sends as a standings list
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/MessageFeed.js`
 - Modify: `src/components/player_messages_components/MessageFeed.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `messages` state from Task 3.
 - Produces: nothing new consumed elsewhere — a render-only branch.
 
@@ -575,10 +593,12 @@ git commit -m "Render leaderboard messages as a standings list in MessageFeed"
 ## Task 5: `MessageFeed` — auto-scroll to the newest message
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/MessageFeed.js`
 - Modify: `src/components/player_messages_components/MessageFeed.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `messages` state from Task 3.
 - Produces: nothing new consumed elsewhere.
 
@@ -688,10 +708,12 @@ git commit -m "Auto-scroll MessageFeed to the newest message"
 ## Task 6: Restructure `PlayerGame.js` around the chat feed
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `MessageFeed` (Tasks 3-5, props `{ roomID, playerName }`), `MessageComposer` (Task 2, no props).
 - Produces: nothing new consumed elsewhere — this is the plan's final integration point.
 
@@ -706,7 +728,9 @@ In `src/pages/PlayerGame.test.jsx`, add stub mocks for the two new components ri
 // MessageFeed's internals — same reasoning GameMasterView.test.jsx stubs
 // ChatInput.
 jest.mock('../components/player_messages_components/MessageFeed', () => (props) => (
-    <div>message-feed-stub roomID={props.roomID} playerName={props.playerName}</div>
+    <div>
+        message-feed-stub roomID={props.roomID} playerName={props.playerName}
+    </div>
 ));
 jest.mock('../components/player_messages_components/MessageComposer', () => () => (
     <div>message-composer-stub</div>
@@ -801,11 +825,13 @@ git commit -m "Mount the chat feed and composer into PlayerGame, always visible"
 ## Task 7: Docs and final gate
 
 **Files:**
+
 - Modify: `docs/architecture.md`
 - Modify: `docs/data-model.md`
 - Modify: `docs/testing.md`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — documentation only.
 

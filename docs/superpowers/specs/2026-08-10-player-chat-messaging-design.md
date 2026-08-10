@@ -73,11 +73,11 @@ restructures the JSX around it.
   `normalizePlayerName(recipient) === normalizePlayerName(playerName)`
   (a whisper addressed to this player).
 - Renders each message by `type`:
-  - `broadcast`/`whisper`: a text line (whispers visually marked as
-    private — e.g. a distinct background — since only their recipient
-    ever sees one).
-  - `leaderboard`: a compact standings list (name, score, alive status)
-    from the `standings` field, not rendered as text.
+    - `broadcast`/`whisper`: a text line (whispers visually marked as
+      private — e.g. a distinct background — since only their recipient
+      ever sees one).
+    - `leaderboard`: a compact standings list (name, score, alive status)
+      from the `standings` field, not rendered as text.
 - Auto-scrolls to the newest message on arrival, reusing the exact
   ref/effect pattern already built for the GM's log panel
   (`GameMasterView.js`'s `logsBoxRef` + `useEffect` keyed on the message
