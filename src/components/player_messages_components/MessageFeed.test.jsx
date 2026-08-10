@@ -122,4 +122,28 @@ describe('MessageFeed', () => {
 
         expect(fetchPlayerMessagesQueryForRoom).not.toHaveBeenCalled();
     });
+
+    it('renders a leaderboard message as a standings list, not a text line', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'leaderboard',
+                        recipient: null,
+                        text: null,
+                        standings: [
+                            { name: 'Alice', score: 30, isAlive: true },
+                            { name: 'Bob', score: 10, isAlive: false },
+                        ],
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText('Alice: 30')).toBeInTheDocument();
+        expect(screen.getByText('Bob: 10 (eliminated)')).toBeInTheDocument();
+    });
 });

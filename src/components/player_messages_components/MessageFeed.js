@@ -44,19 +44,35 @@ const MessageFeed = ({ roomID, playerName }) => {
             <List styleType="none">
                 {messages.map((message, index) => (
                     <ListItem key={index} mb={2}>
-                        <Text
-                            bg={message.type === 'whisper' ? 'purple.700' : 'gray.700'}
-                            borderRadius="md"
-                            p={2}
-                            display="inline-block"
-                        >
-                            {message.type === 'whisper' && (
-                                <Text as="span" mr={1} aria-hidden="true">
-                                    🔒
+                        {message.type === 'leaderboard' ? (
+                            <Box bg="gray.700" borderRadius="md" p={2}>
+                                <Text fontWeight="bold" mb={1}>
+                                    Leaderboard
                                 </Text>
-                            )}
-                            <Text as="span">{message.text}</Text>
-                        </Text>
+                                <List styleType="none">
+                                    {message.standings.map((entry) => (
+                                        <ListItem key={entry.name}>
+                                            {entry.name}: {entry.score}
+                                            {!entry.isAlive ? ' (eliminated)' : ''}
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            </Box>
+                        ) : (
+                            <Text
+                                bg={message.type === 'whisper' ? 'purple.700' : 'gray.700'}
+                                borderRadius="md"
+                                p={2}
+                                display="inline-block"
+                            >
+                                {message.type === 'whisper' && (
+                                    <Text as="span" mr={1} aria-hidden="true">
+                                        🔒
+                                    </Text>
+                                )}
+                                <Text as="span">{message.text}</Text>
+                            </Text>
+                        )}
                     </ListItem>
                 ))}
             </List>
