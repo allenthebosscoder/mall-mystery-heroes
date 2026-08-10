@@ -8,7 +8,10 @@ const admin = require('firebase-admin');
 // is undefined under `npm run test:emulator` even though it resolves fine
 // outside the emulator. This subpath import isn't proxied the same way.
 const { FieldValue } = require('firebase-admin/firestore');
-const { normalizePlayerName } = require('../../src/game/playerNames');
+// Vendored copy, not '../../src/game/...' — see killPlayer.js's comment on
+// the same import for why (Cloud Functions deploy uploads functions/ in
+// isolation; kept in sync by functions/scripts/sync-shared-game-logic.js).
+const { normalizePlayerName } = require('../vendor/game/playerNames');
 
 if (admin.apps.length === 0) {
     admin.initializeApp();

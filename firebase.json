@@ -3,6 +3,7 @@
         {
             "source": "functions",
             "codebase": "default",
+            "predeploy": ["node functions/scripts/sync-shared-game-logic.js"],
             "ignore": [
                 "node_modules",
                 ".git",

@@ -1,7 +1,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { planRemap } = require('../../src/game/remapPlan');
-const { normalizePlayerName } = require('../../src/game/playerNames');
+// Vendored copies, not '../../src/game/...' — Cloud Functions deploy
+// uploads only the functions/ directory in isolation, so a require()
+// reaching outside it cannot resolve in the deployed bundle even though it
+// works locally and under the emulator. Kept in sync by
+// functions/scripts/sync-shared-game-logic.js (predeploy hook + local test
+// setup) — src/game/ remains the single source of truth.
+const { planRemap } = require('../vendor/game/remapPlan');
+const { normalizePlayerName } = require('../vendor/game/playerNames');
 
 if (admin.apps.length === 0) {
     admin.initializeApp();
