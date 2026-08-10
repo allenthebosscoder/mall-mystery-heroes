@@ -31,6 +31,15 @@ export const fetchAllPlayersForRoom = async (roomID) => {
     return playerSnapshot.docs.map((doc) => doc.data().name);
 };
 
+// A reference to the players collection itself, for onSnapshot — lets
+// Lobby.js watch the roster live instead of one-time-fetching it, so a
+// player joining from another device shows up without the GM reloading
+// the page. Item 13 (docs/improvements.md) gave GameMasterView this same
+// treatment but never extended it to Lobby.
+export const fetchAllPlayersQueryForRoom = (roomID) => {
+    return collection(db, 'rooms', roomID, 'players');
+};
+
 //fetch all players by living status from database
 export const fetchPlayersByStatusForRoom = async (isAlive, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');

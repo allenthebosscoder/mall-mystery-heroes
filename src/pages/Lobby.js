@@ -1,5 +1,6 @@
 import { Button, Divider, Flex, Heading, Image } from '@chakra-ui/react';
 import { signOut } from 'firebase/auth';
+import { onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import mallLogo from '../assets/mall-logo-black-green.png';
@@ -8,7 +9,7 @@ import PlayerAddition from '../components/lobby_components/PlayerAddition';
 import PlayerList from '../components/lobby_components/PlayerList';
 import PlayerRemove from '../components/lobby_components/PlayerRemove';
 import TargetGenerator from '../components/TargetGenerator';
-import { fetchAllPlayersForRoom } from '../components/firebase_calls/dbCalls';
+import { fetchAllPlayersQueryForRoom } from '../components/firebase_calls/dbCalls';
 import { auth } from '../utils/firebase';
 
 const Lobby = () => {
@@ -27,21 +28,23 @@ const Lobby = () => {
         }
     };
 
-    //fetches players when roomID or playerCollectionRef changes
+    // Live subscription, not a one-time fetch (docs/improvements.md item
+    // 13, extended here from GameMasterView to Lobby) — a player joining
+    // from another device now shows up without the GM reloading the page.
     useEffect(() => {
-        const fetchPlayers = async () => {
-            try {
-                const players = await fetchAllPlayersForRoom(roomID);
-                setArrayOfPlayers(players);
-            } catch (error) {
-                console.log(error);
+        if (!roomID) return undefined;
+        const playersQuery = fetchAllPlayersQueryForRoom(roomID);
+        const unsubscribe = onSnapshot(
+            playersQuery,
+            (snapshot) => {
+                setArrayOfPlayers(snapshot.docs.map((doc) => doc.data().name));
+            },
+            (error) => {
+                console.error(error);
                 createAlert('error', 'Error updating arrayOfPlayers', 'Check console.', 1500);
             }
-        };
-
-        if (roomID) {
-            fetchPlayers();
-        }
+        );
+        return () => unsubscribe();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomID]);
 
@@ -71,23 +74,6 @@ const Lobby = () => {
             createAlert('error', 'Error navigating to game view', 'Check console.', 1500);
         }
     };
-    //adds player to arrayOfPlayers when they are added
-    const handlePlayerAdded = (PlayerName) => {
-        setArrayOfPlayers((arrayOfPlayers) => [...arrayOfPlayers, PlayerName]);
-    };
-    //removes player from arrayOfPlayers when they are removed
-    const handlePlayerRemoved = (PlayerName) => {
-        try {
-            const index = arrayOfPlayers.indexOf(PlayerName);
-            const spliced = arrayOfPlayers.slice();
-            spliced.splice(index, 1);
-            setArrayOfPlayers(spliced);
-        } catch (error) {
-            console.error('Error removing player: ', error);
-            createAlert('error', 'Error removing player', 'Check console.', 1500);
-        }
-    };
-
     return (
         <Flex h="100vh" w="100vw" justify="center" align="center" direction="row">
             <Flex direction="column" w="40%" h="100%" bg="#66bf78" justify="center" align="center">
@@ -98,7 +84,7 @@ const Lobby = () => {
                 <Heading size="md" mt="6%" mb="4px" color="black">
                     Add Player
                 </Heading>
-                <PlayerAddition roomID={roomID} onPlayerAdded={handlePlayerAdded} />
+                <PlayerAddition roomID={roomID} />
                 <TargetGenerator
                     roomID={roomID}
                     arrayOfPlayers={arrayOfPlayers}
@@ -131,11 +117,7 @@ const Lobby = () => {
 
                 <Flex h="16%" align="center" justify="center" w="100%">
                     {arrayOfPlayers.length > 0 && (
-                        <PlayerRemove
-                            roomID={roomID}
-                            arrayOfPlayers={arrayOfPlayers}
-                            onPlayerRemoved={handlePlayerRemoved}
-                        />
+                        <PlayerRemove roomID={roomID} arrayOfPlayers={arrayOfPlayers} />
                     )}
                 </Flex>
             </Flex>
