@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import MessageFeed from './MessageFeed';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
@@ -145,5 +145,36 @@ describe('MessageFeed', () => {
 
         expect(screen.getByText('Alice: 30')).toBeInTheDocument();
         expect(screen.getByText('Bob: 10 (eliminated)')).toBeInTheDocument();
+    });
+
+    it('scrolls to the bottom whenever a new message arrives', async () => {
+        let deliverMessages;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverMessages = onNext;
+            onNext({ docs: [] });
+            return () => {};
+        });
+
+        mountFeed();
+
+        const feedBox = await screen.findByTestId('message-feed');
+        // jsdom never computes real layout, so scrollHeight is always 0 —
+        // stub it to a value that would actually require scrolling, the same
+        // way a real, overflowing feed would report it.
+        Object.defineProperty(feedBox, 'scrollHeight', {
+            value: 500,
+            configurable: true,
+        });
+        feedBox.scrollTop = 0;
+
+        await act(async () => {
+            deliverMessages({
+                docs: asMessageDocs([
+                    { type: 'broadcast', recipient: null, text: 'New message', standings: null },
+                ]),
+            });
+        });
+
+        expect(feedBox.scrollTop).toBe(500);
     });
 });

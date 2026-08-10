@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, List, ListItem, Text } from '@chakra-ui/react';
 import { onSnapshot } from 'firebase/firestore';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
@@ -11,6 +11,7 @@ import { normalizePlayerName } from '../../game/playerNames';
 // (docs/superpowers/specs/2026-08-10-player-chat-messaging-design.md).
 const MessageFeed = ({ roomID, playerName }) => {
     const [messages, setMessages] = useState([]);
+    const feedBoxRef = useRef(null);
 
     useEffect(() => {
         if (!roomID || !playerName) return undefined;
@@ -39,8 +40,17 @@ const MessageFeed = ({ roomID, playerName }) => {
         return () => unsubscribe();
     }, [roomID, playerName]);
 
+    // Keeps the feed pinned to the newest message as it grows, matching the
+    // same pattern already built for the GM's log panel
+    // (GameMasterView.js's logsBoxRef).
+    useEffect(() => {
+        const feedBox = feedBoxRef.current;
+        if (!feedBox) return;
+        feedBox.scrollTop = feedBox.scrollHeight;
+    }, [messages]);
+
     return (
-        <Box flex="1" overflow="auto" p={2} data-testid="message-feed">
+        <Box flex="1" overflow="auto" p={2} ref={feedBoxRef} data-testid="message-feed">
             <List styleType="none">
                 {messages.map((message, index) => (
                     <ListItem key={index} mb={2}>
