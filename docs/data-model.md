@@ -222,10 +222,9 @@ Player-facing messages from `/whisper`, `/broadcast`, and `/leaderboard`
 (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
 **Designed to be read by a player-facing mobile app**, not by this
 codebase — the mirror case of `photos` above, which is designed to be
-_written_ by that same not-yet-existing app. Nothing in this repository
-reads a `playerMessages` document; today this collection has a writer
-(`dbCalls.addPlayerMessageForRoom`) but no reader at all, except manual
-inspection.
+_written_ by that same not-yet-existing app. `MessageFeed.js` now reads
+`playerMessages` via `fetchPlayerMessagesQueryForRoom`, filtering to broadcasts/leaderboard sends
+and whispers addressed to the subscribing player.
 
 | Field       | Type                                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -40,7 +40,9 @@ unknowns when changing the `photos` schema or the room document shape:
   dead code, deleted per item 14). `playerMessages`
   (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md)
   is the mirror case: written by `/whisper`, `/broadcast`, and
-  `/leaderboard`, but never read by anything in this repository either.
+  `/leaderboard`, and now read by `MessageFeed` (`src/components/player_messages_components/MessageFeed.js`)
+  via `fetchPlayerMessagesQueryForRoom`, filtered client-side to broadcasts/leaderboard sends and
+  whispers addressed to the subscribing player.
   `firestore.rules` scopes both collections to the host rather than to a
   distinct mobile-app identity, for the same reason (item 2). Until this
   app exists, kill-proof photos have no way to enter Firestore except
@@ -76,17 +78,17 @@ src/index.js
 Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                                                                                                         | Guarded |
-| ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------- | ------- |
-| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                                                                               |         |
-| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here)                                                               |         |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                                                                                      |         |
-| `/signup`                       | `SignUp`         | Account creation                                                                                                |         |
-| `/join`                         | `JoinGame`       | Player self-registration: game ID + name                                                                        |         |
-| `/dashboard`                    | `DashBoard`      | No UI — resolves the GM's existing room or hosts a new one, then redirects                                      | ✅      |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation                                                                            | ✅      |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                                                                                           | ✅      |
-| `/rooms/:roomID/waiting`        | `PlayerGame`     | Post-join landing for a self-registered player; shows their target once the game starts, or an eliminated state | ✅      |
+| Path                            | Page             | Purpose                                                                                                   | Guarded |
+| ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------- | ------- |
+| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                                                                         |         |
+| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here)                                                         |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                                                                                |         |
+| `/signup`                       | `SignUp`         | Account creation                                                                                          |         |
+| `/join`                         | `JoinGame`       | Player self-registration: game ID + name                                                                  |         |
+| `/dashboard`                    | `DashBoard`      | No UI — resolves the GM's existing room or hosts a new one, then redirects                                | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation                                                                      | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                                                                                     | ✅      |
+| `/rooms/:roomID/waiting`        | `PlayerGame`     | Continuous post-join screen: status line (waiting/target/eliminated) plus a live chat feed of GM messages | ✅      |
 
 `NotFound` is the catch-all `*` route (`improvements.md` item 30).
 

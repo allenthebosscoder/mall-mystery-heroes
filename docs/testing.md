@@ -41,16 +41,19 @@ PASS dom src/components/task_components/TaskList.test.jsx
 PASS dom src/components/task_components/TaskCreationModal.test.jsx
 PASS dom src/components/task_components/TaskListModal.test.jsx
 PASS dom src/components/TargetGenerator.test.jsx
+PASS dom src/pages/Lobby.test.jsx
+PASS dom src/components/player_messages_components/MessageFeed.test.jsx
+PASS dom src/components/player_messages_components/MessageComposer.test.jsx
 
-Test Suites: 29 passed, 29 total
-Tests:       249 passed, 249 total
+Test Suites: 32 passed, 32 total
+Tests:       264 passed, 264 total
 ```
 
 `npm run test:emulator` runs four further suites against the real Firestore,
-Auth, and Functions emulators together — `dbCalls.integration.test.js` (27
+Auth, and Functions emulators together — `dbCalls.integration.test.js` (29
 tests), `executeKill.integration.test.js` (7 tests), `joinRoom.integration.test.js`
 (7 tests), and `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js`
-(4 tests), 45 tests total.
+(4 tests), 47 tests total.
 `npm run test:rules` runs `test/firestore.rules.test.js` (45 tests) against
 Firestore alone.
 
@@ -63,7 +66,7 @@ Firestore alone.
 | `functions/scheduledFunctions/selectExpiredRooms.js`                 | `selectExpiredRooms` — pure room-retention selection, given `now` injected rather than read internally (item: player access/room lifecycle)                                                                              | 6     |
 | `src/utils/firebaseEnv.js`                                           | Config reading, emulator flag, production guard                                                                                                                                                                          | 9     |
 | `src/game/photoJudgments.js`                                         | `splitPhotosByStatus` (item 6)                                                                                                                                                                                           | 5     |
-| `dbCalls.integration.test.js`                                        | The data layer against the Firestore emulator                                                                                                                                                                            | 27    |
+| `dbCalls.integration.test.js`                                        | The data layer against the Firestore emulator; includes two new test cases for `fetchPlayerMessagesQueryForRoom`                                                                                                         | 29    |
 | `executeKill.integration.test.js`                                    | The `killPlayer` Cloud Function via `httpsCallable` (item 4): validation, both open-season directions, case-insensitivity, unmapping, remap, host-only auth                                                              | 7     |
 | `joinRoom.integration.test.js`                                       | The `joinRoom` Cloud Function via `httpsCallable` (player access/room lifecycle): self-registration, duplicate name rejection, Lobby-phase gating, argument validation, ended-room rejection                             | 7     |
 | `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js` | The `cleanupEndedRooms` scheduled function via `firebase-functions-test` `wrap()`: room selection decision and actual deletion via the Admin SDK                                                                         | 4     |
@@ -79,6 +82,8 @@ Firestore alone.
 | `RequireAuth.test.jsx`                                               | Route guard spinner/redirect/render states (item 3)                                                                                                                                                                      | 3     |
 | `PhotosDisplay.test.jsx`                                             | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                                                                                     | 5     |
 | `PlayersList.test.jsx`                                               | Presentational rendering, now that it takes `players` as a prop (item 13)                                                                                                                                                | 4     |
+| `MessageFeed.test.jsx`                                               | Player-facing live chat feed: subscription, message filtering, status line updates                                                                                                                                       | 7     |
+| `MessageComposer.test.jsx`                                           | Player-facing message composer: message input, timestamp formatting                                                                                                                                                      | 3     |
 | `GameMasterView.test.jsx`                                            | Live header count and alive-only roster derivation (item 13)                                                                                                                                                             | 3     |
 | `src/game/playerNames.js`                                            | `normalizePlayerName` (item 35)                                                                                                                                                                                          | 4     |
 | `auth.test.jsx`                                                      | Confirm-password show/hide toggle (item 32)                                                                                                                                                                              | 1     |
