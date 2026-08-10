@@ -38,6 +38,19 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
     fetchPlayerReferenceForRoom: jest.fn(),
 }));
+// Stubbed — each has its own thorough test file (MessageFeed.test.jsx,
+// MessageComposer.test.jsx). This file stays focused on PlayerGame's own
+// status-line logic and on wiring MessageFeed's props, not re-testing
+// MessageFeed's internals — same reasoning GameMasterView.test.jsx stubs
+// ChatInput.
+jest.mock('../components/player_messages_components/MessageFeed', () => (props) => (
+    <div>
+        message-feed-stub roomID={props.roomID} playerName={props.playerName}
+    </div>
+));
+jest.mock('../components/player_messages_components/MessageComposer', () => () => (
+    <div>message-composer-stub</div>
+));
 
 const renderWaiting = () =>
     render(
@@ -241,5 +254,20 @@ describe('PlayerGame', () => {
             screen.getByText(/you may be revived if the host assigns you a revival mission/i)
         ).toBeInTheDocument();
         expect(screen.queryByText(/your target/i)).not.toBeInTheDocument();
+    });
+
+    it('mounts the message feed even before the game has started', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.getByText(/message-feed-stub/)).toBeInTheDocument();
+        expect(screen.getByText('message-composer-stub')).toBeInTheDocument();
     });
 });

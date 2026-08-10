@@ -9,6 +9,8 @@ import {
     fetchPlayerReferenceForRoom,
 } from '../components/firebase_calls/dbCalls';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
+import MessageFeed from '../components/player_messages_components/MessageFeed';
+import MessageComposer from '../components/player_messages_components/MessageComposer';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
@@ -86,13 +88,18 @@ const PlayerGame = () => {
     };
 
     return (
-        <Flex height="100vh" alignItems="center" justifyContent="center" direction="column" p={4}>
-            <Heading size="lg" mb={2}>
-                {playerName || 'You'} joined {roomID}
-            </Heading>
-            {!gameStarted && <Text mb={6}>Waiting for the host to start...</Text>}
+        <Flex height="100vh" direction="column" p={4}>
+            <Flex justifyContent="space-between" alignItems="center" mb={2}>
+                <Heading size="md">
+                    {playerName || 'You'} joined {roomID}
+                </Heading>
+                <Button size="sm" colorScheme="red" variant="outline" onClick={handleLeave}>
+                    Leave
+                </Button>
+            </Flex>
+            {!gameStarted && <Text mb={4}>Waiting for the host to start...</Text>}
             {gameStarted && playerData?.isAlive && (
-                <Text mb={6}>
+                <Text mb={4}>
                     {(playerData.targets ?? []).length > 0
                         ? `Your target: ${(playerData.targets ?? []).join(', ')}`
                         : 'Waiting for your target...'}
@@ -103,14 +110,13 @@ const PlayerGame = () => {
                     <Heading size="md" mb={2}>
                         You&apos;ve been eliminated
                     </Heading>
-                    <Text mb={6}>
+                    <Text mb={4}>
                         You may be revived if the host assigns you a revival mission.
                     </Text>
                 </>
             )}
-            <Button colorScheme="red" variant="outline" onClick={handleLeave}>
-                Leave
-            </Button>
+            <MessageFeed roomID={roomID} playerName={playerName} />
+            <MessageComposer />
         </Flex>
     );
 };
