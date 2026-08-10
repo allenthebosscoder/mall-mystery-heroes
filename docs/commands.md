@@ -164,9 +164,10 @@ of its own (docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md).
 
 ### `/whisper <player> <message>`
 
-Sends a private, player-facing message — visible (once a player-facing
-mobile app exists to show it) only to the named player. Writes to
-`rooms/{roomID}/playerMessages`
+Sends a private, player-facing message — visible only to the named player,
+in their in-game chat feed (`MessageFeed`,
+`src/components/player_messages_components/MessageFeed.js`, mounted in
+`PlayerGame.js`). Writes to `rooms/{roomID}/playerMessages`
 (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
 
 | Check                                                    | Failure                           |
@@ -178,8 +179,8 @@ Logs a GM-facing confirmation to chat: `Whisper sent to {name}: "{message}"`.
 
 ### `/broadcast <message>`
 
-Sends a player-facing message visible to every player, once a mobile app
-exists to show it. Same `playerMessages` write as `/whisper`, with
+Sends a player-facing message visible to every player, in their in-game
+chat feed (`MessageFeed`). Same `playerMessages` write as `/whisper`, with
 `recipient: null`.
 
 | Check                | Failure                             |
@@ -191,8 +192,10 @@ Logs: `Broadcast sent: "{message}"`.
 ### `/leaderboard send`
 
 Packages the live roster's current standings (sorted by score descending,
-dead players included) and sends that snapshot as a player-facing message.
-Takes no custom text — the second word must be the literal `send`.
+dead players included) and sends that snapshot as a player-facing message,
+visible to every player as a standings list (not text) in their in-game
+chat feed (`MessageFeed`). Takes no custom text — the second word must be
+the literal `send`.
 
 | Check                                                  | Failure                      |
 | ------------------------------------------------------ | ---------------------------- |

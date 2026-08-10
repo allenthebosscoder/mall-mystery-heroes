@@ -21,10 +21,10 @@ const MessageFeed = ({ roomID, playerName }) => {
             messagesQuery,
             (snapshot) => {
                 const visible = snapshot.docs
-                    .map((messageDoc) => messageDoc.data())
+                    .map((messageDoc) => ({ id: messageDoc.id, ...messageDoc.data() }))
                     .filter(
                         (message) =>
-                            message.recipient === null ||
+                            !message.recipient ||
                             normalizePlayerName(message.recipient) === normalizedName
                     );
                 setMessages(visible);
@@ -52,15 +52,15 @@ const MessageFeed = ({ roomID, playerName }) => {
     return (
         <Box flex="1" overflow="auto" p={2} ref={feedBoxRef} data-testid="message-feed">
             <List styleType="none">
-                {messages.map((message, index) => (
-                    <ListItem key={index} mb={2}>
+                {messages.map((message) => (
+                    <ListItem key={message.id} mb={2}>
                         {message.type === 'leaderboard' ? (
                             <Box bg="gray.700" borderRadius="md" p={2}>
                                 <Text fontWeight="bold" mb={1}>
                                     Leaderboard
                                 </Text>
                                 <List styleType="none">
-                                    {message.standings.map((entry) => (
+                                    {(message.standings ?? []).map((entry) => (
                                         <ListItem key={entry.name}>
                                             {entry.name}: {entry.score}
                                             {!entry.isAlive ? ' (eliminated)' : ''}

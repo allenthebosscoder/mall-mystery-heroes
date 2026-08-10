@@ -267,7 +267,9 @@ describe('PlayerGame', () => {
 
         renderWaiting();
 
-        expect(screen.getByText(/message-feed-stub/)).toBeInTheDocument();
+        expect(
+            screen.getByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
+        ).toBeInTheDocument();
         expect(screen.getByText('message-composer-stub')).toBeInTheDocument();
     });
 });

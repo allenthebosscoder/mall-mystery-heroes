@@ -46,8 +46,7 @@ unknowns when changing the `photos` schema or the room document shape:
   `firestore.rules` scopes both collections to the host rather than to a
   distinct mobile-app identity, for the same reason (item 2). Until this
   app exists, kill-proof photos have no way to enter Firestore except
-  manual/emulator seeding, and player messages have no way to leave it
-  except manual/emulator inspection.
+  manual/emulator seeding.
 - **Something Discord-related — no longer present.** `.env` used to carry a
   `DISCORD_TOKEN` that no code in this repository ever read. It was
   previously guessed to be the real integration point for `/broadcast`,

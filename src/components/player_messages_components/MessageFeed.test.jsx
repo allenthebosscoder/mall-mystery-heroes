@@ -26,7 +26,8 @@ jest.mock('../firebase_calls/dbCalls', () => ({
     fetchPlayerMessagesQueryForRoom: jest.fn(() => 'messages-query'),
 }));
 
-const asMessageDocs = (messages) => messages.map((message) => ({ data: () => message }));
+const asMessageDocs = (messages) =>
+    messages.map((message, index) => ({ id: `message-${index}`, data: () => message }));
 
 const mountFeed = (playerName = 'Alice') =>
     render(
