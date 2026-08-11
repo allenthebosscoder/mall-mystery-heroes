@@ -313,21 +313,39 @@ describe('game events are broadcast to players, not just logged to the GM consol
         );
     });
 
-    it('broadcasts a new mission being added', async () => {
+    it('broadcasts a new mission being added as a structured mission message', async () => {
         mockPlayersSnapshot([]);
 
         mountGameMasterView();
 
         await act(async () => {
-            await capturedExecutionContext.handleNewTaskAdded({ title: 'Find the clue' });
+            await capturedExecutionContext.handleNewTaskAdded({
+                title: 'Find the clue',
+                description: 'Look under the food court table',
+                taskType: 'Task',
+                pointValue: '10',
+                maxCompletions: null,
+            });
         });
 
+        expect(addLogForRoom).toHaveBeenCalledWith(
+            'Added new task: Find the clue',
+            'yellow.400',
+            'room-a'
+        );
         expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
             {
-                type: 'broadcast',
+                type: 'mission',
                 recipient: null,
-                text: 'Added new task: Find the clue',
+                text: null,
                 standings: null,
+                mission: {
+                    title: 'Find the clue',
+                    description: 'Look under the food court table',
+                    taskType: 'Task',
+                    pointValue: '10',
+                    maxCompletions: null,
+                },
             },
             'room-a'
         );

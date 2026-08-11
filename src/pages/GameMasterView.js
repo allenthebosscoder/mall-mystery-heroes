@@ -120,6 +120,20 @@ const GameMasterView = () => {
         }
     };
 
+    // Sibling to broadcast(text) above, same error-isolation reasoning — this
+    // one carries structured mission data instead of free text (see the
+    // 'mission' render branch in MessageFeed.js).
+    const broadcastMission = async (mission) => {
+        try {
+            await addPlayerMessageForRoom(
+                { type: 'mission', recipient: null, text: null, standings: null, mission },
+                roomID
+            );
+        } catch (error) {
+            console.error('Error broadcasting to players: ', error);
+        }
+    };
+
     // The players subscription above picks up the kill once executeKill's
     // write lands — no local array mutation needed.
     const handleKillPlayer = async (killedPlayerName, assassinName, openSznstatus) => {
@@ -158,7 +172,13 @@ const GameMasterView = () => {
     const handleNewTaskAdded = async (newTask) => {
         setShowTaskCreationModal(false);
         await addLog('Added new task: ' + newTask.title, 'yellow.400');
-        await broadcast('Added new task: ' + newTask.title);
+        await broadcastMission({
+            title: newTask.title,
+            description: newTask.description,
+            taskType: newTask.taskType,
+            pointValue: newTask.pointValue,
+            maxCompletions: newTask.maxCompletions,
+        });
     };
 
     const handleShowMissionCreation = () => {
