@@ -185,6 +185,15 @@ const GameMasterView = () => {
     const handleNewTaskAdded = async (newTask) => {
         setShowTaskCreationModal(false);
         await addLog('Added new task: ' + newTask.title, 'yellow.400');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Added new task: ' + newTask.title,
+                standings: null,
+            },
+            roomID
+        );
     };
 
     const handleShowMissionCreation = () => {
@@ -199,6 +208,15 @@ const GameMasterView = () => {
     const handleTaskCompleted = async (task) => {
         setCompletedTasks((completedTasks) => [...completedTasks, task]);
         await addLog('Completed task: ' + task, 'green.400');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Completed task: ' + task,
+                standings: null,
+            },
+            roomID
+        );
     };
 
     //updates logList with remapped targets
@@ -226,6 +244,7 @@ const GameMasterView = () => {
         handleRemapping,
         handlePlayerRevive,
         handleTaskCompleted,
+        handleNewTaskAdded,
         handleSetShowMessageToTrue,
         handleShowMissionCreation,
         handleShowMissionList,

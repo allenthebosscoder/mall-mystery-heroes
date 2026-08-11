@@ -310,6 +310,46 @@ describe('game events are broadcast to players, not just logged to the GM consol
             'room-a'
         );
     });
+
+    it('broadcasts a new mission being added', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        await act(async () => {
+            await capturedExecutionContext.handleNewTaskAdded({ title: 'Find the clue' });
+        });
+
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Added new task: Find the clue',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
+
+    it('broadcasts a mission being manually ended', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        await act(async () => {
+            await capturedExecutionContext.handleTaskCompleted('Find the clue');
+        });
+
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Completed task: Find the clue',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
 });
 
 describe('the logs panel auto-scrolls to the newest entry', () => {
