@@ -70,16 +70,13 @@ const MessageFeed = ({ roomID, playerName }) => {
                             </Box>
                         ) : (
                             <Text
-                                bg={message.type === 'whisper' ? 'purple.700' : 'gray.700'}
+                                bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
+                                border={message.type === 'whisper' ? '1px dashed' : undefined}
+                                borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
                                 borderRadius="md"
                                 p={2}
                                 display="inline-block"
                             >
-                                {message.type === 'whisper' && (
-                                    <Text as="span" mr={1} aria-hidden="true">
-                                        🔒
-                                    </Text>
-                                )}
                                 <Text as="span">{message.text}</Text>
                             </Text>
                         )}

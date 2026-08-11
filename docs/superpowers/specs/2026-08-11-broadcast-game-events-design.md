@@ -26,7 +26,7 @@ never see. Players should see these events too, in the same chat feed.
   message type.
 - **Out of scope: sender attribution.** The user explicitly flagged that
   the chat feed's underlying infrastructure will eventually need to know
-  *who* sent a message (most things come from the GM/moderator, but future
+  _who_ sent a message (most things come from the GM/moderator, but future
   player-to-player messaging will need real sender names). That's scope
   for the next full chat-feature design round, not this pass — every
   message this feature writes is a `'broadcast'` exactly like `/broadcast`
