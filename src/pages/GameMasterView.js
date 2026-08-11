@@ -136,10 +136,28 @@ const GameMasterView = () => {
 
     const handleOpenSznstarted = async (openSznplayer) => {
         await addLog(openSznplayer + ' has open season on them', 'lightblue');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: openSznplayer + ' has open season on them',
+                standings: null,
+            },
+            roomID
+        );
     };
 
     const handleOpenSznended = async (openSznplayer) => {
         await addLog('open season has ended for ' + openSznplayer, 'pink.400');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'open season has ended for ' + openSznplayer,
+                standings: null,
+            },
+            roomID
+        );
     };
 
     // The players subscription above picks up the revive once
