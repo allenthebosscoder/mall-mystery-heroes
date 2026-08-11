@@ -266,7 +266,7 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
     });
 
-    it('logs the completion to chat using the player\'s actual stored casing, not "bob"', async () => {
+    it('logs the completion to chat and broadcasts it to players, using the player\'s actual stored casing, not "bob"', async () => {
         dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask });
 
         const commandInput = mountChatInput();

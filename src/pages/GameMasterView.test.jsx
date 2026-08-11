@@ -107,6 +107,7 @@ const mockPlayersSnapshot = (players) => {
 
 beforeEach(() => {
     jest.clearAllMocks();
+    capturedExecutionContext = undefined;
 });
 
 describe('the player roster is a live subscription, not stale state (improvements item 13)', () => {
@@ -254,6 +255,7 @@ describe('game events are broadcast to players, not just logged to the GM consol
             },
             'room-a'
         );
+        expect(addPlayerMessageForRoom).toHaveBeenCalledTimes(2);
     });
 
     it('broadcasts open season starting', async () => {

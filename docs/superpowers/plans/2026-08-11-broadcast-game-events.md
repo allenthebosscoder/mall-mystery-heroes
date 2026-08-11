@@ -22,10 +22,12 @@
 ## Task 1: Test infrastructure — expose `executionContext` in `GameMasterView.test.jsx`, then `handleKillPlayer`
 
 **Files:**
+
 - Modify: `src/pages/GameMasterView.js`
 - Modify: `src/pages/GameMasterView.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `addPlayerMessageForRoom` (already exists in `dbCalls.js`, exported for `ChatInput.js`'s `/whisper`/`/broadcast`/`/leaderboard`).
 - Produces: a `capturedExecutionContext` test hook in `GameMasterView.test.jsx` (module-scope variable, populated by the `ChatInput` mock on every render), reused by Tasks 2-5 to invoke `handleOpenSznstarted`/`handleOpenSznended`/`handlePlayerRevive`/`handleNewTaskAdded`/`handleTaskCompleted` directly. Also produces the pattern (one `addPlayerMessageForRoom` call per `addLog` call) Tasks 2-5 repeat.
 
@@ -79,7 +81,12 @@ describe('game events are broadcast to players, not just logged to the GM consol
 
         expect(addLogForRoom).toHaveBeenCalledWith('Alice was killed by Bob', 'red.400', 'room-a');
         expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
-            { type: 'broadcast', recipient: null, text: 'Alice was killed by Bob', standings: null },
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Alice was killed by Bob',
+                standings: null,
+            },
             'room-a'
         );
     });
@@ -103,7 +110,12 @@ describe('game events are broadcast to players, not just logged to the GM consol
             'room-a'
         );
         expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
-            { type: 'broadcast', recipient: null, text: 'Alice was killed by Bob', standings: null },
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Alice was killed by Bob',
+                standings: null,
+            },
             'room-a'
         );
     });
@@ -177,10 +189,12 @@ git commit -m "Broadcast kills to players' chat feed"
 ## Task 2: Broadcast open season start/end
 
 **Files:**
+
 - Modify: `src/pages/GameMasterView.js`
 - Modify: `src/pages/GameMasterView.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `capturedExecutionContext`, `addLogForRoom`/`addPlayerMessageForRoom` mocks (Task 1).
 - Produces: nothing new consumed elsewhere.
 
@@ -199,7 +213,12 @@ it('broadcasts open season starting', async () => {
     });
 
     expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
-        { type: 'broadcast', recipient: null, text: 'Alice has open season on them', standings: null },
+        {
+            type: 'broadcast',
+            recipient: null,
+            text: 'Alice has open season on them',
+            standings: null,
+        },
         'room-a'
     );
 });
@@ -214,7 +233,12 @@ it('broadcasts open season ending', async () => {
     });
 
     expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
-        { type: 'broadcast', recipient: null, text: 'open season has ended for Alice', standings: null },
+        {
+            type: 'broadcast',
+            recipient: null,
+            text: 'open season has ended for Alice',
+            standings: null,
+        },
         'room-a'
     );
 });
@@ -274,10 +298,12 @@ git commit -m "Broadcast open season start/end to players' chat feed"
 ## Task 3: Broadcast a revive
 
 **Files:**
+
 - Modify: `src/pages/GameMasterView.js`
 - Modify: `src/pages/GameMasterView.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `capturedExecutionContext`, `addLogForRoom`/`addPlayerMessageForRoom` mocks, `updateIsAliveForPlayer` mock (all Task 1/pre-existing).
 - Produces: nothing new consumed elsewhere.
 
@@ -316,7 +342,12 @@ const handlePlayerRevive = async (revivedPlayerName) => {
     await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
     await addLog(revivedPlayerName + ' was revived', 'blue.300');
     await addPlayerMessageForRoom(
-        { type: 'broadcast', recipient: null, text: revivedPlayerName + ' was revived', standings: null },
+        {
+            type: 'broadcast',
+            recipient: null,
+            text: revivedPlayerName + ' was revived',
+            standings: null,
+        },
         roomID
     );
 };
@@ -339,10 +370,12 @@ git commit -m "Broadcast revives to players' chat feed"
 ## Task 4: Broadcast a mission being added and a mission being manually ended
 
 **Files:**
+
 - Modify: `src/pages/GameMasterView.js`
 - Modify: `src/pages/GameMasterView.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `capturedExecutionContext`, `addLogForRoom`/`addPlayerMessageForRoom` mocks (Task 1).
 - Produces: nothing new consumed elsewhere.
 
@@ -406,7 +439,12 @@ const handleNewTaskAdded = async (newTask) => {
     setShowTaskCreationModal(false);
     await addLog('Added new task: ' + newTask.title, 'yellow.400');
     await addPlayerMessageForRoom(
-        { type: 'broadcast', recipient: null, text: 'Added new task: ' + newTask.title, standings: null },
+        {
+            type: 'broadcast',
+            recipient: null,
+            text: 'Added new task: ' + newTask.title,
+            standings: null,
+        },
         roomID
     );
 };
@@ -440,10 +478,12 @@ git commit -m "Broadcast mission creation and manual mission end to players' cha
 ## Task 5: Broadcast a mission completion and completion-cap auto-end
 
 **Files:**
+
 - Modify: `src/components/logs_components/ChatInput.js`
 - Modify: `src/components/logs_components/ChatInput.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `addPlayerMessageForRoom` (already imported in `ChatInput.js`).
 - Produces: nothing new consumed elsewhere. This is the plan's final task.
 
@@ -605,10 +645,12 @@ git commit -m "Broadcast mission completion and completion-cap auto-end to playe
 ## Task 6: Docs and final gate
 
 **Files:**
+
 - Modify: `docs/testing.md`
 - Modify: `docs/commands.md` (only if it describes `/mission done`, kill, revive, or open season in terms that would go stale — verify first)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — documentation only.
 

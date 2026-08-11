@@ -106,58 +106,39 @@ const GameMasterView = () => {
         }
     };
 
+    // Mirrors addLog's error isolation (docs/improvements.md item 10) — a
+    // failed player-facing broadcast shouldn't block or appear to fail the
+    // primary action that triggered it, same reasoning as addLog itself.
+    const broadcast = async (text) => {
+        try {
+            await addPlayerMessageForRoom(
+                { type: 'broadcast', recipient: null, text, standings: null },
+                roomID
+            );
+        } catch (error) {
+            console.error('Error broadcasting to players: ', error);
+        }
+    };
+
     // The players subscription above picks up the kill once executeKill's
     // write lands — no local array mutation needed.
     const handleKillPlayer = async (killedPlayerName, assassinName, openSznstatus) => {
         if (openSznstatus === true) {
-            handleOpenSznended(killedPlayerName);
+            await handleOpenSznended(killedPlayerName);
             await addLog('open season has ended for ' + killedPlayerName, 'pink.400');
-            await addPlayerMessageForRoom(
-                {
-                    type: 'broadcast',
-                    recipient: null,
-                    text: 'open season has ended for ' + killedPlayerName,
-                    standings: null,
-                },
-                roomID
-            );
         }
         await addLog(killedPlayerName + ' was killed by ' + assassinName, 'red.400');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: killedPlayerName + ' was killed by ' + assassinName,
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast(killedPlayerName + ' was killed by ' + assassinName);
     };
 
     const handleOpenSznstarted = async (openSznplayer) => {
         await addLog(openSznplayer + ' has open season on them', 'lightblue');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: openSznplayer + ' has open season on them',
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast(openSznplayer + ' has open season on them');
     };
 
     const handleOpenSznended = async (openSznplayer) => {
         await addLog('open season has ended for ' + openSznplayer, 'pink.400');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: 'open season has ended for ' + openSznplayer,
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast('open season has ended for ' + openSznplayer);
     };
 
     // The players subscription above picks up the revive once
@@ -165,15 +146,7 @@ const GameMasterView = () => {
     const handlePlayerRevive = async (revivedPlayerName) => {
         await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
         await addLog(revivedPlayerName + ' was revived', 'blue.300');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: revivedPlayerName + ' was revived',
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast(revivedPlayerName + ' was revived');
     };
 
     // TaskList (docs/improvements.md item 15) owns its own live subscription
@@ -185,15 +158,7 @@ const GameMasterView = () => {
     const handleNewTaskAdded = async (newTask) => {
         setShowTaskCreationModal(false);
         await addLog('Added new task: ' + newTask.title, 'yellow.400');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: 'Added new task: ' + newTask.title,
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast('Added new task: ' + newTask.title);
     };
 
     const handleShowMissionCreation = () => {
@@ -208,15 +173,7 @@ const GameMasterView = () => {
     const handleTaskCompleted = async (task) => {
         setCompletedTasks((completedTasks) => [...completedTasks, task]);
         await addLog('Completed task: ' + task, 'green.400');
-        await addPlayerMessageForRoom(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: 'Completed task: ' + task,
-                standings: null,
-            },
-            roomID
-        );
+        await broadcast('Completed task: ' + task);
     };
 
     //updates logList with remapped targets

@@ -224,7 +224,10 @@ Player-facing messages from `/whisper`, `/broadcast`, and `/leaderboard`
 codebase — the mirror case of `photos` above, which is designed to be
 _written_ by that same not-yet-existing app. `MessageFeed.js` now reads
 `playerMessages` via `fetchPlayerMessagesQueryForRoom`, filtering to broadcasts/leaderboard sends
-and whispers addressed to the subscribing player.
+and whispers addressed to the subscribing player. `'broadcast'` writes also
+now come from game-event handlers in `GameMasterView.js` and
+`ChatInput.js` (kills, revives, open season, missions), not just the
+explicit `/broadcast` command.
 
 | Field       | Type                                        | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
