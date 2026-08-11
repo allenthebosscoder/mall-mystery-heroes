@@ -68,6 +68,21 @@ const MessageFeed = ({ roomID, playerName }) => {
                                     ))}
                                 </List>
                             </Box>
+                        ) : message.type === 'mission' ? (
+                            <Box bg="gray.700" borderRadius="md" p={2}>
+                                <Text fontWeight="bold" mb={1}>
+                                    New Mission!
+                                </Text>
+                                <Text fontWeight="semibold">{message.mission.title}</Text>
+                                <Text mb={1}>{message.mission.description}</Text>
+                                <Text fontSize="sm" color="gray.400">
+                                    {message.mission.taskType} · {message.mission.pointValue} points
+                                    ·{' '}
+                                    {message.mission.maxCompletions
+                                        ? `Limited to ${message.mission.maxCompletions} players`
+                                        : 'Unlimited players'}
+                                </Text>
+                            </Box>
                         ) : (
                             <Text
                                 bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}

@@ -178,4 +178,63 @@ describe('MessageFeed', () => {
 
         expect(feedBox.scrollTop).toBe(500);
     });
+
+    it('renders a mission message as a "New Mission!" card with unlimited participants', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'mission',
+                        recipient: null,
+                        text: null,
+                        standings: null,
+                        mission: {
+                            title: 'Find the clue',
+                            description: 'Look under the food court table',
+                            taskType: 'Task',
+                            pointValue: '10',
+                            maxCompletions: null,
+                        },
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText('New Mission!')).toBeInTheDocument();
+        expect(screen.getByText('Find the clue')).toBeInTheDocument();
+        expect(screen.getByText('Look under the food court table')).toBeInTheDocument();
+        expect(screen.getByText('Task · 10 points · Unlimited players')).toBeInTheDocument();
+    });
+
+    it('renders a mission message with a participant limit', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'mission',
+                        recipient: null,
+                        text: null,
+                        standings: null,
+                        mission: {
+                            title: 'Revive a fallen hero',
+                            description: 'Say the secret phrase',
+                            taskType: 'Revival Mission',
+                            pointValue: 0,
+                            maxCompletions: 3,
+                        },
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(
+            screen.getByText('Revival Mission · 0 points · Limited to 3 players')
+        ).toBeInTheDocument();
+    });
 });
