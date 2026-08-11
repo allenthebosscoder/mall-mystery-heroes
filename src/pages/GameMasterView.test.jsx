@@ -19,6 +19,7 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
 import GameMasterView from './GameMasterView';
+import { addLogForRoom, addPlayerMessageForRoom } from '../components/firebase_calls/dbCalls';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -41,6 +42,7 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchLogsQueryByAscendingTimestampForRoom: jest.fn(() => 'logs-query'),
     fetchRoomReferenceForRoom: jest.fn(() => 'room-ref'),
     addLogForRoom: jest.fn(),
+    addPlayerMessageForRoom: jest.fn(),
     updateIsAliveForPlayer: jest.fn(),
     endGame: jest.fn(),
 }));
@@ -49,11 +51,13 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
 // isGameActive actually reaches ChatInput via context (see the "isGameActive"
 // describe block below), since that's the entire point of the wiring this
 // file is testing, not just that GameMasterView renders without crashing.
+let capturedExecutionContext;
 jest.mock('../components/logs_components/ChatInput', () => {
     const { useContext } = require('react');
-    const { gameContext } = require('../components/Contexts');
+    const { gameContext, executionContext } = require('../components/Contexts');
     return () => {
         const { isGameActive } = useContext(gameContext);
+        capturedExecutionContext = useContext(executionContext);
         return <div>chat-input-stub isGameActive={String(isGameActive)}</div>;
     };
 });
@@ -198,6 +202,58 @@ describe("isGameActive is read, not just written (docs/improvements.md item 15's
         mountGameMasterView();
 
         expect(await screen.findByText(/isGameActive=false/)).toBeInTheDocument();
+    });
+});
+
+describe('game events are broadcast to players, not just logged to the GM console', () => {
+    it('broadcasts a kill to players with the same text as the GM log', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        await act(async () => {
+            await capturedExecutionContext.handleKillPlayer('Alice', 'Bob', false);
+        });
+
+        expect(addLogForRoom).toHaveBeenCalledWith('Alice was killed by Bob', 'red.400', 'room-a');
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Alice was killed by Bob',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
+
+    it('broadcasts both the open-season-ended and the kill when a kill happens during open season', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        await act(async () => {
+            await capturedExecutionContext.handleKillPlayer('Alice', 'Bob', true);
+        });
+
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'open season has ended for Alice',
+                standings: null,
+            },
+            'room-a'
+        );
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Alice was killed by Bob',
+                standings: null,
+            },
+            'room-a'
+        );
     });
 });
 

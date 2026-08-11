@@ -14,6 +14,7 @@ import {
     fetchLogsQueryByAscendingTimestampForRoom,
     fetchRoomReferenceForRoom,
     addLogForRoom,
+    addPlayerMessageForRoom,
     updateIsAliveForPlayer,
 } from '../components/firebase_calls/dbCalls';
 import RemapPlayerModal from '../components/RemapPlayerModal';
@@ -111,8 +112,26 @@ const GameMasterView = () => {
         if (openSznstatus === true) {
             handleOpenSznended(killedPlayerName);
             await addLog('open season has ended for ' + killedPlayerName, 'pink.400');
+            await addPlayerMessageForRoom(
+                {
+                    type: 'broadcast',
+                    recipient: null,
+                    text: 'open season has ended for ' + killedPlayerName,
+                    standings: null,
+                },
+                roomID
+            );
         }
         await addLog(killedPlayerName + ' was killed by ' + assassinName, 'red.400');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: killedPlayerName + ' was killed by ' + assassinName,
+                standings: null,
+            },
+            roomID
+        );
     };
 
     const handleOpenSznstarted = async (openSznplayer) => {
