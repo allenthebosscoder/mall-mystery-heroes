@@ -126,10 +126,10 @@ Effect depends on `taskType`:
 dead` otherwise), revives them, and remaps them into the graph.
 
 Either way: the player is appended to `completedBy`, the completion is
-logged to chat (`{player} completed mission: {title}`), and — if the
+logged to chat and broadcast to players' chat feed (`{player} completed mission: {title}`), and — if the
 mission has a `maxCompletions` cap (improvements item 41) and this
 completion reaches it — the mission auto-ends the same way `/mission end`
-does, with its own chat announcement
+does, with its own chat announcement also broadcast to players
 (`Mission "{title}" auto-ended — reached its {N}-completion cap`).
 
 Note the index validation only rejects the literal value `-1`; any other
