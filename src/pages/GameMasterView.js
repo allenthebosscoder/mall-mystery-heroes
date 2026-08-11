@@ -165,6 +165,15 @@ const GameMasterView = () => {
     const handlePlayerRevive = async (revivedPlayerName) => {
         await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
         await addLog(revivedPlayerName + ' was revived', 'blue.300');
+        await addPlayerMessageForRoom(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: revivedPlayerName + ' was revived',
+                standings: null,
+            },
+            roomID
+        );
     };
 
     // TaskList (docs/improvements.md item 15) owns its own live subscription

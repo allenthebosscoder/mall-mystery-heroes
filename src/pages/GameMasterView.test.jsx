@@ -295,6 +295,21 @@ describe('game events are broadcast to players, not just logged to the GM consol
             'room-a'
         );
     });
+
+    it('broadcasts a revive', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        await act(async () => {
+            await capturedExecutionContext.handlePlayerRevive('Alice');
+        });
+
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            { type: 'broadcast', recipient: null, text: 'Alice was revived', standings: null },
+            'room-a'
+        );
+    });
 });
 
 describe('the logs panel auto-scrolls to the newest entry', () => {
