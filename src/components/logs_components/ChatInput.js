@@ -236,6 +236,15 @@ const handleCommandExecution = async (
                                     `${resolvePlayerDisplayName(playerName, players)} completed mission: ${task.title}`,
                                     'green.400'
                                 );
+                                await addPlayerMessageForRoom(
+                                    {
+                                        type: 'broadcast',
+                                        recipient: null,
+                                        text: `${resolvePlayerDisplayName(playerName, players)} completed mission: ${task.title}`,
+                                        standings: null,
+                                    },
+                                    roomID
+                                );
 
                                 // Optional per-mission completion cap — unset
                                 // or 0 means unlimited, matching every
@@ -249,6 +258,15 @@ const handleCommandExecution = async (
                                     await addLog(
                                         `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
                                         'purple.400'
+                                    );
+                                    await addPlayerMessageForRoom(
+                                        {
+                                            type: 'broadcast',
+                                            recipient: null,
+                                            text: `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
+                                            standings: null,
+                                        },
+                                        roomID
                                     );
                                 }
                             } else {

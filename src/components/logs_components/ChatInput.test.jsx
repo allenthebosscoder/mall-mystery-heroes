@@ -278,6 +278,15 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
                 'green.400'
             )
         );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Bob completed mission: Find the clue',
+                standings: null,
+            },
+            'room-a'
+        );
     });
 
     it('auto-ends the mission and announces it once the completion cap is reached', async () => {
@@ -292,6 +301,15 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         expect(executionHandlers.addLog).toHaveBeenCalledWith(
             'Mission "Find the clue" auto-ended — reached its 1-completion cap',
             'purple.400'
+        );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Mission "Find the clue" auto-ended — reached its 1-completion cap',
+                standings: null,
+            },
+            'room-a'
         );
     });
 
