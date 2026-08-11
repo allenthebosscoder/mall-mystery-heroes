@@ -34,7 +34,8 @@ never see. Players should see these events too, in the same chat feed.
 
 ## Architecture
 
-At each of the following 8 existing `addLog(...)` call sites, add a
+At each of the following 9 existing `addLog(...)` call sites (`handleKillPlayer`
+contributes 2 of them), add a
 parallel `addPlayerMessageForRoom(...)` call with the same text:
 
 ```js
@@ -71,7 +72,7 @@ schema — this only adds more writers of the existing `'broadcast'` shape.
 
 ## Testing
 
-Each of the 8 call sites gets one new assertion (in whichever test file
+Each of the 9 call sites gets one new assertion (in whichever test file
 already covers that handler/command — `GameMasterView.test.jsx` for the
 GameMasterView.js handlers, `ChatInput.test.jsx` for the two ChatInput.js
 sites) confirming `addPlayerMessageForRoom` was called with
@@ -80,7 +81,7 @@ alongside the existing assertion on `addLog`. No new test files.
 
 ## Scope
 
-**In scope:** the 8 call sites above, broadcasting existing GM log text as
+**In scope:** the 9 call sites above, broadcasting existing GM log text as
 player-facing `'broadcast'` messages.
 
 **Explicitly out of scope:**
