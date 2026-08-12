@@ -9,6 +9,7 @@ import {
     updateDoc,
     addDoc,
     orderBy,
+    limitToLast,
     deleteDoc,
     arrayUnion,
     runTransaction,
@@ -87,16 +88,35 @@ export const addPlayerMessageForRoom = async (message, roomID) => {
 };
 
 // A query of a room's playerMessages in write order, for onSnapshot — lets
-// MessageFeed (src/components/player_messages_components/MessageFeed.js)
-// watch incoming /whisper, /broadcast, /leaderboard, and mission-card
-// messages live. Most of these are written from ChatInput.js, but
-// GameMasterView.js's game-event handlers (kills, revives, open season,
-// and mission creation) write broadcast and mission-card messages here
-// too.
-// Mirrors fetchLogsQueryByAscendingTimestampForRoom's exact shape.
+// MessageFeed and GMChatPanel watch incoming messages live. Bounded to the
+// newest 50 with limitToLast (not limit, which would return the OLDEST 50
+// instead) — without this, every subscriber re-fetches and re-renders the
+// entire message history on every single new message, which gets
+// significantly worse once players are chatting live instead of
+// occasionally receiving a GM broadcast
+// (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
 export const fetchPlayerMessagesQueryForRoom = (roomID) => {
     const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
-    return query(messagesRef, orderBy('timestamp', 'asc'));
+    return query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(50));
+};
+
+// Player-authored group chat — a distinct, purpose-named write from
+// addPlayerMessageForRoom (which the GM's own commands use), matching
+// this file's convention of one function per logical write. sender is the
+// writing player's display name, client-trusted like every other
+// player-provided name in this file
+// (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
+export const addChatMessageForRoom = async (text, sender, roomID) => {
+    const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
+    await addDoc(messagesRef, {
+        type: 'chat',
+        recipient: null,
+        text,
+        standings: null,
+        mission: null,
+        sender,
+        timestamp: serverTimestamp(),
+    });
 };
 
 //fetches all tasks by completion from database

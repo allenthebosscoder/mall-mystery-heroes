@@ -7,6 +7,7 @@
  * docs/data-model.md, which is otherwise reconstructed from call sites.
  */
 import {
+    addChatMessageForRoom,
     addLogForRoom,
     addPlayerForRoom,
     addPlayerMessageForRoom,
@@ -305,6 +306,40 @@ describe('addPlayerMessageForRoom and fetchPlayerMessagesQueryForRoom', () => {
             standings: null,
             timestamp: expect.anything(),
         });
+    });
+});
+
+describe('addChatMessageForRoom and the limitToLast(50) bound', () => {
+    it('writes a chat message with the correct shape', async () => {
+        await seedRoom(ROOM, []);
+
+        await addChatMessageForRoom('hey where are you', 'Alice', ROOM);
+
+        const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+        expect(snapshot.docs).toHaveLength(1);
+        expect(snapshot.docs[0].data()).toEqual({
+            type: 'chat',
+            recipient: null,
+            text: 'hey where are you',
+            standings: null,
+            mission: null,
+            sender: 'Alice',
+            timestamp: expect.anything(),
+        });
+    });
+
+    it('bounds fetchPlayerMessagesQueryForRoom to the newest 50 messages when more than 50 exist', async () => {
+        await seedRoom(ROOM, []);
+
+        for (let i = 0; i < 51; i++) {
+            await addChatMessageForRoom(`msg-${i}`, 'Alice', ROOM);
+        }
+
+        const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+        expect(snapshot.docs).toHaveLength(50);
+        const texts = snapshot.docs.map((docSnapshot) => docSnapshot.data().text);
+        expect(texts).not.toContain('msg-0');
+        expect(texts[texts.length - 1]).toBe('msg-50');
     });
 });
 
