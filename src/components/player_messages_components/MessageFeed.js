@@ -145,7 +145,13 @@ const MessageFeed = ({ roomID, playerName }) => {
                                 >
                                     <Text as="span">{message.text}</Text>
                                     {time && (
-                                        <Text as="span" fontSize="xs" color="gray.400" ml={2}>
+                                        <Text
+                                            as="span"
+                                            fontSize="xs"
+                                            color="gray.400"
+                                            ml={2}
+                                            // Inline, not block like the other branches' timestamp lines — this branch's outer element is a <Text> (renders <p>), and a block <Text> here would nest <p> in <p>.
+                                        >
                                             {time}
                                         </Text>
                                     )}

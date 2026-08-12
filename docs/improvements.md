@@ -1525,6 +1525,23 @@ fix is one of:
   since Firestore requires an index for any query that filters on one field
   and orders by another.
 
+### 45. GM's `GMChatPanel.js` has no timestamps while player-facing `MessageFeed.js` now does
+
+**Impact: low · Effort: S**
+
+The player-facing `MessageFeed.js` gained chat message timestamps in the
+2026-08-12 chat-message-bubbles feature. The GM's own `GMChatPanel.js`
+still renders player chat with no timestamp information at all — an
+asymmetry that's now visible. The spec for the MessageFeed feature
+explicitly left this out of scope (`"Whether it should also gain
+timestamps is left for a future round if wanted"`), but it's worth
+tracking rather than leaving to be rediscovered by accident.
+
+The fix, if wanted, is trivial — `formatMessageTime` (from
+`src/utils/formatMessageTime.js`) is already built and dependency-free;
+reusing it in `GMChatPanel.js` (alongside the already-imported `messageTime`
+field) follows the exact same pattern `MessageFeed.js` uses now.
+
 ---
 
 ## Suggested sequencing

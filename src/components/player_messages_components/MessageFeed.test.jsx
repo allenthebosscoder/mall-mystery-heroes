@@ -355,6 +355,7 @@ describe('MessageFeed', () => {
         mountFeed();
 
         expect(screen.getByText('sending this now')).toBeInTheDocument();
+        expect(screen.queryByText(/^\d{1,2}:\d{2}/)).not.toBeInTheDocument();
     });
 
     it('shows a formatted time on a leaderboard message', () => {
