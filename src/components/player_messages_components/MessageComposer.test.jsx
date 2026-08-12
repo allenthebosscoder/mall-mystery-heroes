@@ -70,10 +70,7 @@ describe('MessageComposer', () => {
     it('sends the typed message when Send is clicked', async () => {
         mountComposer();
 
-        await userEvent.type(
-            screen.getByPlaceholderText('Type a message...'),
-            'hey where are you'
-        );
+        await userEvent.type(screen.getByPlaceholderText('Type a message...'), 'hey where are you');
         await userEvent.click(screen.getByRole('button', { name: 'Send' }));
 
         await waitFor(() =>

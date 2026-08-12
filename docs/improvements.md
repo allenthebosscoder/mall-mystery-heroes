@@ -1496,7 +1496,7 @@ for whenever `maxCompletions` next gets touched.
 
 Surfaced during final-review of the chat-send-and-efficiency feature
 (`docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md`).
-`fetchPlayerMessagesQueryForRoom` (`dbCalls.js`) bounds the *entire*
+`fetchPlayerMessagesQueryForRoom` (`dbCalls.js`) bounds the _entire_
 `playerMessages` collection — every `type`: `whisper`, `broadcast`,
 `leaderboard`, `mission`, and now `chat` — to the newest 50 documents via
 `limitToLast(50)`. Both `MessageFeed.js` (players) and `GMChatPanel.js`
