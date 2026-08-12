@@ -52,8 +52,8 @@ are chatting live instead of occasionally receiving a GM broadcast.
 One new field, alongside the existing `type`/`recipient`/`text`/
 `standings`/`mission`/`timestamp`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field    | Type             | Notes                                                                                                                                                                           |
+| -------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sender` | `string \| null` | The display name of the player who sent a `'chat'` message. `null`/absent for every other `type` (whisper/broadcast/leaderboard/mission are all GM-authored; no sender needed). |
 
 A `'chat'` message: `{ type: 'chat', recipient: null, text: <message>, standings: null, mission: null, sender: <playerName> }`.
@@ -144,7 +144,7 @@ sibling to `MessageFeed.js` — same live-subscription pattern
 (`fetchPlayerMessagesQueryForRoom`, now with the `limitToLast(50)` bound),
 filtered client-side to `message.type === 'chat'` only (the GM doesn't
 need whisper/broadcast/leaderboard/mission echoed back to them — those
-are things *they* sent). Renders `sender: text` per message, auto-scrolling
+are things _they_ sent). Renders `sender: text` per message, auto-scrolling
 to the newest, reusing the same ref/effect pattern already established in
 `MessageFeed.js` and the GM's own log panel.
 
