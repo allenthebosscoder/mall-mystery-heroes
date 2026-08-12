@@ -48,8 +48,10 @@ jest.mock('../components/player_messages_components/MessageFeed', () => (props) 
         message-feed-stub roomID={props.roomID} playerName={props.playerName}
     </div>
 ));
-jest.mock('../components/player_messages_components/MessageComposer', () => () => (
-    <div>message-composer-stub</div>
+jest.mock('../components/player_messages_components/MessageComposer', () => (props) => (
+    <div>
+        message-composer-stub roomID={props.roomID} playerName={props.playerName}
+    </div>
 ));
 
 const renderWaiting = () =>
@@ -270,6 +272,8 @@ describe('PlayerGame', () => {
         expect(
             screen.getByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
         ).toBeInTheDocument();
-        expect(screen.getByText('message-composer-stub')).toBeInTheDocument();
+        expect(
+            screen.getByText('message-composer-stub roomID=Fluffy42317 playerName=Alice')
+        ).toBeInTheDocument();
     });
 });

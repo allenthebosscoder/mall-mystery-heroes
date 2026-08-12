@@ -23,9 +23,15 @@ import {
     updateIsCompleteToTrueForTaskByIndex,
     updatePointsForPlayer,
 } from './dbCalls';
-import { doc, getDoc, getDocs } from 'firebase/firestore';
-import { db } from '../../utils/firebase';
-import { clearFirestore, seedRoom, shutdown } from '../../../test/emulatorHelpers';
+import { doc, getDoc, getDocs, terminate } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
+import { auth, db } from '../../utils/firebase';
+import {
+    clearFirestore,
+    createIndependentIdentity,
+    seedRoom,
+    shutdown,
+} from '../../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
 
@@ -394,5 +400,72 @@ describe('rooms are isolated from each other', () => {
 
         expect(await fetchAllPlayersForRoom('room-a')).toEqual(['alice']);
         expect(await fetchAllPlayersForRoom('room-b')).toEqual(['bob']);
+    });
+});
+
+// Every addChatMessageForRoom test above runs as this file's memoized
+// hostUid() (via seedRoom), so it's authorized by the pre-existing
+// `allow write: if isHostOfExistingRoom(roomId)` grant — not the new
+// player-scoped `allow create` firestore.rules gained for this feature
+// (final review, chat-send-and-efficiency). test/firestore.rules.test.js
+// exercises that new grant, but only with a hand-typed literal object,
+// never through addChatMessageForRoom itself, so a mismatch between the
+// function's write shape and the rule's requirements could go undetected.
+// This block closes that gap: it proves a real, non-host player can call
+// the actual function and have it succeed against the real rules.
+//
+// Must run last in this file (hence appended at the very end, after every
+// other describe block): it signs the shared `auth`/`db` singleton — the
+// exact instance addChatMessageForRoom itself writes through — in as the
+// player identity, and anonymous auth has no credential to sign back in
+// as a previous identity afterward. See createIndependentIdentity's
+// comment in test/emulatorHelpers.js for why the room itself is seeded by
+// a separate, independent host identity instead of this file's memoized
+// one — that's what makes this not depend on execution order for its own
+// correctness, only on nothing *after* it needing the shared singleton to
+// still be host.
+describe('addChatMessageForRoom authorized by the player-scoped rule (final review item 2)', () => {
+    it('lets a joined, non-host player send a chat message', async () => {
+        const room = 'chat-player-auth-room';
+
+        // Mint the player identity on the shared singleton first — this is
+        // the identity addChatMessageForRoom will actually write as.
+        const playerCredential = await signInAnonymously(auth);
+        const playerUid = playerCredential.user.uid;
+
+        // Seed the room as a completely independent host, not this file's
+        // memoized one, and not authenticated on the shared singleton
+        // (which is now the player).
+        const independentHost = await createIndependentIdentity();
+        try {
+            await seedRoom(
+                room,
+                [{ name: 'PlayerOne' }],
+                { hostId: independentHost.uid, joinedUids: [playerUid] },
+                independentHost.db
+            );
+
+            // playerUid is in joinedUids but is not the room's hostId — a
+            // real non-host player, not the file-wide memoized host.
+            await expect(
+                addChatMessageForRoom('hi from a real player', 'PlayerOne', room)
+            ).resolves.toBeUndefined();
+
+            const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(room));
+            expect(snapshot.docs).toHaveLength(1);
+            expect(snapshot.docs[0].data()).toMatchObject({
+                type: 'chat',
+                recipient: null,
+                sender: 'PlayerOne',
+                text: 'hi from a real player',
+            });
+        } finally {
+            // createIndependentIdentity's Firestore instance is on its own,
+            // separate Firebase app — nothing else terminates it. Left
+            // open, it holds the Node process's event loop alive
+            // indefinitely after Jest finishes, hanging the whole
+            // `firebase emulators:exec` wrapper.
+            await terminate(independentHost.db);
+        }
     });
 });

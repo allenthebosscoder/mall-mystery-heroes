@@ -1,4 +1,4 @@
-import { doc, setDoc, terminate } from 'firebase/firestore';
+import { doc, setDoc, terminate, getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { signInAnonymously, getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFunctions, connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { initializeApp } from 'firebase/app';
@@ -69,9 +69,16 @@ export const callableAsNonHost = (functionName) => {
 /**
  * Seeds a room with players. Writes the same fields `addPlayerForRoom` and
  * `DashBoard` write, so tests exercise realistic documents.
+ *
+ * `dbInstance` defaults to the shared singleton `db` (every existing caller's
+ * behavior, unchanged) but can be overridden with an independent identity's
+ * own Firestore instance from `createIndependentIdentity` below — needed
+ * when a test wants to seed a room authored by someone other than whoever
+ * is currently signed in on the shared singleton (see that function's
+ * comment).
  */
-export const seedRoom = async (roomID, players = [], roomOverrides = {}) => {
-    await setDoc(doc(db, 'rooms', roomID), {
+export const seedRoom = async (roomID, players = [], roomOverrides = {}, dbInstance = db) => {
+    await setDoc(doc(dbInstance, 'rooms', roomID), {
         taskIndex: 1,
         hostId: await hostUid(),
         isGameActive: true,
@@ -103,6 +110,44 @@ export const seedRoom = async (roomID, players = [], roomOverrides = {}) => {
 
         // Keyed on trimmedNameLowerCase to match addPlayerForRoom's scheme
         // (see its comment in dbCalls.js) rather than the raw name.
-        await setDoc(doc(db, 'rooms', roomID, 'players', fields.trimmedNameLowerCase), fields);
+        await setDoc(
+            doc(dbInstance, 'rooms', roomID, 'players', fields.trimmedNameLowerCase),
+            fields
+        );
     }
+};
+
+/**
+ * A second, independent signed-in identity with its own Firestore instance
+ * — the Firestore-flavored sibling of `callableAsNonHost` above. Needed by
+ * dbCalls.integration.test.js's player-authorized `addChatMessageForRoom`
+ * test (final review, chat-send-and-efficiency): that test has to sign the
+ * shared `auth`/`db` singleton — the exact instance `addChatMessageForRoom`
+ * itself writes through — in as a non-host player, so it can call the real
+ * function as that player. Anonymous auth has no credential to sign back
+ * in as a previous identity afterward, so there's no way to "restore" the
+ * shared singleton to the file-wide host once that happens. Giving the
+ * test's room its own independent host (via this function, writing through
+ * its own separate app/db, never touching the shared singleton) sidesteps
+ * needing to: the shared singleton is free to become the player instead,
+ * and nothing else needs it to still be host.
+ *
+ * The caller owns the returned `db`'s lifecycle: `shutdown` above only
+ * terminates the shared singleton, so call `terminate(identity.db)` (from
+ * `firebase/firestore`) when done with it — an un-terminated instance holds
+ * the Node process's event loop open indefinitely, hanging the whole
+ * `firebase emulators:exec` wrapper.
+ */
+export const createIndependentIdentity = async () => {
+    const app = initializeApp(
+        readFirebaseConfig(process.env),
+        `identity-${Date.now()}-${Math.random()}`
+    );
+    const identityAuth = getAuth(app);
+    const identityDb = getFirestore(app);
+    connectAuthEmulator(identityAuth, 'http://localhost:9099');
+    connectFirestoreEmulator(identityDb, 'localhost', 8081);
+
+    const credential = await signInAnonymously(identityAuth);
+    return { uid: credential.user.uid, db: identityDb };
 };

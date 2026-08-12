@@ -1490,6 +1490,41 @@ This is a pre-existing codebase-wide convention, not something introduced
 by the mission-announcement-card branch, and not being fixed here — noted
 for whenever `maxCompletions` next gets touched.
 
+### 44. Chat and GM messages share one 50-message budget, with no per-type isolation 🚫 Not pursuing
+
+**Impact: low · Effort: M**
+
+Surfaced during final-review of the chat-send-and-efficiency feature
+(`docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md`).
+`fetchPlayerMessagesQueryForRoom` (`dbCalls.js`) bounds the *entire*
+`playerMessages` collection — every `type`: `whisper`, `broadcast`,
+`leaderboard`, `mission`, and now `chat` — to the newest 50 documents via
+`limitToLast(50)`. Both `MessageFeed.js` (players) and `GMChatPanel.js`
+(GM) subscribe to this same query and filter client-side to what each
+should see.
+
+Because it's one shared budget, heavy chat volume can evict GM
+broadcasts/whispers/mission announcements from every player's feed before
+they're ever seen, and symmetrically, a burst of GM broadcasts can evict
+chat history from the GM's own `GMChatPanel`. There is also no
+rate-limiting on chat sends — a single flooding player can consume the
+whole budget alone; spam/moderation was explicitly deprioritized in this
+feature's design spec.
+
+**Not pursuing right now — known, deferred, not urgent.** Re-scoping this
+pass to add a second, type-filtered query (`GMChatPanel` subscribing to
+`where('type', '==', 'chat')` instead of sharing the unfiltered query) is
+out of scope for this fix wave. If real usage makes this a problem, the
+fix is one of:
+
+- raise the shared `limitToLast` bound, which helps but doesn't remove the
+  competition between categories; or
+- give `GMChatPanel` its own `where('type', '==', 'chat')`-scoped query,
+  separate from the unfiltered one `MessageFeed` still uses — this needs a
+  new composite index in `firestore.indexes.json` (`type` + `timestamp`),
+  since Firestore requires an index for any query that filters on one field
+  and orders by another.
+
 ---
 
 ## Suggested sequencing
