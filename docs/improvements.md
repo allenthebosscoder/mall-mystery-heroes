@@ -1539,8 +1539,8 @@ tracking rather than leaving to be rediscovered by accident.
 
 The fix, if wanted, is trivial — `formatMessageTime` (from
 `src/utils/formatMessageTime.js`) is already built and dependency-free;
-reusing it in `GMChatPanel.js` (alongside the already-imported `messageTime`
-field) follows the exact same pattern `MessageFeed.js` uses now.
+reusing it in `GMChatPanel.js` on the already-present `message.timestamp`
+field follows the exact same pattern `MessageFeed.js` uses now.
 
 ---
 
