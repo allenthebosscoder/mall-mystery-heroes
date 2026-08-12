@@ -14,7 +14,7 @@
 - Firestore reads/writes only ever happen through `src/components/firebase_calls/dbCalls.js`.
 - Write the test first and watch it fail, for every behavioral change.
 - Mission-creation only — completion/end broadcasts stay plain text (`docs/superpowers/specs/2026-08-11-mission-announcement-card-design.md`, "Decisions made").
-- The new structured message *replaces* the current plain-text broadcast for mission creation, not both. `handleNewTaskAdded`'s `addLog` call (the GM's own console log) must stay byte-for-byte unchanged.
+- The new structured message _replaces_ the current plain-text broadcast for mission creation, not both. `handleNewTaskAdded`'s `addLog` call (the GM's own console log) must stay byte-for-byte unchanged.
 - Follow `addLog`/`broadcast`'s existing error-isolation pattern (`GameMasterView.js`) — a failed player-facing write must never block or fail the primary action, same reasoning as those two existing helpers.
 
 ---
@@ -22,10 +22,12 @@
 ## Task 1: `MessageFeed` — render a `'mission'` message as a card
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/MessageFeed.js`
 - Modify: `src/components/player_messages_components/MessageFeed.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `messages` state (existing).
 - Produces: nothing new consumed elsewhere — a render-only branch, sibling to the existing `'leaderboard'` branch.
 
@@ -88,7 +90,9 @@ it('renders a mission message with a participant limit', () => {
 
     mountFeed();
 
-    expect(screen.getByText('Revival Mission · 0 points · Limited to 3 players')).toBeInTheDocument();
+    expect(
+        screen.getByText('Revival Mission · 0 points · Limited to 3 players')
+    ).toBeInTheDocument();
 });
 ```
 
@@ -102,77 +106,81 @@ Expected: FAIL — neither `'New Mission!'` nor the details line exists yet; a `
 In `src/components/player_messages_components/MessageFeed.js`, replace:
 
 ```jsx
-{message.type === 'leaderboard' ? (
-    <Box bg="gray.700" borderRadius="md" p={2}>
-        <Text fontWeight="bold" mb={1}>
-            Leaderboard
+{
+    message.type === 'leaderboard' ? (
+        <Box bg="gray.700" borderRadius="md" p={2}>
+            <Text fontWeight="bold" mb={1}>
+                Leaderboard
+            </Text>
+            <List styleType="none">
+                {(message.standings ?? []).map((entry) => (
+                    <ListItem key={entry.name}>
+                        {entry.name}: {entry.score}
+                        {!entry.isAlive ? ' (eliminated)' : ''}
+                    </ListItem>
+                ))}
+            </List>
+        </Box>
+    ) : (
+        <Text
+            bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
+            border={message.type === 'whisper' ? '1px dashed' : undefined}
+            borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
+            borderRadius="md"
+            p={2}
+            display="inline-block"
+        >
+            <Text as="span">{message.text}</Text>
         </Text>
-        <List styleType="none">
-            {(message.standings ?? []).map((entry) => (
-                <ListItem key={entry.name}>
-                    {entry.name}: {entry.score}
-                    {!entry.isAlive ? ' (eliminated)' : ''}
-                </ListItem>
-            ))}
-        </List>
-    </Box>
-) : (
-    <Text
-        bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
-        border={message.type === 'whisper' ? '1px dashed' : undefined}
-        borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
-        borderRadius="md"
-        p={2}
-        display="inline-block"
-    >
-        <Text as="span">{message.text}</Text>
-    </Text>
-)}
+    );
+}
 ```
 
 with:
 
 ```jsx
-{message.type === 'leaderboard' ? (
-    <Box bg="gray.700" borderRadius="md" p={2}>
-        <Text fontWeight="bold" mb={1}>
-            Leaderboard
+{
+    message.type === 'leaderboard' ? (
+        <Box bg="gray.700" borderRadius="md" p={2}>
+            <Text fontWeight="bold" mb={1}>
+                Leaderboard
+            </Text>
+            <List styleType="none">
+                {(message.standings ?? []).map((entry) => (
+                    <ListItem key={entry.name}>
+                        {entry.name}: {entry.score}
+                        {!entry.isAlive ? ' (eliminated)' : ''}
+                    </ListItem>
+                ))}
+            </List>
+        </Box>
+    ) : message.type === 'mission' ? (
+        <Box bg="gray.700" borderRadius="md" p={2}>
+            <Text fontWeight="bold" mb={1}>
+                New Mission!
+            </Text>
+            <Text fontWeight="semibold">{message.mission.title}</Text>
+            <Text mb={1}>{message.mission.description}</Text>
+            <Text fontSize="sm" color="gray.400">
+                {message.mission.taskType} · {message.mission.pointValue} points ·{' '}
+                {message.mission.maxCompletions
+                    ? `Limited to ${message.mission.maxCompletions} players`
+                    : 'Unlimited players'}
+            </Text>
+        </Box>
+    ) : (
+        <Text
+            bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
+            border={message.type === 'whisper' ? '1px dashed' : undefined}
+            borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
+            borderRadius="md"
+            p={2}
+            display="inline-block"
+        >
+            <Text as="span">{message.text}</Text>
         </Text>
-        <List styleType="none">
-            {(message.standings ?? []).map((entry) => (
-                <ListItem key={entry.name}>
-                    {entry.name}: {entry.score}
-                    {!entry.isAlive ? ' (eliminated)' : ''}
-                </ListItem>
-            ))}
-        </List>
-    </Box>
-) : message.type === 'mission' ? (
-    <Box bg="gray.700" borderRadius="md" p={2}>
-        <Text fontWeight="bold" mb={1}>
-            New Mission!
-        </Text>
-        <Text fontWeight="semibold">{message.mission.title}</Text>
-        <Text mb={1}>{message.mission.description}</Text>
-        <Text fontSize="sm" color="gray.400">
-            {message.mission.taskType} · {message.mission.pointValue} points ·{' '}
-            {message.mission.maxCompletions
-                ? `Limited to ${message.mission.maxCompletions} players`
-                : 'Unlimited players'}
-        </Text>
-    </Box>
-) : (
-    <Text
-        bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
-        border={message.type === 'whisper' ? '1px dashed' : undefined}
-        borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
-        borderRadius="md"
-        p={2}
-        display="inline-block"
-    >
-        <Text as="span">{message.text}</Text>
-    </Text>
-)}
+    );
+}
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -192,10 +200,12 @@ git commit -m "Render mission-creation broadcasts as a New Mission! card"
 ## Task 2: `handleNewTaskAdded` sends the structured mission message
 
 **Files:**
+
 - Modify: `src/pages/GameMasterView.js`
 - Modify: `src/pages/GameMasterView.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `addPlayerMessageForRoom` (already imported), the `'mission'` render branch (Task 1, exercised via a real Firestore write here, not directly).
 - Produces: nothing new consumed elsewhere — this is the plan's final code task.
 
@@ -301,10 +311,12 @@ git commit -m "Send a structured mission message when a mission is created"
 ## Task 3: Docs and final gate
 
 **Files:**
+
 - Modify: `docs/data-model.md`
 - Modify: `docs/testing.md`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — documentation only.
 
@@ -312,8 +324,8 @@ git commit -m "Send a structured mission message when a mission is created"
 
 Find the `## rooms/{roomID}/playerMessages/{autoId}` section's field table (it currently lists `type`, `recipient`, `text`, `standings`, `timestamp`). Add a `mission` row:
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field     | Type                                                                 | Notes                                                                                                                                 |
+| --------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `mission` | `{title, description, taskType, pointValue, maxCompletions} \| null` | Populated only for `type: 'mission'` — a new mission's full detail card, sent when the GM creates one. `null` for every other `type`. |
 
 Also update the `type` row's notes (currently listing `'whisper' \| 'broadcast' \| 'leaderboard'`) to include `'mission'` in the enumerated values.

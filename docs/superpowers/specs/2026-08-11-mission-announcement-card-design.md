@@ -69,7 +69,7 @@ A new render branch, sibling to the existing `'leaderboard'` branch:
 - The mission's `description`
 - A details line: `taskType`, `pointValue`, and the participant limit —
   `"Unlimited players"` when `maxCompletions` is `null`, `"Limited to {N}
-  players"` when set. Revival missions show `0` points plainly (that's
+players"` when set. Revival missions show `0` points plainly (that's
   genuinely what they award), not hidden.
 
 ## Testing
