@@ -237,4 +237,27 @@ describe('MessageFeed', () => {
             screen.getByText('Revival Mission · 0 points · Limited to 3 players')
         ).toBeInTheDocument();
     });
+
+    it('shows a chat message with its sender', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'chat',
+                        recipient: null,
+                        text: 'lol where are you',
+                        standings: null,
+                        mission: null,
+                        sender: 'Bob',
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText('Bob:')).toBeInTheDocument();
+        expect(screen.getByText('lol where are you')).toBeInTheDocument();
+    });
 });

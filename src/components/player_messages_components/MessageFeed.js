@@ -84,6 +84,13 @@ const MessageFeed = ({ roomID, playerName }) => {
                                             : 'Unlimited players'}
                                     </Text>
                                 </Box>
+                            ) : message.type === 'chat' ? (
+                                <Text bg="blue.900" borderRadius="md" p={2} display="inline-block">
+                                    <Text as="span" fontWeight="bold">
+                                        {message.sender}:
+                                    </Text>{' '}
+                                    <Text as="span">{message.text}</Text>
+                                </Text>
                             ) : (
                                 <Text
                                     bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
