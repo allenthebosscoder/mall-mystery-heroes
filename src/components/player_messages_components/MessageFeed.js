@@ -52,51 +52,55 @@ const MessageFeed = ({ roomID, playerName }) => {
     return (
         <Box flex="1" overflow="auto" p={2} ref={feedBoxRef} data-testid="message-feed">
             <List styleType="none">
-                {messages.map((message) => (
-                    <ListItem key={message.id} mb={2}>
-                        {message.type === 'leaderboard' ? (
-                            <Box bg="gray.700" borderRadius="md" p={2}>
-                                <Text fontWeight="bold" mb={1}>
-                                    Leaderboard
+                {messages.map((message) => {
+                    const mission = message.mission ?? {};
+                    return (
+                        <ListItem key={message.id} mb={2}>
+                            {message.type === 'leaderboard' ? (
+                                <Box bg="gray.700" borderRadius="md" p={2}>
+                                    <Text fontWeight="bold" mb={1}>
+                                        Leaderboard
+                                    </Text>
+                                    <List styleType="none">
+                                        {(message.standings ?? []).map((entry) => (
+                                            <ListItem key={entry.name}>
+                                                {entry.name}: {entry.score}
+                                                {!entry.isAlive ? ' (eliminated)' : ''}
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            ) : message.type === 'mission' ? (
+                                <Box bg="gray.700" borderRadius="md" p={2}>
+                                    <Text fontWeight="bold" mb={1}>
+                                        New Mission!
+                                    </Text>
+                                    <Text fontWeight="semibold">{mission.title}</Text>
+                                    <Text mb={1}>{mission.description}</Text>
+                                    <Text fontSize="sm" color="gray.400">
+                                        {mission.taskType} · {mission.pointValue} points ·{' '}
+                                        {mission.maxCompletions
+                                            ? `Limited to ${mission.maxCompletions} players`
+                                            : 'Unlimited players'}
+                                    </Text>
+                                </Box>
+                            ) : (
+                                <Text
+                                    bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
+                                    border={message.type === 'whisper' ? '1px dashed' : undefined}
+                                    borderColor={
+                                        message.type === 'whisper' ? 'gray.400' : undefined
+                                    }
+                                    borderRadius="md"
+                                    p={2}
+                                    display="inline-block"
+                                >
+                                    <Text as="span">{message.text}</Text>
                                 </Text>
-                                <List styleType="none">
-                                    {(message.standings ?? []).map((entry) => (
-                                        <ListItem key={entry.name}>
-                                            {entry.name}: {entry.score}
-                                            {!entry.isAlive ? ' (eliminated)' : ''}
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            </Box>
-                        ) : message.type === 'mission' ? (
-                            <Box bg="gray.700" borderRadius="md" p={2}>
-                                <Text fontWeight="bold" mb={1}>
-                                    New Mission!
-                                </Text>
-                                <Text fontWeight="semibold">{message.mission.title}</Text>
-                                <Text mb={1}>{message.mission.description}</Text>
-                                <Text fontSize="sm" color="gray.400">
-                                    {message.mission.taskType} · {message.mission.pointValue} points
-                                    ·{' '}
-                                    {message.mission.maxCompletions
-                                        ? `Limited to ${message.mission.maxCompletions} players`
-                                        : 'Unlimited players'}
-                                </Text>
-                            </Box>
-                        ) : (
-                            <Text
-                                bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
-                                border={message.type === 'whisper' ? '1px dashed' : undefined}
-                                borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
-                                borderRadius="md"
-                                p={2}
-                                display="inline-block"
-                            >
-                                <Text as="span">{message.text}</Text>
-                            </Text>
-                        )}
-                    </ListItem>
-                ))}
+                            )}
+                        </ListItem>
+                    );
+                })}
             </List>
         </Box>
     );

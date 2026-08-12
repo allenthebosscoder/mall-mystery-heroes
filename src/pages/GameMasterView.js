@@ -130,7 +130,7 @@ const GameMasterView = () => {
                 roomID
             );
         } catch (error) {
-            console.error('Error broadcasting to players: ', error);
+            console.error('Error broadcasting mission to players: ', error);
         }
     };
 

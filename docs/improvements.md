@@ -1472,6 +1472,24 @@ regression tests (including one for a bug this rewrite fixed along the
 way: the old code blanket-trimmed the reconstructed input after every
 accepted completion, which silently stripped that trailing space).
 
+### 43. Mission `maxCompletions` of `0` reads as unlimited, not zero 🚫 Not pursuing
+
+**Impact: low · Effort: S**
+
+Surfaced during review of the mission-announcement-card feature
+(`docs/superpowers/specs/2026-08-11-mission-announcement-card-design.md`).
+`TaskCreation.js`'s `maxCompletions` number input doesn't reject `0` as a
+value, but every place that reads the field treats `0` the same as
+`null`/unset — "unlimited" — because the checks are falsy-checks, not
+strict-null-checks: `ChatInput.js`'s `/mission done` completion-cap check
+does `task.maxCompletions && ...`, and the mission-announcement card's
+"Unlimited players" text (`MessageFeed.js`) uses the same pattern. Neither
+place distinguishes "not set" from "set to zero."
+
+This is a pre-existing codebase-wide convention, not something introduced
+by the mission-announcement-card branch, and not being fixed here — noted
+for whenever `maxCompletions` next gets touched.
+
 ---
 
 ## Suggested sequencing

@@ -79,8 +79,8 @@ export const addLogForRoom = async (newLog, color, roomID) => {
 // the write-side half of a contract with the player mobile app that
 // doesn't exist yet (docs/superpowers/specs/2026-08-06-player-messaging-
 // mobile-prep-design.md), the same interim shape `photos` already uses.
-// `message` is `{ type, recipient, text, standings }` — see the spec for
-// which fields apply to which `type`.
+// `message` is `{ type, recipient, text, standings, mission }` — see the
+// spec for which fields apply to which `type`.
 export const addPlayerMessageForRoom = async (message, roomID) => {
     const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
     await addDoc(messagesRef, { ...message, timestamp: serverTimestamp() });
@@ -88,7 +88,11 @@ export const addPlayerMessageForRoom = async (message, roomID) => {
 
 // A query of a room's playerMessages in write order, for onSnapshot — lets
 // MessageFeed (src/components/player_messages_components/MessageFeed.js)
-// watch incoming /whisper, /broadcast, and /leaderboard messages live.
+// watch incoming /whisper, /broadcast, /leaderboard, and mission-card
+// messages live. Most of these are written from ChatInput.js, but
+// GameMasterView.js's game-event handlers (kills, revives, open season,
+// and mission creation) write broadcast and mission-card messages here
+// too.
 // Mirrors fetchLogsQueryByAscendingTimestampForRoom's exact shape.
 export const fetchPlayerMessagesQueryForRoom = (roomID) => {
     const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
