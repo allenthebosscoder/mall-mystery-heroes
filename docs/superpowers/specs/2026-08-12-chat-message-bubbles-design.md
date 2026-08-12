@@ -126,7 +126,7 @@ the chat branch, so a timestamp looks the same everywhere in the feed.
   (`sender` matching `playerName`) renders inside a container whose
   `justifyContent` is `flex-end` and without a sender-name prefix in the
   DOM; a chat message from someone else renders with `justifyContent:
-  flex-start` and the sender prefix still shown; a message with a
+flex-start` and the sender prefix still shown; a message with a
   resolved `timestamp` shows its formatted time text; a message with a
   `null` timestamp (pending server ack) shows no time text. One test per
   non-chat branch (`leaderboard`, `mission`, whisper/broadcast)
