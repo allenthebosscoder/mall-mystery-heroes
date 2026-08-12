@@ -370,7 +370,7 @@ describe('rooms/{roomId}/photos/{photoId} (interim: host-only write, see firesto
     });
 });
 
-describe('rooms/{roomId}/playerMessages/{messageId} (interim: host-only write, see firestore.rules comment)', () => {
+describe('rooms/{roomId}/playerMessages/{messageId}', () => {
     it('denies an unauthenticated read', async () => {
         const db = testEnv.unauthenticatedContext().firestore();
         await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'playerMessages')));
@@ -405,6 +405,46 @@ describe('rooms/{roomId}/playerMessages/{messageId} (interim: host-only write, s
                 type: 'broadcast',
                 recipient: null,
                 text: 'x',
+                standings: null,
+            })
+        );
+    });
+
+    it('allows a player to create a chat message with a null recipient', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertSucceeds(
+            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
+                type: 'chat',
+                recipient: null,
+                text: 'hey where are you',
+                standings: null,
+                mission: null,
+                sender: 'bob',
+            })
+        );
+    });
+
+    it('denies a player creating a chat message with a non-null recipient', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
+                type: 'chat',
+                recipient: 'alice',
+                text: 'psst',
+                standings: null,
+                mission: null,
+                sender: 'bob',
+            })
+        );
+    });
+
+    it('denies a player creating a non-chat message, e.g. a fake broadcast', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
+                type: 'broadcast',
+                recipient: null,
+                text: 'fake broadcast',
                 standings: null,
             })
         );

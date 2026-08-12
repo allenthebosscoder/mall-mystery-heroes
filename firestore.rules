@@ -112,6 +112,14 @@ service cloud.firestore {
       match /playerMessages/{messageId} {
         allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
+        // Lets a player post a group-chat message without general write access
+        // to this collection — scoped narrowly to the 'chat' type with a null
+        // recipient so a player can't spoof a whisper/broadcast/leaderboard/
+        // mission message
+        // (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
+        allow create: if isPlayerOfRoom(roomId) &&
+          request.resource.data.type == 'chat' &&
+          request.resource.data.recipient == null;
       }
     }
   }
