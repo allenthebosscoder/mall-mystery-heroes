@@ -64,6 +64,9 @@ jest.mock('../components/logs_components/ChatInput', () => {
 jest.mock('../components/photos_display_component/PhotosDisplay', () => () => (
     <div>photos-display-stub</div>
 ));
+jest.mock('../components/player_messages_components/GMChatPanel', () => (props) => (
+    <div>gm-chat-panel-stub roomID={props.roomID}</div>
+));
 jest.mock('../components/header_components/ResetTargetsButton', () => ({ arrayOfPlayers }) => (
     <div data-testid="reset-targets-stub">{JSON.stringify(arrayOfPlayers)}</div>
 ));
@@ -203,6 +206,16 @@ describe("isGameActive is read, not just written (docs/improvements.md item 15's
         mountGameMasterView();
 
         expect(await screen.findByText(/isGameActive=false/)).toBeInTheDocument();
+    });
+});
+
+describe('the GM chat panel', () => {
+    it('mounts with the current room ID', async () => {
+        mockPlayersSnapshot([]);
+
+        mountGameMasterView();
+
+        expect(await screen.findByText('gm-chat-panel-stub roomID=room-a')).toBeInTheDocument();
     });
 });
 

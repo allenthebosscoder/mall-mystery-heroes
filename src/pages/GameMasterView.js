@@ -21,6 +21,7 @@ import RemapPlayerModal from '../components/RemapPlayerModal';
 import { gameContext, executionContext } from '../components/Contexts';
 import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
+import GMChatPanel from '../components/player_messages_components/GMChatPanel';
 
 const GameMasterView = () => {
     const { roomID } = useParams();
@@ -279,6 +280,11 @@ const GameMasterView = () => {
                             <Box sx={styles.photosBox}>
                                 <PhotosDisplay />
                             </Box>
+                            <Box sx={styles.chatPanelWrapper}>
+                                <Heading sx={styles.chatHeaderText}>Player Chat</Heading>
+                                <Divider />
+                                <GMChatPanel roomID={roomID} />
+                            </Box>
                         </VStack>
                     </executionContext.Provider>
                 </HStack>
@@ -352,10 +358,20 @@ const styles = {
     },
     photosBox: {
         w: { base: '100%', md: '100%' },
-        // PhotosDisplay is the only child of rightHandStack again — the
-        // mission panel that used to share this space moved into on-demand
-        // modals instead (docs/superpowers/specs/2026-08-04-mission-modal-
-        // ui-design.md), so there's no sibling to split height with anymore.
-        h: '100%',
+        // PhotosDisplay shares rightHandStack with the new GM chat panel
+        // below (docs/superpowers/specs/2026-08-12-chat-send-and-
+        // efficiency-design.md) — no longer the sole child.
+        h: '58%',
+    },
+    chatPanelWrapper: {
+        w: '100%',
+        h: '35%',
+        mt: '8px',
+        borderWidth: '2px',
+        borderRadius: '2xl',
+        p: '4px',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
     },
 };
