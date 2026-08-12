@@ -18,6 +18,7 @@ import { act, render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import MessageFeed from './MessageFeed';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
+import { formatMessageTime } from '../../utils/formatMessageTime';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -259,5 +260,173 @@ describe('MessageFeed', () => {
 
         expect(screen.getByText('Bob:')).toBeInTheDocument();
         expect(screen.getByText('lol where are you')).toBeInTheDocument();
+    });
+
+    it('right-aligns the current player’s own chat message and omits the sender prefix', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'chat',
+                        recipient: null,
+                        text: 'be right there',
+                        standings: null,
+                        mission: null,
+                        sender: 'Alice',
+                        timestamp: null,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed('Alice');
+
+        expect(screen.getByTestId('chat-message')).toHaveStyle({ justifyContent: 'flex-end' });
+        expect(screen.queryByText('Alice:')).not.toBeInTheDocument();
+        expect(screen.getByText('be right there')).toBeInTheDocument();
+    });
+
+    it('left-aligns a chat message from someone else', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'chat',
+                        recipient: null,
+                        text: 'lol where are you',
+                        standings: null,
+                        mission: null,
+                        sender: 'Bob',
+                        timestamp: null,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed('Alice');
+
+        expect(screen.getByTestId('chat-message')).toHaveStyle({ justifyContent: 'flex-start' });
+    });
+
+    it('shows a formatted time on a chat message with a resolved timestamp', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 15, 45) };
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'chat',
+                        recipient: null,
+                        text: 'hi',
+                        standings: null,
+                        mission: null,
+                        sender: 'Bob',
+                        timestamp,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+    });
+
+    it('shows no time text for a chat message with a pending (null) timestamp', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'chat',
+                        recipient: null,
+                        text: 'sending this now',
+                        standings: null,
+                        mission: null,
+                        sender: 'Bob',
+                        timestamp: null,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText('sending this now')).toBeInTheDocument();
+    });
+
+    it('shows a formatted time on a leaderboard message', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'leaderboard',
+                        recipient: null,
+                        text: null,
+                        standings: [{ name: 'Alice', score: 30, isAlive: true }],
+                        timestamp,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+    });
+
+    it('shows a formatted time on a mission message', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'mission',
+                        recipient: null,
+                        text: null,
+                        standings: null,
+                        mission: {
+                            title: 'Find the clue',
+                            description: 'Look under the food court table',
+                            taskType: 'Task',
+                            pointValue: '10',
+                            maxCompletions: null,
+                        },
+                        timestamp,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+    });
+
+    it('shows a formatted time on a broadcast message', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docs: asMessageDocs([
+                    {
+                        type: 'broadcast',
+                        recipient: null,
+                        text: 'Game starts soon!',
+                        standings: null,
+                        timestamp,
+                    },
+                ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
     });
 });

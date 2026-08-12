@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Box, List, ListItem, Text } from '@chakra-ui/react';
+import { Box, Flex, List, ListItem, Text } from '@chakra-ui/react';
 import { onSnapshot } from 'firebase/firestore';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
 import { normalizePlayerName } from '../../game/playerNames';
+import { formatMessageTime } from '../../utils/formatMessageTime';
 
 // Live-subscribes to the room's playerMessages and filters to what this
 // player should see: broadcasts/leaderboard sends (recipient: null) and
@@ -54,6 +55,17 @@ const MessageFeed = ({ roomID, playerName }) => {
             <List styleType="none">
                 {messages.map((message) => {
                     const mission = message.mission ?? {};
+                    // Only 'chat' messages have a sender to compare — every
+                    // other type (whisper/broadcast/leaderboard/mission) is
+                    // GM-authored and has no sender field at all, so this
+                    // guards normalizePlayerName from being called on
+                    // null/undefined for those
+                    // (docs/superpowers/specs/2026-08-12-chat-message-
+                    // bubbles-design.md).
+                    const isMine =
+                        message.sender != null &&
+                        normalizePlayerName(message.sender) === normalizePlayerName(playerName);
+                    const time = formatMessageTime(message.timestamp);
                     return (
                         <ListItem key={message.id} mb={2}>
                             {message.type === 'leaderboard' ? (
@@ -61,6 +73,11 @@ const MessageFeed = ({ roomID, playerName }) => {
                                     <Text fontWeight="bold" mb={1}>
                                         Leaderboard
                                     </Text>
+                                    {time && (
+                                        <Text fontSize="xs" color="gray.400" mb={1}>
+                                            {time}
+                                        </Text>
+                                    )}
                                     <List styleType="none">
                                         {(message.standings ?? []).map((entry) => (
                                             <ListItem key={entry.name}>
@@ -83,14 +100,38 @@ const MessageFeed = ({ roomID, playerName }) => {
                                             ? `Limited to ${mission.maxCompletions} players`
                                             : 'Unlimited players'}
                                     </Text>
+                                    {time && (
+                                        <Text fontSize="xs" color="gray.400">
+                                            {time}
+                                        </Text>
+                                    )}
                                 </Box>
                             ) : message.type === 'chat' ? (
-                                <Text bg="blue.900" borderRadius="md" p={2} display="inline-block">
-                                    <Text as="span" fontWeight="bold">
-                                        {message.sender}:
-                                    </Text>{' '}
-                                    <Text as="span">{message.text}</Text>
-                                </Text>
+                                <Flex
+                                    justifyContent={isMine ? 'flex-end' : 'flex-start'}
+                                    data-testid="chat-message"
+                                >
+                                    <Box
+                                        bg={isMine ? 'teal.700' : 'blue.900'}
+                                        borderRadius="md"
+                                        p={2}
+                                        maxWidth="75%"
+                                    >
+                                        {!isMine && (
+                                            <>
+                                                <Text as="span" fontWeight="bold">
+                                                    {message.sender}:
+                                                </Text>{' '}
+                                            </>
+                                        )}
+                                        <Text as="span">{message.text}</Text>
+                                        {time && (
+                                            <Text fontSize="xs" color="gray.400" mt={1}>
+                                                {time}
+                                            </Text>
+                                        )}
+                                    </Box>
+                                </Flex>
                             ) : (
                                 <Text
                                     bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
@@ -103,6 +144,11 @@ const MessageFeed = ({ roomID, playerName }) => {
                                     display="inline-block"
                                 >
                                     <Text as="span">{message.text}</Text>
+                                    {time && (
+                                        <Text as="span" fontSize="xs" color="gray.400" ml={2}>
+                                            {time}
+                                        </Text>
+                                    )}
                                 </Text>
                             )}
                         </ListItem>
