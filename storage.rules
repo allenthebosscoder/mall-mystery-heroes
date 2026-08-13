@@ -1,23 +1,17 @@
 rules_version = '2';
 
-// Minimum-viable tightening, same spirit as firestore.rules' item 2 (see
-// that file's header) — this was previously `allow read, write: if true`,
-// wide open to anyone on the internet, unauthenticated, no bucket path
-// scoped. Nothing in this repo uses Storage yet (no upload/download code
-// exists — see docs/data-model.md's Firebase Storage section), so no live
-// traffic depended on the old rule; this closes the hole before a future
-// mobile app starts writing kill-proof photos there.
-//
-// Not addressed here, on purpose: per-room/per-path scoping (e.g.
-// restricting a write to /rooms/{roomId}/... and checking the requester is
-// that room's host or a player in it, mirroring firestore.rules'
-// isHostOfExistingRoom). There's no real player-facing auth identity yet
-// (docs/architecture.md's mobile-app note, docs/improvements.md item 2/33)
-// to scope a player's own upload to, so "signed in" is as far as this can
-// meaningfully go today. Revisit alongside player identity work.
+// Path-scoped, not room-membership-scoped (docs/superpowers/specs/
+// 2026-08-13-kill-photo-submission-design.md) — the kill-photo submission
+// feature is the first thing in this repo to actually upload to Storage.
+// Only rooms/{roomId}/photos/** is reachable; any signed-in user can
+// read/write within that path, same trust level as everywhere else a
+// player-provided value is trusted in this app (no per-player auth
+// identity to scope against, and no cross-service rules calling into
+// Firestore to verify room membership — this repo has no test setup for
+// that). Revisit if that identity work ever happens.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
+    match /rooms/{roomId}/photos/{allPaths=**} {
       allow read, write: if request.auth != null;
     }
   }
