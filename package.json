@@ -30,7 +30,7 @@
         "test": "jest --selectProjects unit dom",
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
-        "test:emulator": "node functions/scripts/sync-shared-game-logic.js && firebase emulators:exec --project demo-mall-mystery-heroes --only firestore,auth,functions \"jest --selectProjects integration --runInBand\"",
+        "test:emulator": "node functions/scripts/sync-shared-game-logic.js && firebase emulators:exec --project demo-mall-mystery-heroes --only firestore,auth,functions,storage \"jest --selectProjects integration --runInBand\"",
         "test:rules": "firebase emulators:exec --project demo-mall-mystery-heroes --only firestore \"jest --selectProjects rules --runInBand\"",
         "eject": "react-scripts eject",
         "lint": "eslint src --ext .js,.jsx --max-warnings=0",
