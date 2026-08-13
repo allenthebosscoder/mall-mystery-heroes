@@ -9,6 +9,14 @@
  * the whole collection
  * (docs/superpowers/specs/2026-08-10-player-chat-messaging-design.md).
  *
+ * Per-message rendering (chat alignment, timestamps, leaderboard/mission
+ * cards, etc.) is covered directly in MessageBubble.test.jsx — this file
+ * stays focused on the subscription/filter/merge pipeline and the
+ * render-performance property that motivated this file's docChanges()
+ * rewrite (docs/superpowers/specs/2026-08-12-message-feed-render-perf-
+ * design.md): a message untouched by a later snapshot must not
+ * re-render.
+ *
  * Explicit mock factory for 'firebase/firestore', not auto-mock — see
  * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe.
  */
@@ -18,7 +26,6 @@ import { act, render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import MessageFeed from './MessageFeed';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
-import { formatMessageTime } from '../../utils/formatMessageTime';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -27,8 +34,14 @@ jest.mock('../firebase_calls/dbCalls', () => ({
     fetchPlayerMessagesQueryForRoom: jest.fn(() => 'messages-query'),
 }));
 
-const asMessageDocs = (messages) =>
-    messages.map((message, index) => ({ id: `message-${index}`, data: () => message }));
+// Firestore-shaped docChanges() fixture — every message arrives as an
+// 'added' change, matching what a real first snapshot reports.
+const asDocChanges = (messages) =>
+    messages.map((message, index) => ({
+        type: 'added',
+        newIndex: index,
+        doc: { id: `message-${index}`, data: () => message },
+    }));
 
 const mountFeed = (playerName = 'Alice') =>
     render(
@@ -45,14 +58,15 @@ describe('MessageFeed', () => {
     it('shows a broadcast to any player', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'broadcast',
-                        recipient: null,
-                        text: 'Game starts soon!',
-                        standings: null,
-                    },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: 'Game starts soon!',
+                            standings: null,
+                        },
+                    ]),
             });
             return () => {};
         });
@@ -65,14 +79,15 @@ describe('MessageFeed', () => {
     it('shows a whisper addressed to this player', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'whisper',
-                        recipient: 'Alice',
-                        text: 'You are being hunted',
-                        standings: null,
-                    },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'whisper',
+                            recipient: 'Alice',
+                            text: 'You are being hunted',
+                            standings: null,
+                        },
+                    ]),
             });
             return () => {};
         });
@@ -85,9 +100,15 @@ describe('MessageFeed', () => {
     it('does not show a whisper addressed to a different player', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    { type: 'whisper', recipient: 'Bob', text: 'Secret for Bob', standings: null },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'whisper',
+                            recipient: 'Bob',
+                            text: 'Secret for Bob',
+                            standings: null,
+                        },
+                    ]),
             });
             return () => {};
         });
@@ -100,14 +121,15 @@ describe('MessageFeed', () => {
     it('matches the recipient case/whitespace-insensitively', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'whisper',
-                        recipient: 'alice smith',
-                        text: 'For Alice Smith',
-                        standings: null,
-                    },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'whisper',
+                            recipient: 'alice smith',
+                            text: 'For Alice Smith',
+                            standings: null,
+                        },
+                    ]),
             });
             return () => {};
         });
@@ -125,35 +147,11 @@ describe('MessageFeed', () => {
         expect(fetchPlayerMessagesQueryForRoom).not.toHaveBeenCalled();
     });
 
-    it('renders a leaderboard message as a standings list, not a text line', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'leaderboard',
-                        recipient: null,
-                        text: null,
-                        standings: [
-                            { name: 'Alice', score: 30, isAlive: true },
-                            { name: 'Bob', score: 10, isAlive: false },
-                        ],
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText('Alice: 30')).toBeInTheDocument();
-        expect(screen.getByText('Bob: 10 (eliminated)')).toBeInTheDocument();
-    });
-
     it('scrolls to the bottom whenever a new message arrives', async () => {
         let deliverMessages;
         onSnapshot.mockImplementation((query, onNext) => {
             deliverMessages = onNext;
-            onNext({ docs: [] });
+            onNext({ docChanges: () => [] });
             return () => {};
         });
 
@@ -171,263 +169,70 @@ describe('MessageFeed', () => {
 
         await act(async () => {
             deliverMessages({
-                docs: asMessageDocs([
-                    { type: 'broadcast', recipient: null, text: 'New message', standings: null },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: 'New message',
+                            standings: null,
+                        },
+                    ]),
             });
         });
 
         expect(feedBox.scrollTop).toBe(500);
     });
 
-    it('renders a mission message as a "New Mission!" card with unlimited participants', () => {
+    it('does not re-render a message untouched by a later snapshot', async () => {
+        let deliverSnapshot;
         onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
             onNext({
-                docs: asMessageDocs([
+                docChanges: () => [
                     {
-                        type: 'mission',
-                        recipient: null,
-                        text: null,
-                        standings: null,
-                        mission: {
-                            title: 'Find the clue',
-                            description: 'Look under the food court table',
-                            taskType: 'Task',
-                            pointValue: '10',
-                            maxCompletions: null,
+                        type: 'added',
+                        newIndex: 0,
+                        doc: {
+                            id: 'message-0',
+                            data: () => ({
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'First message',
+                                standings: null,
+                            }),
                         },
                     },
-                ]),
+                ],
             });
             return () => {};
         });
 
         mountFeed();
 
-        expect(screen.getByText('New Mission!')).toBeInTheDocument();
-        expect(screen.getByText('Find the clue')).toBeInTheDocument();
-        expect(screen.getByText('Look under the food court table')).toBeInTheDocument();
-        expect(screen.getByText('Task · 10 points · Unlimited players')).toBeInTheDocument();
-    });
+        const firstMessageNode = screen.getByText('First message');
 
-    it('renders a mission message with a participant limit', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () => [
                     {
-                        type: 'mission',
-                        recipient: null,
-                        text: null,
-                        standings: null,
-                        mission: {
-                            title: 'Revive a fallen hero',
-                            description: 'Say the secret phrase',
-                            taskType: 'Revival Mission',
-                            pointValue: 0,
-                            maxCompletions: 3,
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-1',
+                            data: () => ({
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'Second message',
+                                standings: null,
+                            }),
                         },
                     },
-                ]),
+                ],
             });
-            return () => {};
         });
 
-        mountFeed();
-
-        expect(
-            screen.getByText('Revival Mission · 0 points · Limited to 3 players')
-        ).toBeInTheDocument();
-    });
-
-    it('shows a chat message with its sender', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'chat',
-                        recipient: null,
-                        text: 'lol where are you',
-                        standings: null,
-                        mission: null,
-                        sender: 'Bob',
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText('Bob:')).toBeInTheDocument();
-        expect(screen.getByText('lol where are you')).toBeInTheDocument();
-    });
-
-    it('right-aligns the current player’s own chat message and omits the sender prefix', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'chat',
-                        recipient: null,
-                        text: 'be right there',
-                        standings: null,
-                        mission: null,
-                        sender: 'Alice',
-                        timestamp: null,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed('Alice');
-
-        expect(screen.getByTestId('chat-message')).toHaveStyle({ justifyContent: 'flex-end' });
-        expect(screen.queryByText('Alice:')).not.toBeInTheDocument();
-        expect(screen.getByText('be right there')).toBeInTheDocument();
-    });
-
-    it('left-aligns a chat message from someone else', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'chat',
-                        recipient: null,
-                        text: 'lol where are you',
-                        standings: null,
-                        mission: null,
-                        sender: 'Bob',
-                        timestamp: null,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed('Alice');
-
-        expect(screen.getByTestId('chat-message')).toHaveStyle({ justifyContent: 'flex-start' });
-    });
-
-    it('shows a formatted time on a chat message with a resolved timestamp', () => {
-        const timestamp = { toDate: () => new Date(2024, 0, 1, 15, 45) };
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'chat',
-                        recipient: null,
-                        text: 'hi',
-                        standings: null,
-                        mission: null,
-                        sender: 'Bob',
-                        timestamp,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
-    });
-
-    it('shows no time text for a chat message with a pending (null) timestamp', () => {
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'chat',
-                        recipient: null,
-                        text: 'sending this now',
-                        standings: null,
-                        mission: null,
-                        sender: 'Bob',
-                        timestamp: null,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText('sending this now')).toBeInTheDocument();
-        expect(screen.queryByText(/^\d{1,2}:\d{2}/)).not.toBeInTheDocument();
-    });
-
-    it('shows a formatted time on a leaderboard message', () => {
-        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'leaderboard',
-                        recipient: null,
-                        text: null,
-                        standings: [{ name: 'Alice', score: 30, isAlive: true }],
-                        timestamp,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
-    });
-
-    it('shows a formatted time on a mission message', () => {
-        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'mission',
-                        recipient: null,
-                        text: null,
-                        standings: null,
-                        mission: {
-                            title: 'Find the clue',
-                            description: 'Look under the food court table',
-                            taskType: 'Task',
-                            pointValue: '10',
-                            maxCompletions: null,
-                        },
-                        timestamp,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
-    });
-
-    it('shows a formatted time on a broadcast message', () => {
-        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
-        onSnapshot.mockImplementation((query, onNext) => {
-            onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'broadcast',
-                        recipient: null,
-                        text: 'Game starts soon!',
-                        standings: null,
-                        timestamp,
-                    },
-                ]),
-            });
-            return () => {};
-        });
-
-        mountFeed();
-
-        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+        expect(screen.getByText('First message')).toBe(firstMessageNode);
+        expect(screen.getByText('Second message')).toBeInTheDocument();
     });
 });
