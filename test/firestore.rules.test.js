@@ -339,7 +339,7 @@ describe('rooms/{roomId}/logs/{logId}', () => {
     });
 });
 
-describe('rooms/{roomId}/photos/{photoId} (interim: host-only write, see firestore.rules comment)', () => {
+describe('rooms/{roomId}/photos/{photoId}', () => {
     it('denies an unauthenticated read', async () => {
         const db = testEnv.unauthenticatedContext().firestore();
         await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
@@ -366,6 +366,45 @@ describe('rooms/{roomId}/photos/{photoId} (interim: host-only write, see firesto
         const db = testEnv.authenticatedContext(HOST_UID).firestore();
         await assertSucceeds(
             addDoc(collection(db, 'rooms', 'room-a', 'photos'), { url: 'x', status: 'pending' })
+        );
+    });
+
+    it('allows a player to create a photo with pending status and no originalPlayerData', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertSucceeds(
+            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+                url: 'https://example.com/photo.jpg',
+                assassin: 'bob',
+                target: 'alice',
+                status: 'pending',
+                originalPlayerData: null,
+            })
+        );
+    });
+
+    it('denies a player creating a photo with a non-pending status', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+                url: 'https://example.com/photo.jpg',
+                assassin: 'bob',
+                target: 'alice',
+                status: 'approved',
+                originalPlayerData: null,
+            })
+        );
+    });
+
+    it('denies a player creating a photo with a non-null originalPlayerData', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+                url: 'https://example.com/photo.jpg',
+                assassin: 'bob',
+                target: 'alice',
+                status: 'pending',
+                originalPlayerData: { score: 10, targets: [], assassins: [] },
+            })
         );
     });
 });

@@ -106,6 +106,15 @@ service cloud.firestore {
       match /photos/{photoId} {
         allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
+        // Lets a player submit a kill-photo claim without general write
+        // access to this collection — scoped narrowly so a player can't
+        // self-approve a kill (status must start pending) or forge the
+        // pre-kill snapshot the Undo flow relies on (originalPlayerData
+        // must be null)
+        // (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
+        allow create: if isPlayerOfRoom(roomId) &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.originalPlayerData == null;
       }
 
       // Interim scope, same reasoning as photos above — see file header.
