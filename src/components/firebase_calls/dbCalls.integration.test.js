@@ -9,6 +9,7 @@
 import {
     addChatMessageForRoom,
     addLogForRoom,
+    addPhotoForRoom,
     addPlayerForRoom,
     addPlayerMessageForRoom,
     endGame,
@@ -16,6 +17,7 @@ import {
     fetchAllPlayersForRoom,
     fetchAssassinsForPlayer,
     fetchLogsQueryByAscendingTimestampForRoom,
+    fetchPhotosQueryByAscendingTimestampForRoom,
     fetchPlayerForRoom,
     fetchPlayerMessagesQueryForRoom,
     fetchTaskIndexThenIncrement,
@@ -346,6 +348,25 @@ describe('addChatMessageForRoom and the limitToLast(50) bound', () => {
         const texts = snapshot.docs.map((docSnapshot) => docSnapshot.data().text);
         expect(texts).not.toContain('msg-0');
         expect(texts[texts.length - 1]).toBe('msg-50');
+    });
+});
+
+describe('addPhotoForRoom', () => {
+    it('writes a pending photo with no originalPlayerData', async () => {
+        await seedRoom(ROOM, []);
+
+        await addPhotoForRoom(ROOM, 'bob', 'alice', 'https://example.com/photo.jpg');
+
+        const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+        expect(snapshot.docs).toHaveLength(1);
+        expect(snapshot.docs[0].data()).toEqual({
+            url: 'https://example.com/photo.jpg',
+            assassin: 'bob',
+            target: 'alice',
+            status: 'pending',
+            originalPlayerData: null,
+            timestamp: expect.anything(),
+        });
     });
 });
 

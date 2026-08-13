@@ -220,6 +220,23 @@ export const approvePhotoForRoom = async (roomID, photoID, originalPlayerData) =
     await updateDoc(photoRef, { status: 'approved', originalPlayerData });
 };
 
+// Player-submitted kill-photo claim — a distinct write from
+// approvePhotoForRoom/updatePhotoStatusForRoom (which are GM-only status
+// transitions); always starts pending with no originalPlayerData, matching
+// what firestore.rules requires for a player-authored create
+// (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
+export const addPhotoForRoom = async (roomID, assassin, target, url) => {
+    const photosRef = collection(db, 'rooms', roomID, 'photos');
+    await addDoc(photosRef, {
+        url,
+        assassin,
+        target,
+        timestamp: serverTimestamp(),
+        status: 'pending',
+        originalPlayerData: null,
+    });
+};
+
 //returns a query of all tasks for room
 export const fetchTasksQueryForRoom = (roomID) => {
     const taskCollectionRef = collection(db, 'rooms', roomID, 'tasks');
