@@ -1542,6 +1542,35 @@ The fix, if wanted, is trivial — `formatMessageTime` (from
 reusing it in `GMChatPanel.js` on the already-present `message.timestamp`
 field follows the exact same pattern `MessageFeed.js` uses now.
 
+### 46. `GMChatPanel.js` still remaps the full snapshot on every event
+
+**Impact: low · Effort: S**
+
+Filed as the promised follow-up from the 2026-08-12
+message-feed-render-perf feature
+(`docs/superpowers/specs/2026-08-12-message-feed-render-perf-design.md`),
+which called this "worth a follow-up note once this pattern is proven out
+in `MessageFeed.js`" — it now has been.
+
+`GMChatPanel.js` still does `snapshot.docs.map(...).filter(...)` inside
+its `onSnapshot` callback, rebuilding a brand-new array (and brand-new
+message objects) on every single event, even one touching a single
+document. `MessageFeed.js` no longer does this: it merges via
+`applyMessageChanges` (`src/utils/applyMessageChanges.js`), which
+preserves object references for messages untouched by a given snapshot,
+paired with a `React.memo`-wrapped per-message component
+(`MessageBubble.js`) that skips re-rendering anything whose reference
+didn't change.
+
+The fix, if wanted, is to apply the identical pattern to
+`GMChatPanel.js`: merge via `applyMessageChanges` into an unfiltered
+`allMessages` state, derive the filtered/rendered list via `useMemo`, and
+extract a memoized `GMChatMessage`-style row component. Not urgent —
+`GMChatPanel.js`'s message volume is bounded by the same 50-message
+`limitToLast` budget as `MessageFeed.js` (see item 44), so this is a
+latent inefficiency rather than an observed problem. Worth doing if GM-side
+chat volume ever gets heavy enough to make the re-render cost visible.
+
 ---
 
 ## Suggested sequencing

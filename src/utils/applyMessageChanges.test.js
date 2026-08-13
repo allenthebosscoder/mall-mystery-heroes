@@ -35,7 +35,7 @@ describe('applyMessageChanges', () => {
     it('removes the entry for a removed change', () => {
         const first = applyMessageChanges([], [change('added', 'a', { text: 'first' }, 0)]);
 
-        const result = applyMessageChanges(first, [change('removed', 'a', { text: 'first' })]);
+        const result = applyMessageChanges(first, [change('removed', 'a', { text: 'first' }, -1)]);
 
         expect(result).toEqual([]);
     });

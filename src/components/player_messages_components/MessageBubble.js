@@ -13,7 +13,8 @@ const MessageBubble = ({ message, playerName }) => {
     // Only 'chat' messages have a sender to compare — every other type
     // (whisper/broadcast/leaderboard/mission) is GM-authored and has no
     // sender field at all, so this guards normalizePlayerName from being
-    // called on null/undefined for those.
+    // called on null/undefined for those
+    // (docs/superpowers/specs/2026-08-12-chat-message-bubbles-design.md).
     const isMine =
         message.sender != null &&
         normalizePlayerName(message.sender) === normalizePlayerName(playerName);
