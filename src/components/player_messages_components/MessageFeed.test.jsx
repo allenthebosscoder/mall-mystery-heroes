@@ -255,4 +255,80 @@ describe('MessageFeed', () => {
         // re-render both messages on the second snapshot, totaling 3.
         expect(formatMessageTime).toHaveBeenCalledTimes(2);
     });
+
+    it('inserts a later message at the correct position even when an earlier message is filtered out', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 0,
+                        doc: {
+                            id: 'message-0',
+                            data: () => ({
+                                type: 'whisper',
+                                recipient: 'Bob',
+                                text: 'Secret for Bob',
+                                standings: null,
+                            }),
+                        },
+                    },
+                    {
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-1',
+                            data: () => ({
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'B1',
+                                standings: null,
+                            }),
+                        },
+                    },
+                ],
+            });
+            return () => {};
+        });
+
+        mountFeed('Alice');
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-2',
+                            data: () => ({
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'B2',
+                                standings: null,
+                            }),
+                        },
+                    },
+                ],
+            });
+        });
+
+        const renderedOrder = screen
+            .getAllByRole('listitem')
+            .map((el) => el.textContent)
+            .filter((text) => text === 'B1' || text === 'B2');
+
+        // The unfiltered result set after both snapshots is
+        // [whisper(Bob), B2, B1] — B2's newIndex of 1 places it between the
+        // whisper and B1 in the FULL result set (applyMessageChanges.test.js
+        // covers this insertion semantic directly). Once the whisper is
+        // filtered out for Alice, B2 correctly renders BEFORE B1. The old
+        // buggy code fed the already-filtered `[B1]` array back into
+        // applyMessageChanges, so B2's newIndex of 1 landed past the end of
+        // that 1-element array — splice's out-of-range clamping silently
+        // appended it, producing the wrong order, ['B1', 'B2'].
+        expect(renderedOrder).toEqual(['B2', 'B1']);
+    });
 });
