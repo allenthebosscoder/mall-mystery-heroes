@@ -26,6 +26,7 @@ import { act, render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import MessageFeed from './MessageFeed';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
+import { formatMessageTime } from '../../utils/formatMessageTime';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -33,6 +34,15 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../firebase_calls/dbCalls', () => ({
     fetchPlayerMessagesQueryForRoom: jest.fn(() => 'messages-query'),
 }));
+// MessageBubble calls formatMessageTime exactly once per actual render (all
+// four of its branches do, before returning JSX) and not at all when
+// React.memo skips re-invoking it for an unchanged message — so this mock's
+// call count is a real render-count signal, not just a DOM-output check. See
+// the "does not re-render a message untouched by a later snapshot" test.
+jest.mock('../../utils/formatMessageTime', () => {
+    const actual = jest.requireActual('../../utils/formatMessageTime');
+    return { formatMessageTime: jest.fn(actual.formatMessageTime) };
+});
 
 // Firestore-shaped docChanges() fixture — every message arrives as an
 // 'added' change, matching what a real first snapshot reports.
@@ -211,6 +221,11 @@ describe('MessageFeed', () => {
         mountFeed();
 
         const firstMessageNode = screen.getByText('First message');
+        // The single existing message has rendered once. This is the actual
+        // render-count proof — DOM-identity alone can't distinguish "skipped
+        // the render" from "re-rendered and happened to produce the same
+        // output."
+        expect(formatMessageTime).toHaveBeenCalledTimes(1);
 
         await act(async () => {
             deliverSnapshot({
@@ -234,5 +249,10 @@ describe('MessageFeed', () => {
 
         expect(screen.getByText('First message')).toBe(firstMessageNode);
         expect(screen.getByText('Second message')).toBeInTheDocument();
+        // NOT 3: if MessageBubble correctly skips re-rendering the untouched
+        // first message, only the new second message renders here, for a
+        // total of 2 calls across both snapshots. A broken memoization would
+        // re-render both messages on the second snapshot, totaling 3.
+        expect(formatMessageTime).toHaveBeenCalledTimes(2);
     });
 });
