@@ -69,7 +69,7 @@ describe('KillPhotoModal', () => {
         mountModal(['bob']);
 
         await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await waitFor(() => expect(compressImage).toHaveBeenCalledWith(fakeFile));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
 
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
@@ -88,7 +88,7 @@ describe('KillPhotoModal', () => {
         mountModal(['bob']);
 
         await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await waitFor(() => expect(compressImage).toHaveBeenCalled());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
         expect(

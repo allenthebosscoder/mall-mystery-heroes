@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import {
     Alert,
     AlertIcon,
@@ -40,16 +39,8 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
         if (!file) return;
         setError(null);
         const blob = await compressImage(file);
-        // compressImage resolves from a microtask outside any React event
-        // handler by this point, so the resulting state update isn't
-        // automatically batched/flushed by React's synchronous act()
-        // machinery. flushSync forces the commit immediately so the
-        // Submit button's enabled state is reflected in the DOM as soon
-        // as this handler's caller (e.g. a test's `await`) resumes.
-        flushSync(() => {
-            setCompressedBlob(blob);
-            setPreviewUrl(URL.createObjectURL(blob));
-        });
+        setCompressedBlob(blob);
+        setPreviewUrl(URL.createObjectURL(blob));
     };
 
     const handleSubmit = async () => {
