@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Flex, Input, Button } from '@chakra-ui/react';
 import { addChatMessageForRoom } from '../firebase_calls/dbCalls';
+import KillPhotoModal from './KillPhotoModal';
 
-// Sends player-authored group-chat messages
-// (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
-// The photo button stays disabled — kill-photo submission is a separate,
-// not-yet-built sub-project.
-const MessageComposer = ({ roomID, playerName }) => {
+// Sends player-authored group-chat messages and opens the kill-photo
+// submission modal
+// (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md,
+// docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
+const MessageComposer = ({ roomID, playerName, targets }) => {
     const [text, setText] = useState('');
+    const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
     const handleSend = async () => {
         const trimmed = text.trim();
@@ -51,12 +53,24 @@ const MessageComposer = ({ roomID, playerName }) => {
                 isDisabled={disabled}
                 mr={2}
             />
-            <Button isDisabled mr={2} aria-label="Send photo">
+            <Button
+                isDisabled={disabled || targets.length === 0}
+                onClick={() => setIsPhotoModalOpen(true)}
+                mr={2}
+                aria-label="Send photo"
+            >
                 📷
             </Button>
             <Button onClick={handleSend} colorScheme="teal" isDisabled={disabled}>
                 Send
             </Button>
+            <KillPhotoModal
+                isOpen={isPhotoModalOpen}
+                onClose={() => setIsPhotoModalOpen(false)}
+                roomID={roomID}
+                playerName={playerName}
+                targets={targets}
+            />
         </Flex>
     );
 };

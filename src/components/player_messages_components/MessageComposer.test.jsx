@@ -1,10 +1,16 @@
 /**
  * Layer 3 — component test, jsdom + Testing Library.
  *
- * MessageComposer sends player-authored group-chat messages
- * (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
- * The photo button stays disabled — kill-photo submission is a separate,
- * not-yet-built sub-project.
+ * MessageComposer sends player-authored group-chat messages and opens the
+ * kill-photo submission modal
+ * (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md,
+ * docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
+ *
+ * KillPhotoModal has its own thorough test file (KillPhotoModal.test.jsx)
+ * — stubbed here so this file stays focused on MessageComposer's own
+ * wiring logic (the photo button's enable/disable condition, and that it
+ * opens the modal with the right props), same reasoning
+ * GameMasterView.test.jsx stubs ChatInput.
  *
  * Explicit mock factory for dbCalls.js, not auto-mock — see
  * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe.
@@ -40,11 +46,14 @@ import { addChatMessageForRoom } from '../firebase_calls/dbCalls';
 jest.mock('../firebase_calls/dbCalls', () => ({
     addChatMessageForRoom: jest.fn(),
 }));
+jest.mock('./KillPhotoModal', () => (props) => (
+    <div>{`kill-photo-modal-stub isOpen=${props.isOpen} roomID=${props.roomID} playerName=${props.playerName} targets=${JSON.stringify(props.targets)}`}</div>
+));
 
-const mountComposer = (playerName = 'Alice') =>
+const mountComposer = (playerName = 'Alice', targets = ['bob']) =>
     render(
         <ChakraProvider>
-            <MessageComposer roomID="room-a" playerName={playerName} />
+            <MessageComposer roomID="room-a" playerName={playerName} targets={targets} />
         </ChakraProvider>
     );
 
@@ -61,10 +70,40 @@ describe('MessageComposer', () => {
         expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
     });
 
-    it('renders a disabled photo button', () => {
-        mountComposer();
+    it('enables the photo button when playerName and targets are both set', () => {
+        mountComposer('Alice', ['bob']);
+
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeEnabled();
+    });
+
+    it('disables the photo button when targets is empty, even if playerName is set', () => {
+        mountComposer('Alice', []);
 
         expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
+    });
+
+    it('disables the photo button when playerName is empty, even if targets is set', () => {
+        mountComposer('', ['bob']);
+
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
+    });
+
+    it('opens KillPhotoModal with the right props when the photo button is clicked', async () => {
+        mountComposer('Alice', ['bob']);
+
+        expect(
+            screen.getByText(
+                'kill-photo-modal-stub isOpen=false roomID=room-a playerName=Alice targets=["bob"]'
+            )
+        ).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+
+        expect(
+            screen.getByText(
+                'kill-photo-modal-stub isOpen=true roomID=room-a playerName=Alice targets=["bob"]'
+            )
+        ).toBeInTheDocument();
     });
 
     it('sends the typed message when Send is clicked', async () => {

@@ -116,7 +116,11 @@ const PlayerGame = () => {
                 </>
             )}
             <MessageFeed roomID={roomID} playerName={playerName} />
-            <MessageComposer roomID={roomID} playerName={playerName} />
+            <MessageComposer
+                roomID={roomID}
+                playerName={playerName}
+                targets={playerData?.targets ?? []}
+            />
         </Flex>
     );
 };

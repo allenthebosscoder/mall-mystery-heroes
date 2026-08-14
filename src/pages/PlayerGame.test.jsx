@@ -50,7 +50,8 @@ jest.mock('../components/player_messages_components/MessageFeed', () => (props) 
 ));
 jest.mock('../components/player_messages_components/MessageComposer', () => (props) => (
     <div>
-        message-composer-stub roomID={props.roomID} playerName={props.playerName}
+        message-composer-stub roomID={props.roomID} playerName={props.playerName} targets=
+        {JSON.stringify(props.targets)}
     </div>
 ));
 
@@ -206,6 +207,11 @@ describe('PlayerGame', () => {
         renderWaiting();
 
         expect(screen.getByText('Your target: Bob')).toBeInTheDocument();
+        expect(
+            screen.getByText(
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=["Bob"]'
+            )
+        ).toBeInTheDocument();
     });
 
     it('does not subscribe to the player doc while still waiting for the host', () => {
@@ -273,7 +279,7 @@ describe('PlayerGame', () => {
             screen.getByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
         ).toBeInTheDocument();
         expect(
-            screen.getByText('message-composer-stub roomID=Fluffy42317 playerName=Alice')
+            screen.getByText('message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[]')
         ).toBeInTheDocument();
     });
 });
