@@ -3,8 +3,14 @@
  *
  * Read-only view of the players' group chat, for the GM console — a
  * separate panel from the GM's own game-event Logs (different collection,
- * different purpose)
+ * different purpose), so the GM isn't blind to player banter
  * (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
+ *
+ * Per-message rendering is covered directly in GMChatMessage.test.jsx —
+ * this file stays focused on the subscription/filter/merge pipeline and
+ * the render-performance property that motivated the docChanges() rewrite
+ * (docs/superpowers/specs/2026-08-14-gm-chat-panel-parity-design.md): a
+ * message untouched by a later snapshot must not re-render.
  *
  * Explicit mock factory for 'firebase/firestore', not auto-mock — see
  * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe.
@@ -15,6 +21,7 @@ import { act, render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import GMChatPanel from './GMChatPanel';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
+import { formatMessageTime } from '../../utils/formatMessageTime';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -22,9 +29,24 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../firebase_calls/dbCalls', () => ({
     fetchPlayerMessagesQueryForRoom: jest.fn(() => 'messages-query'),
 }));
+// GMChatMessage calls formatMessageTime exactly once per actual render, and
+// not at all when React.memo skips re-invoking it for an unchanged message —
+// so this mock's call count is a real render-count signal, not just a
+// DOM-output check. See the "does not re-render a message untouched by a
+// later snapshot" test.
+jest.mock('../../utils/formatMessageTime', () => {
+    const actual = jest.requireActual('../../utils/formatMessageTime');
+    return { formatMessageTime: jest.fn(actual.formatMessageTime) };
+});
 
-const asMessageDocs = (messages) =>
-    messages.map((message, index) => ({ id: `message-${index}`, data: () => message }));
+// Firestore-shaped docChanges() fixture — every message arrives as an
+// 'added' change, matching what a real first snapshot reports.
+const asDocChanges = (messages) =>
+    messages.map((message, index) => ({
+        type: 'added',
+        newIndex: index,
+        doc: { id: `message-${index}`, data: () => message },
+    }));
 
 const mountPanel = (roomID = 'room-a') =>
     render(
@@ -41,9 +63,10 @@ describe('GMChatPanel', () => {
     it('shows a chat message with its sender', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    { type: 'chat', recipient: null, text: 'lol where are you', sender: 'Bob' },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        { type: 'chat', recipient: null, text: 'lol where are you', sender: 'Bob' },
+                    ]),
             });
             return () => {};
         });
@@ -57,15 +80,16 @@ describe('GMChatPanel', () => {
     it('filters out non-chat messages, e.g. a GM broadcast', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({
-                docs: asMessageDocs([
-                    {
-                        type: 'broadcast',
-                        recipient: null,
-                        text: 'Game starts soon!',
-                        standings: null,
-                    },
-                    { type: 'chat', recipient: null, text: 'hyped', sender: 'Alice' },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: 'Game starts soon!',
+                            standings: null,
+                        },
+                        { type: 'chat', recipient: null, text: 'hyped', sender: 'Alice' },
+                    ]),
             });
             return () => {};
         });
@@ -88,7 +112,7 @@ describe('GMChatPanel', () => {
         let deliverMessages;
         onSnapshot.mockImplementation((query, onNext) => {
             deliverMessages = onNext;
-            onNext({ docs: [] });
+            onNext({ docChanges: () => [] });
             return () => {};
         });
 
@@ -106,12 +130,75 @@ describe('GMChatPanel', () => {
 
         await act(async () => {
             deliverMessages({
-                docs: asMessageDocs([
-                    { type: 'chat', recipient: null, text: 'new message', sender: 'Bob' },
-                ]),
+                docChanges: () =>
+                    asDocChanges([
+                        { type: 'chat', recipient: null, text: 'new message', sender: 'Bob' },
+                    ]),
             });
         });
 
         expect(panel.scrollTop).toBe(500);
+    });
+
+    it('does not re-render a message untouched by a later snapshot', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 0,
+                        doc: {
+                            id: 'message-0',
+                            data: () => ({
+                                type: 'chat',
+                                recipient: null,
+                                text: 'First message',
+                                sender: 'Bob',
+                            }),
+                        },
+                    },
+                ],
+            });
+            return () => {};
+        });
+
+        mountPanel();
+
+        const firstMessageNode = screen.getByText('First message');
+        // The single existing message has rendered once. This is the actual
+        // render-count proof — DOM-identity alone can't distinguish "skipped
+        // the render" from "re-rendered and happened to produce the same
+        // output."
+        expect(formatMessageTime).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-1',
+                            data: () => ({
+                                type: 'chat',
+                                recipient: null,
+                                text: 'Second message',
+                                sender: 'Alice',
+                            }),
+                        },
+                    },
+                ],
+            });
+        });
+
+        expect(screen.getByText('First message')).toBe(firstMessageNode);
+        expect(screen.getByText('Second message')).toBeInTheDocument();
+        // NOT 3: if GMChatMessage correctly skips re-rendering the untouched
+        // first message, only the new second message renders here, for a
+        // total of 2 calls across both snapshots. A broken memoization would
+        // re-render both messages on the second snapshot, totaling 3.
+        expect(formatMessageTime).toHaveBeenCalledTimes(2);
     });
 });
