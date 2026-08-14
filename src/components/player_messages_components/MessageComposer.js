@@ -7,7 +7,7 @@ import KillPhotoModal from './KillPhotoModal';
 // submission modal
 // (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md,
 // docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-const MessageComposer = ({ roomID, playerName, targets }) => {
+const MessageComposer = ({ roomID, playerName, targets = [] }) => {
     const [text, setText] = useState('');
     const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 

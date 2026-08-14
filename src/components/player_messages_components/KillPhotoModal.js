@@ -26,8 +26,14 @@ import { addPhotoForRoom } from '../firebase_calls/dbCalls';
 // to Storage, then write the photos document PhotosDisplay.js's
 // moderation queue already consumes
 // (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
+const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) => {
     const [selectedTarget, setSelectedTarget] = useState(targets[0] ?? '');
+    // Derived, not state: `targets` can arrive asynchronously after mount
+    // (PlayerGame.js renders MessageComposer before playerData has loaded),
+    // and useState's initializer only runs once. Recomputing this on every
+    // render means it self-corrects whenever `targets` changes, instead of
+    // being stuck on whatever was true at mount time.
+    const effectiveTarget = targets.includes(selectedTarget) ? selectedTarget : (targets[0] ?? '');
     const [compressedBlob, setCompressedBlob] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [error, setError] = useState(null);
@@ -38,9 +44,17 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
         const file = event.target.files[0];
         if (!file) return;
         setError(null);
-        const blob = await compressImage(file);
-        setCompressedBlob(blob);
-        setPreviewUrl(URL.createObjectURL(blob));
+        setCompressedBlob(null);
+        setPreviewUrl(null);
+        try {
+            const blob = await compressImage(file);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setCompressedBlob(blob);
+            setPreviewUrl(URL.createObjectURL(blob));
+        } catch (compressError) {
+            console.error('Error compressing photo:', compressError);
+            setError('Could not read that photo. Try taking it again.');
+        }
     };
 
     const handleSubmit = async () => {
@@ -48,7 +62,9 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
         setError(null);
         try {
             const url = await uploadKillPhoto(roomID, compressedBlob);
-            await addPhotoForRoom(roomID, playerName, selectedTarget, url);
+            await addPhotoForRoom(roomID, playerName, effectiveTarget, url);
+            setCompressedBlob(null);
+            setPreviewUrl(null);
             onClose();
         } catch (submitError) {
             console.error('Error submitting kill photo:', submitError);
@@ -66,7 +82,7 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
                 <ModalCloseButton aria-label="Close modal" />
                 <ModalBody>
                     {targets.length > 1 && (
-                        <RadioGroup value={selectedTarget} onChange={setSelectedTarget} mb={4}>
+                        <RadioGroup value={effectiveTarget} onChange={setSelectedTarget} mb={4}>
                             <Stack>
                                 {targets.map((target) => (
                                     <Radio key={target} value={target}>
@@ -104,7 +120,7 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets }) => {
                     <Button
                         colorScheme="teal"
                         onClick={handleSubmit}
-                        isDisabled={!compressedBlob || isSubmitting}
+                        isDisabled={!compressedBlob || isSubmitting || !effectiveTarget}
                         isLoading={isSubmitting}
                     >
                         Submit

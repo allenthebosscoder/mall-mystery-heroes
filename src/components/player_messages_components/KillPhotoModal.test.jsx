@@ -81,6 +81,15 @@ describe('KillPhotoModal', () => {
             'bob',
             'https://example.com/photo.jpg'
         );
+        // The order genuinely matters: the photo must be uploaded (so `url`
+        // is valid) before the Firestore doc referencing that url is
+        // written.
+        expect(compressImage.mock.invocationCallOrder[0]).toBeLessThan(
+            uploadKillPhoto.mock.invocationCallOrder[0]
+        );
+        expect(uploadKillPhoto.mock.invocationCallOrder[0]).toBeLessThan(
+            addPhotoForRoom.mock.invocationCallOrder[0]
+        );
     });
 
     it('keeps the modal open and shows an error when the upload fails, with Submit still clickable', async () => {
