@@ -201,4 +201,80 @@ describe('GMChatPanel', () => {
         // re-render both messages on the second snapshot, totaling 3.
         expect(formatMessageTime).toHaveBeenCalledTimes(2);
     });
+
+    it('inserts a later message at the correct position even when an earlier message is filtered out', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 0,
+                        doc: {
+                            id: 'message-0',
+                            data: () => ({
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'Game starts soon!',
+                                standings: null,
+                            }),
+                        },
+                    },
+                    {
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-1',
+                            data: () => ({
+                                type: 'chat',
+                                recipient: null,
+                                text: 'C1',
+                                sender: 'Alice',
+                            }),
+                        },
+                    },
+                ],
+            });
+            return () => {};
+        });
+
+        mountPanel();
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () => [
+                    {
+                        type: 'added',
+                        newIndex: 1,
+                        doc: {
+                            id: 'message-2',
+                            data: () => ({
+                                type: 'chat',
+                                recipient: null,
+                                text: 'C2',
+                                sender: 'Bob',
+                            }),
+                        },
+                    },
+                ],
+            });
+        });
+
+        const renderedOrder = screen
+            .getAllByRole('listitem')
+            .map((el) => el.textContent)
+            .filter((text) => text.includes('C1') || text.includes('C2'));
+
+        // The unfiltered result set after both snapshots is
+        // [broadcast, C2, C1] — C2's newIndex of 1 places it between the
+        // broadcast and C1 in the FULL result set (applyMessageChanges.test.js
+        // covers this insertion semantic directly). Once the broadcast is
+        // filtered out of GMChatPanel's chat-only view, C2 correctly renders
+        // BEFORE C1. Feeding the already-filtered `[C1]` array back into
+        // applyMessageChanges instead would land C2's newIndex of 1 past the
+        // end of that 1-element array — splice's out-of-range clamping would
+        // silently append it, producing the wrong order, ['Alice: C1', 'Bob: C2'].
+        expect(renderedOrder).toEqual(['Bob: C2', 'Alice: C1']);
+    });
 });
