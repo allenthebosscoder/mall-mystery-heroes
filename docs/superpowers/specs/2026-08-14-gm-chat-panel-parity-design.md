@@ -128,12 +128,14 @@ described above. Render replaces the inline `ListItem`/`Text` JSX with
 ## Testing
 
 **`GMChatMessage.test.jsx` (new):**
+
 - Renders sender and text.
 - A resolved timestamp renders visible time text.
 - A pending/null timestamp renders no time text (mirrors the equivalent
   `MessageBubble.test.jsx` case).
 
 **`GMChatPanel.test.jsx` (existing, reworked):**
+
 - Mock `onSnapshot` shape changes from `{ docs: [...] }` to
   `{ docChanges: () => [...] }` across all existing tests.
 - New test: a second snapshot that only adds a new message, without

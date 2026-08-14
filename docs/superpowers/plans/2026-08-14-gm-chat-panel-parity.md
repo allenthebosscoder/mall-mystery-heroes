@@ -21,10 +21,12 @@
 ### Task 1: Extract `GMChatMessage.js` row component
 
 **Files:**
+
 - Create: `src/components/player_messages_components/GMChatMessage.js`
 - Create: `src/components/player_messages_components/GMChatMessage.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `formatMessageTime(timestamp)` from `src/utils/formatMessageTime.js` (existing, exported, returns a formatted clock-time string or `null`/falsy for a pending/null timestamp).
 - Produces: `GMChatMessage`, default export, `React.memo`-wrapped, props `{ message }` where `message` is `{ id, sender, text, timestamp, type, ... }`. Task 2 renders `<GMChatMessage key={message.id} message={message} />` per item.
 
@@ -162,10 +164,12 @@ git commit -m "Extract GMChatMessage row component with timestamp support"
 ### Task 2: Rewire `GMChatPanel.js` to merge via `applyMessageChanges` and render `GMChatMessage`
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/GMChatPanel.js` (full current content below)
 - Modify: `src/components/player_messages_components/GMChatPanel.test.jsx` (full current content below)
 
 **Interfaces:**
+
 - Consumes: `applyMessageChanges(previousMessages, docChanges)` from `src/utils/applyMessageChanges.js` (existing, exported, returns a new merged array); `GMChatMessage` from Task 1, default export, props `{ message }`.
 - Produces: no new exports — `GMChatPanel` itself keeps its existing default export and `{ roomID }` prop signature.
 
