@@ -21,10 +21,12 @@
 ### Task 1: Simplify `PlayerList.js` to a single column
 
 **Files:**
+
 - Modify: `src/components/lobby_components/PlayerList.js` (full current content below)
 - Create: `src/components/lobby_components/PlayerList.test.jsx` (no test file exists for this component today)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `PlayerList`, default export, props `{ arrayOfPlayers }` (array of name strings) — unchanged signature, so `Lobby.js` (Task 2) needs no interface changes, only its own render tree changes.
 
@@ -202,10 +204,12 @@ git commit -m "Simplify PlayerList to a single column"
 ### Task 2: Rewrite `Lobby.js` — single-column layout, drop manual Add Player
 
 **Files:**
+
 - Modify: `src/pages/Lobby.js` (full current content below)
 - Modify: `src/pages/Lobby.test.jsx` (full current content below)
 
 **Interfaces:**
+
 - Consumes: `PlayerList` from Task 1 (unchanged props: `{ arrayOfPlayers }`); `PlayerRemove` (unchanged, props `{ roomID, arrayOfPlayers }`, from `src/components/lobby_components/PlayerRemove.js`); `TargetGenerator` (unchanged, props `{ roomID, arrayOfPlayers, handleLobbyRoom }`, from `src/components/TargetGenerator.js`, renders a "Begin Game" button).
 - Produces: no new exports — `Lobby` keeps its existing default export and no-props signature (reads `roomID` via `useParams()`). After this task, `src/components/lobby_components/PlayerAddition.js` has zero remaining call sites in production code (Task 3 deletes it).
 
@@ -787,7 +791,7 @@ Expected: PASS — 7/7 tests.
 - [ ] **Step 5: Run the full gate**
 
 Run: `npm run format && npm run lint && npm test && npm run build`
-Expected: all four pass. `src/components/lobby_components/PlayerAddition.js` and its test still exist on disk but are no longer imported by anything — `npm run lint` will not flag this (unused-file detection isn't part of this repo's ESLint config; only unused *imports/variables within a file* are flagged), so the gate passes cleanly with the dead file still present. Task 3 removes it.
+Expected: all four pass. `src/components/lobby_components/PlayerAddition.js` and its test still exist on disk but are no longer imported by anything — `npm run lint` will not flag this (unused-file detection isn't part of this repo's ESLint config; only unused _imports/variables within a file_ are flagged), so the gate passes cleanly with the dead file still present. Task 3 removes it.
 
 - [ ] **Step 6: Commit**
 
@@ -801,10 +805,12 @@ git commit -m "Simplify GM lobby to a single-column layout, drop manual Add Play
 ### Task 3: Delete `PlayerAddition.js` and its test
 
 **Files:**
+
 - Delete: `src/components/lobby_components/PlayerAddition.js`
 - Delete: `src/components/lobby_components/PlayerAddition.test.jsx`
 
 **Interfaces:**
+
 - Consumes: nothing — this task only removes files.
 - Produces: nothing — no other file may reference `PlayerAddition` after this task.
 
