@@ -36,6 +36,7 @@ const fakeFile = new File(['fake'], 'photo.jpg', { type: 'image/jpeg' });
 beforeEach(() => {
     jest.clearAllMocks();
     global.URL.createObjectURL = jest.fn(() => 'blob:fake-preview');
+    global.URL.revokeObjectURL = jest.fn();
     compressImage.mockResolvedValue(fakeBlob);
     uploadKillPhoto.mockResolvedValue('https://example.com/photo.jpg');
     addPhotoForRoom.mockResolvedValue(undefined);

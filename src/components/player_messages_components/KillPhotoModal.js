@@ -63,6 +63,7 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) =
         try {
             const url = await uploadKillPhoto(roomID, compressedBlob);
             await addPhotoForRoom(roomID, playerName, effectiveTarget, url);
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             setCompressedBlob(null);
             setPreviewUrl(null);
             onClose();
