@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import mallLogo from '../assets/mall-logo-black-green.png';
 import CreateAlert from '../components/CreateAlert';
-import PlayerAddition from '../components/lobby_components/PlayerAddition';
 import PlayerList from '../components/lobby_components/PlayerList';
 import PlayerRemove from '../components/lobby_components/PlayerRemove';
 import TargetGenerator from '../components/TargetGenerator';
@@ -74,26 +73,16 @@ const Lobby = () => {
             createAlert('error', 'Error navigating to game view', 'Check console.', 1500);
         }
     };
-    return (
-        <Flex h="100vh" w="100vw" justify="center" align="center" direction="row">
-            <Flex direction="column" w="40%" h="100%" bg="#66bf78" justify="center" align="center">
-                <Image src={mallLogo} alt="logo" w="45%" h="40%" mt="20%" />
-                <Heading as="h2" size="md" mt="10%" color="black">
-                    Lobby ID: {roomID}
-                </Heading>
-                <Heading size="md" mt="6%" mb="4px" color="black">
-                    Add Player
-                </Heading>
-                <PlayerAddition roomID={roomID} />
-                <TargetGenerator
-                    roomID={roomID}
-                    arrayOfPlayers={arrayOfPlayers}
-                    handleLobbyRoom={handleLobbyRoom}
-                />
-            </Flex>
 
-            <Flex direction="column" h="100%" w="70%" bg="black">
-                <Flex justify="flex-end" h="6%">
+    // Single centered column: green banner (logo + Log Out) up top, then
+    // game ID, roster, Remove Player, and Start Game below — replacing the
+    // old 40/70 split-screen layout and its manual "Add Player" form, now
+    // redundant since players self-join via JoinGame.js
+    // (docs/superpowers/specs/2026-08-14-simplified-lobby-design.md).
+    return (
+        <Flex h="100vh" w="100vw" direction="column">
+            <Flex direction="column" w="100%" h="30%" bg="#66bf78">
+                <Flex justify="flex-end" w="100%">
                     <Button
                         colorScheme="red"
                         m="12px"
@@ -105,20 +94,36 @@ const Lobby = () => {
                         Log Out
                     </Button>
                 </Flex>
-
-                <Flex justify="center" align="center" mb="1%">
-                    <Heading>Players ({arrayOfPlayers.length})</Heading>
+                <Flex flex="1" justify="center" align="center">
+                    <Image src={mallLogo} alt="logo" w="120px" h="120px" />
                 </Flex>
+            </Flex>
+
+            <Flex direction="column" w="100%" flex="1" bg="black" align="center" overflow="auto">
+                <Heading as="h2" size="md" mt="4%" color="white">
+                    Game ID: {roomID}
+                </Heading>
+                <Heading mt="4%" mb="1%">
+                    Players ({arrayOfPlayers.length})
+                </Heading>
                 <Divider />
 
-                <Flex h="76%" justify="center" align="center" overflow="auto">
+                <Flex flex="1" w="100%" justify="center" align="center" overflow="auto">
                     <PlayerList arrayOfPlayers={arrayOfPlayers} />
                 </Flex>
 
-                <Flex h="16%" align="center" justify="center" w="100%">
+                <Flex mb="2%" align="center" justify="center" w="100%">
                     {arrayOfPlayers.length > 0 && (
                         <PlayerRemove roomID={roomID} arrayOfPlayers={arrayOfPlayers} />
                     )}
+                </Flex>
+
+                <Flex mb="4%">
+                    <TargetGenerator
+                        roomID={roomID}
+                        arrayOfPlayers={arrayOfPlayers}
+                        handleLobbyRoom={handleLobbyRoom}
+                    />
                 </Flex>
             </Flex>
         </Flex>

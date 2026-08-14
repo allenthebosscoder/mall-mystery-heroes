@@ -4,20 +4,26 @@
  * Covers Lobby's player roster: a live subscription, not a one-time fetch
  * (docs/improvements.md item 13 extended here from GameMasterView, which
  * this covers) — a player who joins from another device (e.g. self-join via
- * /join) now shows up without the GM reloading the page.
+ * /join) now shows up without the GM reloading the page. Also covers the
+ * single-column layout's new "Game ID" heading (previously "Lobby ID"),
+ * Log Out, and Start Game/Remove Player still being present after the
+ * 2026-08-14 simplified-lobby redesign
+ * (docs/superpowers/specs/2026-08-14-simplified-lobby-design.md), which
+ * dropped the manual "Add Player" form entirely.
  *
- * TargetGenerator/PlayerAddition/PlayerRemove are exercised for real (not
- * stubbed) since none of them do anything on mount that touches Firebase —
- * they only act on user interaction, which this file never triggers. All
- * three import from dbCalls.js, so the explicit mock factory below covers
- * every function any of them need, the same reasoning as every other
- * dbCalls mock in this repo (see ChatInput.test.jsx).
+ * TargetGenerator/PlayerRemove are exercised for real (not stubbed) since
+ * neither does anything on mount that touches Firebase — they only act on
+ * user interaction, which this file never triggers. Both import from
+ * dbCalls.js, so the explicit mock factory below covers every function
+ * either needs, the same reasoning as every other dbCalls mock in this
+ * repo (see ChatInput.test.jsx).
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import Lobby from './Lobby';
 
 jest.mock('firebase/firestore', () => ({
@@ -31,7 +37,6 @@ jest.mock('../utils/firebase', () => ({ auth: {} }));
 
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchAllPlayersQueryForRoom: jest.fn(() => 'players-query'),
-    addPlayerForRoom: jest.fn(),
     removePlayerForRoom: jest.fn(),
     addLogForRoom: jest.fn(),
     markGameAsStarted: jest.fn(),
@@ -106,5 +111,59 @@ describe('the player roster is a live subscription, not a one-time fetch', () =>
 
         expect(screen.getByText('Players (0)')).toBeInTheDocument();
         expect(screen.getByText('Error updating arrayOfPlayers')).toBeInTheDocument();
+    });
+});
+
+describe('the simplified layout', () => {
+    it('shows the game ID instead of the old "Lobby ID" label', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({ docs: [] });
+            return () => {};
+        });
+
+        mountLobby();
+
+        expect(screen.getByText('Game ID: room-a')).toBeInTheDocument();
+        expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
+    });
+
+    it('has no manual "Add Player" form', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({ docs: [] });
+            return () => {};
+        });
+
+        mountLobby();
+
+        expect(screen.queryByPlaceholderText('Enter Player Name')).not.toBeInTheDocument();
+        expect(screen.queryByText('Add Player')).not.toBeInTheDocument();
+    });
+
+    it('still shows Start Game and, once players exist, Remove Player', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({ docs: asPlayerDocs(['Alice', 'Bob']) });
+            return () => {};
+        });
+
+        mountLobby();
+
+        expect(screen.getByRole('button', { name: 'Begin Game' })).toBeInTheDocument();
+        expect(screen.getByText('Select player to remove')).toBeInTheDocument();
+    });
+
+    it('logs out when Log Out is clicked', async () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({ docs: [] });
+            return () => {};
+        });
+        signOut.mockResolvedValue();
+
+        mountLobby();
+
+        await act(async () => {
+            screen.getByRole('button', { name: 'Log Out' }).click();
+        });
+
+        expect(signOut).toHaveBeenCalled();
     });
 });
