@@ -188,12 +188,14 @@ not a permanently-visible panel.
 
 ## `rooms/{roomID}/photos/{autoId}`
 
-Kill-proof photos. **Designed to be written by a player-facing mobile app**,
-not by this codebase — nothing in `dbCalls.js` writes a photo document (the
-test helper that once did, `addPhotoForRoom`, had no callers and was
-deleted; `improvements.md` item 14). That app doesn't exist yet
-(`improvements.md` item 33), so today this collection has no writer at all
-except manual/emulator seeding.
+Kill-proof photos, written by a player claiming a kill against one of
+their assigned targets — `dbCalls.addPhotoForRoom`, called from
+`KillPhotoModal.js` after the photo is uploaded to Storage via
+`storageCalls.uploadKillPhoto`
+(docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
+`firestore.rules` scopes a player's create to `status: 'pending'` and
+`originalPlayerData: null` — a player can submit a claim but cannot
+self-approve it or forge the pre-kill snapshot the Undo flow relies on.
 
 | Field                | Type                                  | Notes                                                                                                                                      |
 | -------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -221,8 +223,11 @@ the photo document itself was already durably `approved`.
 Player-facing messages from `/whisper`, `/broadcast`, and `/leaderboard`
 (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
 **Designed to be read by a player-facing mobile app**, not by this
-codebase — the mirror case of `photos` above, which is designed to be
-_written_ by that same not-yet-existing app. `MessageFeed.js` now reads
+codebase — unlike `photos` above, which now has a real in-app writer
+(`KillPhotoModal.js`), nothing in this codebase reads `playerMessages`
+except `MessageFeed.js`/`GMChatPanel.js`, both entirely separate from
+whatever a future mobile app might eventually read this collection for.
+`MessageFeed.js` now reads
 `playerMessages` via `fetchPlayerMessagesQueryForRoom`, filtering to broadcasts/leaderboard sends
 and whispers addressed to the subscribing player. `'broadcast'` writes also
 now come from game-event handlers in `GameMasterView.js` and
