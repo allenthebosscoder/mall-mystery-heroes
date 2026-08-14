@@ -42,7 +42,7 @@ beforeEach(async () => {
 });
 
 describe('rooms/{roomId}/photos/**', () => {
-    it("allows a signed-in user to write into a room's photos path", async () => {
+    it("allows a signed-in user to write into a room's photos path for the first time", async () => {
         const storage = testEnv.authenticatedContext('some-uid').storage();
         await assertSucceeds(uploadBytes(ref(storage, 'rooms/room-a/photos/photo.jpg'), testBytes));
     });
@@ -59,6 +59,17 @@ describe('rooms/{roomId}/photos/**', () => {
     it('denies an unauthenticated write', async () => {
         const storage = testEnv.unauthenticatedContext().storage();
         await assertFails(uploadBytes(ref(storage, 'rooms/room-a/photos/photo.jpg'), testBytes));
+    });
+
+    it('denies a signed-in user overwriting an existing photo (create-only)', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await uploadBytes(ref(context.storage(), 'rooms/room-a/photos/photo.jpg'), testBytes);
+        });
+
+        const storage = testEnv.authenticatedContext('some-uid').storage();
+        await assertFails(
+            uploadBytes(ref(storage, 'rooms/room-a/photos/photo.jpg'), new Uint8Array([9, 9, 9]))
+        );
     });
 });
 
