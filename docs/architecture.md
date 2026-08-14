@@ -226,17 +226,19 @@ the rules. `RequireAuth` accepts any signed-in user, anonymous included.
 
 Gaps that remain, per [improvements.md](./improvements.md):
 
-- `storage.rules` requires `request.auth != null` but is not scoped
-  per-room or per-player the way `firestore.rules` now is — no photo-upload
-  code exists yet to scope a rule against (docs/superpowers/specs/2026-08-07-
-  join-flow-ui-and-room-scoping-design.md).
+- `storage.rules` is path-scoped to `rooms/{roomId}/photos/**` and
+  create-only (`resource == null`) since kill-photo submission, but not
+  scoped per-room or per-player the way `firestore.rules` now is — any
+  signed-in user can read/write within that path.
 - All game logic remains client-side, so a signed-in host can still write any
   field on their own room's documents, including `score` directly — the rules
   stop other people from editing a room, not a host from writing anything to
   their own (item 4, item 10 in [testing.md](./testing.md#layer-2--security-rules-)).
-- `photos` is scoped to "host or player of this room," not to a distinct
-  per-photo-uploader identity — no photo-upload code exists in this
-  repository yet (item 33).
+- `photos` (Firestore) is scoped by the narrow `allow create` grant to
+  `status: 'pending'`, `originalPlayerData: null` docs from any player of
+  the room, not to a distinct per-photo-uploader identity — any player of
+  a room can claim any name as the `assassin` field on a new photo doc,
+  not just their own.
 
 ## Cloud Functions
 

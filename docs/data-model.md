@@ -277,18 +277,21 @@ never set) is not covered by this and is never automatically deleted.
 
 ## Firebase Storage
 
-`storage.rules` requires `request.auth != null` on `/{allPaths=**}` —
-tightened from a previous `allow read, write: if true` (anyone,
-unauthenticated). Not scoped further (no per-room/per-host restriction)
-since there's no player-facing auth identity yet to scope a write to; see
-the rules file's own header comment.
+`storage.rules` is path-scoped to `rooms/{roomId}/photos/**` (kill-photo
+submission) — a signed-in user may read/write within that path, and
+`allow write` also requires `resource == null`, i.e. only a fresh object
+path, not overwriting/deleting one that already exists. Nothing outside
+that path is reachable. Not scoped per-room/per-host beyond the path
+match, since there's no per-player auth identity yet to scope a write to;
+see the rules file's own header comment.
 
-There is no Storage code in this repository anymore — `storageCalls.js`'s sole
-export, `fetchPhotoURLFromStorageForRoom`, had no callers and called
-`ref(storage, roomID, photoName)` with a wrong signature (`ref()` takes
-`(storage, path)`; the third argument was ignored). It was deleted
-(`improvements.md` item 14). Photo documents already carry a `url` field, so
-nothing depended on it.
+`storageCalls.js` (`uploadKillPhoto`) is the module that uses it — it
+uploads a kill-photo `Blob` to `rooms/{roomID}/photos/{crypto.randomUUID()}.jpg`
+and returns its download URL, which `addPhotoForRoom` then writes onto the
+`photos` document (see above). This is a re-add of the file: an earlier,
+unrelated `storageCalls.js` (a broken `fetchPhotoURLFromStorageForRoom`
+with no callers) was deleted as dead code (`improvements.md` item 14);
+this is a new module, added for kill-photo submission.
 
 ---
 

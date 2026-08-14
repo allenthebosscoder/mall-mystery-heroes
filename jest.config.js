@@ -3,7 +3,9 @@
  *
  *   unit        — node, no DOM, no Firebase. Pure game rules and helpers.
  *                 Files: src/game/**\/*.test.js, src/utils/**\/*.test.js, functions/**\/*.test.js
- *   dom         — jsdom + Testing Library. React components only.
+ *   dom         — jsdom + Testing Library. Mostly React components, but
+ *                 also any non-component test that needs jsdom's DOM APIs
+ *                 (e.g. Canvas) — see src/utils/compressImage.test.jsx.
  *                 Files: src/**\/*.test.jsx
  *   integration — node, real dbCalls against the Firestore emulator.
  *                 Files: src/**\/*.integration.test.js
