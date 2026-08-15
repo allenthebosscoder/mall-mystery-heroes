@@ -21,10 +21,12 @@
 ### Task 1: Make `KillPhotoModal.js` presentational
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/KillPhotoModal.js` (full current content below)
 - Modify: `src/components/player_messages_components/KillPhotoModal.test.jsx` (full current content below)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `KillPhotoModal`, default export, props `{ isOpen, onClose, targets = [], previewUrl, error, isSubmitting, onSubmit }`. `previewUrl` is a string (object URL) or `null`/`undefined`. `error` is a string or `null`/`undefined`. `isSubmitting` is a boolean. `onSubmit` is a function called as `onSubmit(effectiveTarget)` where `effectiveTarget` is a string (the currently-selected/auto-selected target name). Task 2 renders `<KillPhotoModal isOpen={isPhotoModalOpen} onClose={...} targets={targets} previewUrl={previewUrl} error={photoError} isSubmitting={isSubmitting} onSubmit={handlePhotoSubmit} />`. **Dropped from the old interface:** `roomID`, `playerName` (this component no longer calls anything that needs them).
 
@@ -519,7 +521,7 @@ Expected: PASS — 10/10 tests.
 - [ ] **Step 5: Run the full gate**
 
 Run: `npm run format && npm run lint && npm test && npm run build`
-Expected: `npm run lint`, `npm run build` pass. `npm test` will FAIL at this point — `MessageComposer.js` still passes `roomID`/`playerName` into `KillPhotoModal` and still relies on it owning the file input/capture logic, so `MessageComposer.test.jsx` and `PlayerGame.targetsIntegration.test.jsx` are expected to fail until Task 2 lands. Confirm the *only* failures are in those two files (and that `KillPhotoModal.test.jsx` itself passes), then proceed — this is expected, not a bug to fix here.
+Expected: `npm run lint`, `npm run build` pass. `npm test` will FAIL at this point — `MessageComposer.js` still passes `roomID`/`playerName` into `KillPhotoModal` and still relies on it owning the file input/capture logic, so `MessageComposer.test.jsx` and `PlayerGame.targetsIntegration.test.jsx` are expected to fail until Task 2 lands. Confirm the _only_ failures are in those two files (and that `KillPhotoModal.test.jsx` itself passes), then proceed — this is expected, not a bug to fix here.
 
 - [ ] **Step 6: Commit**
 
@@ -533,11 +535,13 @@ git commit -m "Make KillPhotoModal presentational, driven by props"
 ### Task 2: Move photo capture into `MessageComposer.js`
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/MessageComposer.js` (full current content below)
 - Modify: `src/components/player_messages_components/MessageComposer.test.jsx` (full current content below)
 - Verify only (no edit expected): `src/pages/PlayerGame.targetsIntegration.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `KillPhotoModal` from Task 1, default export, props `{ isOpen, onClose, targets = [], previewUrl, error, isSubmitting, onSubmit }` — `onSubmit` is called as `onSubmit(effectiveTarget)`. `compressImage(file) → Promise<Blob>` from `src/utils/compressImage.js` (existing, unchanged). `uploadKillPhoto(roomID, blob) → Promise<string>` from `src/components/firebase_calls/storageCalls.js` (existing, unchanged). `addPhotoForRoom(roomID, assassin, target, url) → Promise<void>` from `src/components/firebase_calls/dbCalls.js` (existing, unchanged).
 - Produces: no new exports — `MessageComposer` keeps its existing default export and `{ roomID, playerName, targets }` prop signature.
 

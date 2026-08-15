@@ -13,7 +13,7 @@ feature:
    Safari. A first fix attempt (`display="flex" alignItems="center"` on the
    Chakra `Input`) was deployed and confirmed not to have fixed it.
 2. Tapping the 📷 button in `MessageComposer.js` opens `KillPhotoModal`
-   first (empty), and the user then has to tap the file input *inside* the
+   first (empty), and the user then has to tap the file input _inside_ the
    modal to trigger the camera — two taps for something that could be one,
    since the camera opens directly on this browser anyway (no intermediate
    OS-level chooser).
@@ -30,7 +30,7 @@ gesture chain browsers require to auto-open a camera/file-picker).
 
 **New flow:** tap 📷 → camera opens immediately → photo taken → the modal
 opens showing the preview, target picker (if the player has more than one
-target), and Submit. Capture now happens *before* the modal appears,
+target), and Submit. Capture now happens _before_ the modal appears,
 reversing today's order.
 
 **Component boundary:** the hidden file input, its ref, `compressImage`/
@@ -73,7 +73,7 @@ native `<input type="file">` was inside `Modal`'s conditionally-rendered
 content, so it remounted fresh every time the modal opened — the browser
 never saw the same DOM node twice, so re-selecting an identical file
 always fired a fresh `change` event. In the new design the input is
-always-mounted, so a native file input's `change` event does *not* fire
+always-mounted, so a native file input's `change` event does _not_ fire
 again if the user selects the exact same file twice in a row (same file
 path/identity — plausible for a gallery re-selection, not really possible
 for two separate camera captures). Fix: reset `event.target.value = ''`
@@ -174,7 +174,7 @@ component to check). Submit's `onClick` becomes `() => onSubmit
   interaction sequence — click "Send photo", then `userEvent.upload` the
   "Take Photo" input, then wait for Submit to enable, then click Submit —
   stays valid under the new implementation: the hidden input carries the
-  same accessible name and is now *always* present in the DOM (previously
+  same accessible name and is now _always_ present in the DOM (previously
   it only existed once the modal had opened), so the same query/upload
   step still finds and drives it correctly. This is worth confirming
   during implementation, not just assuming.
@@ -183,7 +183,7 @@ component to check). Submit's `onClick` becomes `() => onSubmit
 
 No new failure modes. The exact `try`/`catch`/`finally` structure of
 `handleFileChange` and `handleSubmit` is preserved, just relocated. The
-only behavioral change is *when* the modal opens to show an error — on
+only behavioral change is _when_ the modal opens to show an error — on
 compression failure it now opens for the first time (rather than staying
 open, since it wasn't open yet) — which is a strictly better outcome than
 before: the user always sees exactly one modal-open transition per
