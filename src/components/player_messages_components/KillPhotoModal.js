@@ -101,6 +101,8 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) =
                         onChange={handleFileChange}
                         aria-label="Take Photo"
                         mb={4}
+                        display="flex"
+                        alignItems="center"
                     />
                     {previewUrl && (
                         <Box mb={4}>
