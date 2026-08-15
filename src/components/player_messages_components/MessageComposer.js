@@ -61,6 +61,7 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
         setPhotoError(null);
         setCompressedBlob(null);
         setPreviewUrl(null);
+        setIsPhotoModalOpen(true);
         try {
             const blob = await compressImage(file);
             if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -69,8 +70,6 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
         } catch (compressError) {
             console.error('Error compressing photo:', compressError);
             setPhotoError('Could not read that photo. Try taking it again.');
-        } finally {
-            setIsPhotoModalOpen(true);
         }
     };
 
@@ -116,6 +115,7 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
                     capture="environment"
                     onChange={handleFileChange}
                     aria-label="Take Photo"
+                    disabled={disabled || targets.length === 0}
                 />
             </VisuallyHidden>
             <Button

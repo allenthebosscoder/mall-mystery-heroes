@@ -4,6 +4,7 @@ import {
     AlertIcon,
     Box,
     Button,
+    Flex,
     Image,
     Modal,
     ModalBody,
@@ -14,7 +15,9 @@ import {
     ModalOverlay,
     Radio,
     RadioGroup,
+    Spinner,
     Stack,
+    Text,
 } from '@chakra-ui/react';
 
 // A player submits a kill-photo claim against one of their assigned
@@ -70,6 +73,12 @@ const KillPhotoModal = ({
                             <AlertIcon />
                             {error}
                         </Alert>
+                    )}
+                    {!previewUrl && !error && (
+                        <Flex align="center" mb={4}>
+                            <Spinner size="sm" mr={2} />
+                            <Text>Processing photo…</Text>
+                        </Flex>
                     )}
                 </ModalBody>
                 <ModalFooter>

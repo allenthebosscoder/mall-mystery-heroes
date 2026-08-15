@@ -262,4 +262,63 @@ describe('MessageComposer', () => {
         await waitFor(() => expect(compressImage).toHaveBeenCalled());
         expect(fileInput.value).toBe('');
     });
+
+    it('clicking the photo button clicks the hidden file input', async () => {
+        const clickSpy = jest.spyOn(HTMLInputElement.prototype, 'click');
+        mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+
+        expect(clickSpy).toHaveBeenCalled();
+        clickSpy.mockRestore();
+    });
+
+    // The photo button's own isDisabled guard (disabled || targets.length
+    // === 0) has no effect on the hidden file input it drives unless the
+    // native input carries the same guard: VisuallyHidden keeps the input
+    // focusable and in the tab order by design, so a keyboard/screen-reader
+    // user (or anything driving the DOM directly) can otherwise reach it and
+    // run the whole capture flow even when the button is disabled.
+    it('does not let a file selection through the hidden input when targets is empty', async () => {
+        mountComposer('Alice', []);
+
+        const fileInput = screen.getByLabelText('Take Photo');
+        await userEvent.upload(fileInput, fakeFile);
+
+        expect(compressImage).not.toHaveBeenCalled();
+    });
+
+    it('does not let a file selection through the hidden input when playerName is empty', async () => {
+        mountComposer('', ['bob']);
+
+        const fileInput = screen.getByLabelText('Take Photo');
+        await userEvent.upload(fileInput, fakeFile);
+
+        expect(compressImage).not.toHaveBeenCalled();
+    });
+
+    it('shows a processing indicator immediately after capture, before compression resolves', async () => {
+        let resolveCompress;
+        compressImage.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveCompress = resolve;
+                })
+        );
+        mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+
+        expect(await screen.findByText('Processing photo…')).toBeInTheDocument();
+        expect(screen.queryByAltText('Kill photo preview')).not.toBeInTheDocument();
+
+        resolveCompress(fakeBlob);
+
+        expect(await screen.findByAltText('Kill photo preview')).toHaveAttribute(
+            'src',
+            'blob:fake-preview'
+        );
+        expect(screen.queryByText('Processing photo…')).not.toBeInTheDocument();
+    });
 });
