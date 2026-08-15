@@ -1,11 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
     Alert,
     AlertIcon,
     Box,
     Button,
     Image,
-    Input,
     Modal,
     ModalBody,
     ModalCloseButton,
@@ -17,16 +16,24 @@ import {
     RadioGroup,
     Stack,
 } from '@chakra-ui/react';
-import { compressImage } from '../../utils/compressImage';
-import { uploadKillPhoto } from '../firebase_calls/storageCalls';
-import { addPhotoForRoom } from '../firebase_calls/dbCalls';
 
 // A player submits a kill-photo claim against one of their assigned
-// targets — capture/pick a photo, resize/compress it client-side, upload
-// to Storage, then write the photos document PhotosDisplay.js's
-// moderation queue already consumes
-// (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) => {
+// targets. Presentational only — MessageComposer.js owns capturing,
+// compressing, and uploading/writing the photo (its camera button
+// triggers a hidden file input directly, always mounted so it can be
+// triggered before this modal has ever opened); this modal just renders
+// whatever MessageComposer hands it and reports back which target the
+// user picked
+// (docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
+const KillPhotoModal = ({
+    isOpen,
+    onClose,
+    targets = [],
+    previewUrl,
+    error,
+    isSubmitting,
+    onSubmit,
+}) => {
     const [selectedTarget, setSelectedTarget] = useState(targets[0] ?? '');
     // Derived, not state: `targets` can arrive asynchronously after mount
     // (PlayerGame.js renders MessageComposer before playerData has loaded),
@@ -34,49 +41,9 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) =
     // render means it self-corrects whenever `targets` changes, instead of
     // being stuck on whatever was true at mount time.
     const effectiveTarget = targets.includes(selectedTarget) ? selectedTarget : (targets[0] ?? '');
-    const [compressedBlob, setCompressedBlob] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [error, setError] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const fileInputRef = useRef(null);
-
-    const handleFileChange = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        setError(null);
-        setCompressedBlob(null);
-        setPreviewUrl(null);
-        try {
-            const blob = await compressImage(file);
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            setCompressedBlob(blob);
-            setPreviewUrl(URL.createObjectURL(blob));
-        } catch (compressError) {
-            console.error('Error compressing photo:', compressError);
-            setError('Could not read that photo. Try taking it again.');
-        }
-    };
-
-    const handleSubmit = async () => {
-        setIsSubmitting(true);
-        setError(null);
-        try {
-            const url = await uploadKillPhoto(roomID, compressedBlob);
-            await addPhotoForRoom(roomID, playerName, effectiveTarget, url);
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            setCompressedBlob(null);
-            setPreviewUrl(null);
-            onClose();
-        } catch (submitError) {
-            console.error('Error submitting kill photo:', submitError);
-            setError('Could not submit the photo. Check your connection and try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} initialFocusRef={fileInputRef}>
+        <Modal isOpen={isOpen} onClose={onClose}>
             <ModalOverlay />
             <ModalContent bg="#202030">
                 <ModalHeader color="#ffffff">Submit a Kill Photo</ModalHeader>
@@ -93,17 +60,6 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) =
                             </Stack>
                         </RadioGroup>
                     )}
-                    <Input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleFileChange}
-                        aria-label="Take Photo"
-                        mb={4}
-                        display="flex"
-                        alignItems="center"
-                    />
                     {previewUrl && (
                         <Box mb={4}>
                             <Image src={previewUrl} alt="Kill photo preview" maxH="200px" />
@@ -122,8 +78,8 @@ const KillPhotoModal = ({ isOpen, onClose, roomID, playerName, targets = [] }) =
                     </Button>
                     <Button
                         colorScheme="teal"
-                        onClick={handleSubmit}
-                        isDisabled={!compressedBlob || isSubmitting || !effectiveTarget}
+                        onClick={() => onSubmit(effectiveTarget)}
+                        isDisabled={!previewUrl || isSubmitting || !effectiveTarget}
                         isLoading={isSubmitting}
                     >
                         Submit

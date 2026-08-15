@@ -1,112 +1,112 @@
 /**
  * Layer 3 — component test, jsdom + Testing Library.
  *
- * Explicit mock factories for compressImage, uploadKillPhoto, and
- * addPhotoForRoom — not auto-mocked, matching this codebase's established
- * convention for dbCalls.js/firebase-adjacent modules (see
- * ChatInput.test.jsx for the underlying reasoning).
+ * KillPhotoModal is presentational: MessageComposer.js owns capturing,
+ * compressing, and submitting the photo, and hands this modal whatever it
+ * needs to render (previewUrl/error/isSubmitting) plus an onSubmit
+ * callback
+ * (docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
+ * No compressImage/uploadKillPhoto/addPhotoForRoom mocking needed — this
+ * component no longer imports any of them.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import KillPhotoModal from './KillPhotoModal';
-import { compressImage } from '../../utils/compressImage';
-import { uploadKillPhoto } from '../firebase_calls/storageCalls';
-import { addPhotoForRoom } from '../firebase_calls/dbCalls';
-
-jest.mock('../../utils/compressImage', () => ({
-    compressImage: jest.fn(),
-}));
-jest.mock('../firebase_calls/storageCalls', () => ({
-    uploadKillPhoto: jest.fn(),
-}));
-jest.mock('../firebase_calls/dbCalls', () => ({
-    addPhotoForRoom: jest.fn(),
-}));
 
 const onClose = jest.fn();
+const onSubmit = jest.fn();
 
-const mountModal = (targets = ['bob']) =>
+const mountModal = (props = {}) =>
     render(
         <ChakraProvider>
             <KillPhotoModal
                 isOpen
                 onClose={onClose}
-                roomID="room-a"
-                playerName="alice"
-                targets={targets}
+                targets={['bob']}
+                previewUrl={null}
+                error={null}
+                isSubmitting={false}
+                onSubmit={onSubmit}
+                {...props}
             />
         </ChakraProvider>
     );
 
-const fakeBlob = new Blob(['fake'], { type: 'image/jpeg' });
-const fakeFile = new File(['fake'], 'photo.jpg', { type: 'image/jpeg' });
-
 beforeEach(() => {
     jest.clearAllMocks();
-    global.URL.createObjectURL = jest.fn(() => 'blob:fake-preview');
-    global.URL.revokeObjectURL = jest.fn();
-    compressImage.mockResolvedValue(fakeBlob);
-    uploadKillPhoto.mockResolvedValue('https://example.com/photo.jpg');
-    addPhotoForRoom.mockResolvedValue(undefined);
 });
 
 describe('KillPhotoModal', () => {
     it('auto-selects the only target and shows no picker when there is exactly one', () => {
-        mountModal(['bob']);
+        mountModal({ targets: ['bob'] });
 
         expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     });
 
     it('shows a picker when there is more than one target', () => {
-        mountModal(['bob', 'carol']);
+        mountModal({ targets: ['bob', 'carol'] });
 
         expect(screen.getByRole('radio', { name: 'bob' })).toBeInTheDocument();
         expect(screen.getByRole('radio', { name: 'carol' })).toBeInTheDocument();
     });
 
-    it('calls compressImage, uploadKillPhoto, then addPhotoForRoom in order, then closes', async () => {
-        mountModal(['bob']);
+    it('shows the preview image when previewUrl is set', () => {
+        mountModal({ previewUrl: 'blob:fake-preview' });
 
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
-
-        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
-
-        await waitFor(() => expect(onClose).toHaveBeenCalled());
-        expect(uploadKillPhoto).toHaveBeenCalledWith('room-a', fakeBlob);
-        expect(addPhotoForRoom).toHaveBeenCalledWith(
-            'room-a',
-            'alice',
-            'bob',
-            'https://example.com/photo.jpg'
-        );
-        // The order genuinely matters: the photo must be uploaded (so `url`
-        // is valid) before the Firestore doc referencing that url is
-        // written.
-        expect(compressImage.mock.invocationCallOrder[0]).toBeLessThan(
-            uploadKillPhoto.mock.invocationCallOrder[0]
-        );
-        expect(uploadKillPhoto.mock.invocationCallOrder[0]).toBeLessThan(
-            addPhotoForRoom.mock.invocationCallOrder[0]
+        expect(screen.getByAltText('Kill photo preview')).toHaveAttribute(
+            'src',
+            'blob:fake-preview'
         );
     });
 
-    it('keeps the modal open and shows an error when the upload fails, with Submit still clickable', async () => {
-        uploadKillPhoto.mockRejectedValue(new Error('network error'));
-        mountModal(['bob']);
+    it('shows no preview image when previewUrl is not set', () => {
+        mountModal({ previewUrl: null });
 
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
-        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+        expect(screen.queryByAltText('Kill photo preview')).not.toBeInTheDocument();
+    });
+
+    it('shows the error alert when error is set', () => {
+        mountModal({ error: 'Could not submit the photo. Check your connection and try again.' });
 
         expect(
-            await screen.findByText(
-                'Could not submit the photo. Check your connection and try again.'
-            )
+            screen.getByText('Could not submit the photo. Check your connection and try again.')
         ).toBeInTheDocument();
-        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('disables Submit when there is no preview yet', () => {
+        mountModal({ previewUrl: null });
+
+        expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
+    });
+
+    it('disables Submit while isSubmitting', () => {
+        mountModal({ previewUrl: 'blob:fake-preview', isSubmitting: true });
+
+        expect(screen.getByRole('button', { name: /Submit/ })).toBeDisabled();
+    });
+
+    it('enables Submit once there is a preview and a target', () => {
+        mountModal({ previewUrl: 'blob:fake-preview', targets: ['bob'] });
+
         expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
+    });
+
+    it('calls onSubmit with the effective target when Submit is clicked', async () => {
+        mountModal({ previewUrl: 'blob:fake-preview', targets: ['bob', 'carol'] });
+
+        await userEvent.click(screen.getByRole('radio', { name: 'carol' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+        expect(onSubmit).toHaveBeenCalledWith('carol');
+    });
+
+    it('calls onClose when Close is clicked', async () => {
+        mountModal();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        expect(onClose).toHaveBeenCalled();
     });
 });
