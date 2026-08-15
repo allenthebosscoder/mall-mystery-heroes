@@ -190,7 +190,7 @@ not a permanently-visible panel.
 
 Kill-proof photos, written by a player claiming a kill against one of
 their assigned targets — `dbCalls.addPhotoForRoom`, called from
-`KillPhotoModal.js` after the photo is uploaded to Storage via
+`MessageComposer.js` after the photo is uploaded to Storage via
 `storageCalls.uploadKillPhoto`
 (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
 `firestore.rules` scopes a player's create to `status: 'pending'` and
@@ -224,7 +224,7 @@ Player-facing messages from `/whisper`, `/broadcast`, and `/leaderboard`
 (docs/superpowers/specs/2026-08-06-player-messaging-mobile-prep-design.md).
 **Designed to be read by a player-facing mobile app**, not by this
 codebase — unlike `photos` above, which now has a real in-app writer
-(`KillPhotoModal.js`), nothing in this codebase reads `playerMessages`
+(`MessageComposer.js`), nothing in this codebase reads `playerMessages`
 except `MessageFeed.js`/`GMChatPanel.js`, both entirely separate from
 whatever a future mobile app might eventually read this collection for.
 `MessageFeed.js` now reads
