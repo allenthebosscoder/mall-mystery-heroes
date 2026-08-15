@@ -25,7 +25,7 @@ PASS unit src/utils/formatMessageTime.test.js
 PASS unit src/utils/applyMessageChanges.test.js
 PASS unit functions/scheduledFunctions/selectExpiredRooms.test.js
 PASS dom src/components/RequireAuth.test.jsx
-PASS dom src/components/lobby_components/PlayerAddition.test.jsx
+PASS dom src/components/lobby_components/PlayerList.test.jsx
 PASS dom src/components/logs_components/ChatInput.test.jsx
 PASS dom src/components/photos_display_component/PhotosDisplay.test.jsx
 PASS dom src/components/player_listing/PlayersList.test.jsx
@@ -52,8 +52,8 @@ PASS dom src/components/player_messages_components/KillPhotoModal.test.jsx
 PASS dom src/utils/compressImage.test.jsx
 PASS dom src/pages/PlayerGame.targetsIntegration.test.jsx
 
-Test Suites: 39 passed, 39 total
-Tests:       311 passed, 311 total
+Test Suites: 40 passed, 40 total
+Tests:       319 passed, 319 total
 ```
 
 `npm run test:emulator` runs five further suites against the real Firestore,
@@ -88,7 +88,7 @@ tests total.
 | `src/pages/PlayerGame.test.jsx`                                      | Post-join player view: live status once `gameStarted` flips, shows target when alive or eliminated state when dead, redirect home if the room disappears, Leave clears the session, mounts `MessageFeed`/`MessageComposer` with the right props, including `MessageComposer`'s `targets` prop sourced from the live player doc's `targets` field (item: join-flow UI and room scoping; kill-photo-submission)                                                                                           | 12    |
 | `src/pages/DashBoard.test.jsx`                                       | No-UI redirect resolver: an existing active room routes to lobby or GameMasterView depending on `gameStarted`, no existing room creates one (item: dashboard removal)                                                                                                                                                                                                                                                                                                                                   | 3     |
 | `src/components/header_components/LogoutButton.test.jsx`             | Signs out and navigates home when clicked (item: dashboard removal)                                                                                                                                                                                                                                                                                                                                                                                                                                     | 1     |
-| `PlayerAddition.test.jsx`                                            | The `dom` project's first test — see below                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 3     |
+| `PlayerList.test.jsx`                                                | Renders every joined player's name once, in a single list, in order; renders no list items for an empty roster (2026-08-14 simplified-lobby redesign)                                                                                                                                                                                                                                                                                                                                                   | 2     |
 | `ChatInput.test.jsx`                                                 | `/kill`, `/add` case-insensitivity (item 1); items 4, 5, 8, 10, 20, 21, 35; `/mission start`/`/mission view` opening the mission modals; covers broadcasting mission completion/auto-end events to players' chat feed                                                                                                                                                                                                                                                                                   | 38    |
 | `RequireAuth.test.jsx`                                               | Route guard spinner/redirect/render states (item 3)                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 3     |
 | `PhotosDisplay.test.jsx`                                             | Reload-recovery for photo undo (item 6); validation and Cloud Function response routing (items 4, 5)                                                                                                                                                                                                                                                                                                                                                                                                    | 5     |
@@ -600,9 +600,6 @@ possible.
 
 Keep these few and shallow.
 
-- `PlayerAddition` ✅ — `PlayerAddition.test.jsx` (`dom` project's first test,
-  mocks `dbCalls`). Covers the in-flight submit guard added alongside backlog
-  item 34, plus clearing/re-enabling on success and failure.
 - `ChatInput` ✅ (partial) — `ChatInput.test.jsx` drives the real
   `handleCommandExecution` switch (mocking only `dbCalls` and `RemapPlayers`)
   for the `/kill` and `/add` case-insensitivity fixes from backlog item 1.

@@ -100,7 +100,7 @@ const Lobby = () => {
             </Flex>
 
             <Flex direction="column" w="100%" flex="1" bg="black" align="center" overflow="auto">
-                <Heading as="h2" size="md" mt="4%" color="white">
+                <Heading as="h2" size="md" mt="4%">
                     Game ID: {roomID}
                 </Heading>
                 <Heading mt="4%" mb="1%">

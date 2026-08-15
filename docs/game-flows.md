@@ -25,9 +25,10 @@ sequenceDiagram
     DB->>Lobby: navigate(/rooms/{roomID}/lobby)
 
     Lobby->>FS: fetchAllPlayersForRoom(roomID)
+    Note over Lobby: players arrive via the separate self-service joinRoom flow, not shown in this loop
     loop roster building
-        GM->>Lobby: add / remove player
-        Lobby->>FS: addPlayerForRoom / removePlayerForRoom
+        GM->>Lobby: remove player
+        Lobby->>FS: removePlayerForRoom
         Note over Lobby: also mutates local arrayOfPlayers
     end
 
