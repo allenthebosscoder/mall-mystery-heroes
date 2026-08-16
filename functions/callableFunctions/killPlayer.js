@@ -74,6 +74,20 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
         const assassinDoc = assassinSnapshot.docs[0];
         const assassinData = assassinDoc.data();
 
+        const preWriteDataByName = new Map();
+        const captureSnapshot = (name, data) => {
+            const key = normalizePlayerName(name);
+            if (!preWriteDataByName.has(key)) {
+                preWriteDataByName.set(key, {
+                    score: data.score,
+                    targets: data.targets,
+                    assassins: data.assassins,
+                    isAlive: data.isAlive,
+                });
+            }
+        };
+        captureSnapshot(assassin, assassinData);
+
         const targetSnapshot = await transaction.get(
             playersRef.where('trimmedNameLowerCase', '==', normalizePlayerName(target))
         );
@@ -83,6 +97,8 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
         const targetDoc = targetSnapshot.docs[0];
         const targetData = targetDoc.data();
         const targetKey = normalizePlayerName(target);
+
+        captureSnapshot(target, targetData);
 
         // A kill is valid if any of three things is true: the target is on
         // the assassin's own list; the target has open season on
@@ -125,6 +141,7 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
                 continue;
             }
             neighborDocsByName.set(key, neighborSnapshot.docs[0]);
+            captureSnapshot(name, neighborSnapshot.docs[0].data());
         }
 
         // The alive roster for the remap step, as planRemap expects it:
@@ -142,6 +159,7 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
             const docData = doc.data();
             if (docData.trimmedNameLowerCase === targetKey) continue;
             rosterDocsByName.set(normalizePlayerName(docData.name), doc);
+            captureSnapshot(docData.name, docData);
             roster.push({
                 name: docData.name,
                 targets: (docData.targets || []).filter(
@@ -222,17 +240,19 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
             });
         }
 
+        const preKillSnapshot = {};
+        for (const key of pendingUpdates.keys()) {
+            const snapshot = preWriteDataByName.get(key);
+            if (snapshot) preKillSnapshot[key] = snapshot;
+        }
+
         for (const { ref, fields } of pendingUpdates.values()) {
             transaction.update(ref, fields);
         }
 
         return {
             targetWasOpenSzn: targetData.openSeason,
-            preKillSnapshot: {
-                score: targetData.score,
-                targets: targetData.targets,
-                assassins: targetData.assassins,
-            },
+            preKillSnapshot,
             addedTargets: plan.added.targets,
             addedAssassins: plan.added.assassins,
             remapLogs: plan.logs,

@@ -45,7 +45,11 @@ describe('executeKill', () => {
 
         expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
         expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(15); // 10 + bob's 5
-        expect(result.preKillSnapshot).toEqual({ score: 5, targets: [], assassins: ['alice'] });
+        expect(result.preKillSnapshot).toEqual({
+            alice: { score: 10, targets: ['bob'], assassins: [], isAlive: true },
+            bob: { score: 5, targets: [], assassins: ['alice'], isAlive: true },
+            carol: { score: 0, targets: [], assassins: [], isAlive: true },
+        });
 
         // Alice's old target (bob) just died — carol is the only other
         // alive player, so she's the only possible new assignment. This is
