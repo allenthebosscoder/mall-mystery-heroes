@@ -96,9 +96,10 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
         }
         const targetDoc = targetSnapshot.docs[0];
         const targetData = targetDoc.data();
-        const targetKey = normalizePlayerName(target);
 
         captureSnapshot(target, targetData);
+
+        const targetKey = normalizePlayerName(target);
 
         // A kill is valid if any of three things is true: the target is on
         // the assassin's own list; the target has open season on
