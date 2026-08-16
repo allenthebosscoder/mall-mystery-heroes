@@ -23,10 +23,12 @@
 ### Task 1: Reshape `killPlayer.js`'s snapshot to cover every touched player
 
 **Files:**
+
 - Modify: `functions/callableFunctions/killPlayer.js` (full current content below)
 - Modify: `src/components/executeKill.integration.test.js:37-59` (one test's assertion)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `killPlayer`'s (and therefore `executeKill`'s) resolved `preKillSnapshot` field changes shape from a flat `{ score, targets, assassins }` object describing only the target, to a map keyed by normalized player name (`normalizePlayerName(name)` — lowercase, whitespace-stripped), each value `{ score, targets, assassins, isAlive }`, covering every player `killPlayer.js`'s transaction wrote to. Task 2's `undoKillPlayer` consumes this shape by reading it off the photo doc's `originalPlayerData` field (which `approvePhotoForRoom` — unchanged — stores verbatim).
 
@@ -279,29 +281,29 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
 **Current content of `src/components/executeKill.integration.test.js:37-59`** (the test whose assertion changes):
 
 ```js
-    it("allows a kill when the target is on the assassin's list, and remaps whoever's left short", async () => {
-        await seedRoom(ROOM, [
-            { name: 'alice', targets: ['bob'], score: 10 },
-            { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
-            { name: 'carol', targets: [], assassins: [] },
-        ]);
+it("allows a kill when the target is on the assassin's list, and remaps whoever's left short", async () => {
+    await seedRoom(ROOM, [
+        { name: 'alice', targets: ['bob'], score: 10 },
+        { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
+        { name: 'carol', targets: [], assassins: [] },
+    ]);
 
-        const result = await executeKill('bob', 'alice', ROOM);
+    const result = await executeKill('bob', 'alice', ROOM);
 
-        expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
-        expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(15); // 10 + bob's 5
-        expect(result.preKillSnapshot).toEqual({ score: 5, targets: [], assassins: ['alice'] });
+    expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
+    expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(15); // 10 + bob's 5
+    expect(result.preKillSnapshot).toEqual({ score: 5, targets: [], assassins: ['alice'] });
 
-        // Alice's old target (bob) just died — carol is the only other
-        // alive player, so she's the only possible new assignment. This is
-        // the remap step, folded into the same transaction as the kill
-        // itself (docs/improvements.md item 4) rather than a separate
-        // client-driven follow-up.
-        expect(result.addedTargets.alice).toEqual(['carol']);
-        expect(result.remapLogs).toEqual(['New target for alice: carol']);
-        expect((await fetchPlayerForRoom('alice', ROOM)).data().targets).toEqual(['carol']);
-        expect((await fetchPlayerForRoom('carol', ROOM)).data().assassins).toEqual(['alice']);
-    });
+    // Alice's old target (bob) just died — carol is the only other
+    // alive player, so she's the only possible new assignment. This is
+    // the remap step, folded into the same transaction as the kill
+    // itself (docs/improvements.md item 4) rather than a separate
+    // client-driven follow-up.
+    expect(result.addedTargets.alice).toEqual(['carol']);
+    expect(result.remapLogs).toEqual(['New target for alice: carol']);
+    expect((await fetchPlayerForRoom('alice', ROOM)).data().targets).toEqual(['carol']);
+    expect((await fetchPlayerForRoom('carol', ROOM)).data().assassins).toEqual(['alice']);
+});
 ```
 
 Only the `expect(result.preKillSnapshot)...` line changes. Everything else in this test is unaffected by this task (verified by hand-tracing `killPlayer.js`'s exact logic against this test's seed data below) and must stay identical.
@@ -311,17 +313,17 @@ Only the `expect(result.preKillSnapshot)...` line changes. Everything else in th
 In `src/components/executeKill.integration.test.js`, replace:
 
 ```js
-        expect(result.preKillSnapshot).toEqual({ score: 5, targets: [], assassins: ['alice'] });
+expect(result.preKillSnapshot).toEqual({ score: 5, targets: [], assassins: ['alice'] });
 ```
 
 with:
 
 ```js
-        expect(result.preKillSnapshot).toEqual({
-            alice: { score: 10, targets: ['bob'], assassins: [], isAlive: true },
-            bob: { score: 5, targets: [], assassins: ['alice'], isAlive: true },
-            carol: { score: 0, targets: [], assassins: [], isAlive: true },
-        });
+expect(result.preKillSnapshot).toEqual({
+    alice: { score: 10, targets: ['bob'], assassins: [], isAlive: true },
+    bob: { score: 5, targets: [], assassins: ['alice'], isAlive: true },
+    carol: { score: 0, targets: [], assassins: [], isAlive: true },
+});
 ```
 
 This is derived by hand-tracing `killPlayer.js`'s current logic against this test's exact seed (alice: `targets: ['bob'], score: 10`; bob: `score: 5, targets: [], assassins: ['alice']`; carol: `targets: [], assassins: []`, defaults filling in `score: 0, isAlive: true, openSeason: false`): the kill queues writes for alice (score + unmap), bob (the kill itself), and carol (remap — she becomes alice's new target, per the existing `addedTargets.alice` assertion just below). Those three names are exactly `pendingUpdates.keys()` after this task's change, so the new snapshot has exactly those three entries, each holding that player's values as seeded (before any write in this transaction touches them).
@@ -341,47 +343,47 @@ In `functions/callableFunctions/killPlayer.js`:
 1. Right after `const db = admin.firestore();`, no change needed there. Inside the `killPlayer` handler, right after `const assassinData = assassinDoc.data();`, add:
 
 ```js
-        const preWriteDataByName = new Map();
-        const captureSnapshot = (name, data) => {
-            const key = normalizePlayerName(name);
-            if (!preWriteDataByName.has(key)) {
-                preWriteDataByName.set(key, {
-                    score: data.score,
-                    targets: data.targets,
-                    assassins: data.assassins,
-                    isAlive: data.isAlive,
-                });
-            }
-        };
-        captureSnapshot(assassin, assassinData);
+const preWriteDataByName = new Map();
+const captureSnapshot = (name, data) => {
+    const key = normalizePlayerName(name);
+    if (!preWriteDataByName.has(key)) {
+        preWriteDataByName.set(key, {
+            score: data.score,
+            targets: data.targets,
+            assassins: data.assassins,
+            isAlive: data.isAlive,
+        });
+    }
+};
+captureSnapshot(assassin, assassinData);
 ```
 
 2. Right after `const targetData = targetDoc.data();`, add:
 
 ```js
-        captureSnapshot(target, targetData);
+captureSnapshot(target, targetData);
 ```
 
 3. Inside the neighbor-gathering loop, right after `neighborDocsByName.set(key, neighborSnapshot.docs[0]);`, add:
 
 ```js
-            captureSnapshot(name, neighborSnapshot.docs[0].data());
+captureSnapshot(name, neighborSnapshot.docs[0].data());
 ```
 
 4. Inside the roster-building loop, right after `rosterDocsByName.set(normalizePlayerName(docData.name), doc);`, add:
 
 ```js
-            captureSnapshot(docData.name, docData);
+captureSnapshot(docData.name, docData);
 ```
 
 5. Immediately before `for (const { ref, fields } of pendingUpdates.values()) {`, add:
 
 ```js
-        const preKillSnapshot = {};
-        for (const key of pendingUpdates.keys()) {
-            const snapshot = preWriteDataByName.get(key);
-            if (snapshot) preKillSnapshot[key] = snapshot;
-        }
+const preKillSnapshot = {};
+for (const key of pendingUpdates.keys()) {
+    const snapshot = preWriteDataByName.get(key);
+    if (snapshot) preKillSnapshot[key] = snapshot;
+}
 ```
 
 6. Change the return statement's `preKillSnapshot` field from:
@@ -425,36 +427,38 @@ git commit -m "Snapshot every player killPlayer touches, not just the target"
 ### Task 2: Add the atomic `undoKillPlayer` Cloud Function and its client wrapper
 
 **Files:**
+
 - Create: `functions/callableFunctions/undoKillPlayer.js`
 - Modify: `functions/index.js` (full current content below)
 - Create: `src/components/undoKill.js`
 - Create: `src/components/undoKill.integration.test.js`
 
 **Interfaces:**
+
 - Consumes: `preKillSnapshot`'s new map shape from Task 1 (read off a photo doc's `originalPlayerData` field, written there unchanged by the existing `approvePhotoForRoom`). `normalizePlayerName` from `../vendor/game/playerNames` (already vendored, used the same way `killPlayer.js` uses it).
 - Produces: a registered Cloud Function `undoKillPlayer`, callable as `httpsCallable(functions, 'undoKillPlayer')` with `{ roomId, photoId }`. A client wrapper `undoKill(roomID, photoID) → Promise<void>` from `src/components/undoKill.js`, default export none (named export `undoKill`). Task 3 imports `{ undoKill } from '../undoKill'` and calls `await undoKill(roomID, photo.id)`.
 
 **Current content of `functions/index.js`:**
 
 ```js
-const express = require("express");
-const cors = require("cors");
+const express = require('express');
+const cors = require('cors');
 
 var corsOptions = {
-    origin: "http://localhost:3000"
-  };
+    origin: 'http://localhost:3000',
+};
 
 const app = express();
 app.use(cors({ corsOptions }));
 
-const { killPlayer } = require("./callableFunctions/killPlayer")
-exports.killPlayer = killPlayer
+const { killPlayer } = require('./callableFunctions/killPlayer');
+exports.killPlayer = killPlayer;
 
-const { joinRoom } = require("./callableFunctions/joinRoom")
-exports.joinRoom = joinRoom
+const { joinRoom } = require('./callableFunctions/joinRoom');
+exports.joinRoom = joinRoom;
 
-const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
-exports.cleanupEndedRooms = cleanupEndedRooms
+const { cleanupEndedRooms } = require('./scheduledFunctions/cleanupEndedRooms');
+exports.cleanupEndedRooms = cleanupEndedRooms;
 ```
 
 (No trailing newline; inconsistent quote/semicolon style is pre-existing — match it exactly for the two new lines, do not reformat the rest of the file.)
@@ -495,7 +499,9 @@ export const executeKill = async (target, assassin, roomID) => {
 **Current content of `test/emulatorHelpers.js`'s relevant exports** (for the test in Step 1 below — already exist, do not modify this file):
 
 ```js
-export const clearFirestore = async () => { /* wipes every doc in the emulator */ };
+export const clearFirestore = async () => {
+    /* wipes every doc in the emulator */
+};
 export const shutdown = () => terminate(db);
 export const callableAsNonHost = (functionName) => {
     /* returns an async (data) => callable(data), signed in as a distinct,
@@ -514,8 +520,12 @@ export const seedRoom = async (roomID, players = [], roomOverrides = {}, dbInsta
 export const addPhotoForRoom = async (roomID, assassin, target, url) => {
     const photosRef = collection(db, 'rooms', roomID, 'photos');
     await addDoc(photosRef, {
-        url, assassin, target, timestamp: serverTimestamp(),
-        status: 'pending', originalPlayerData: null,
+        url,
+        assassin,
+        target,
+        timestamp: serverTimestamp(),
+        status: 'pending',
+        originalPlayerData: null,
     });
 };
 
@@ -770,34 +780,34 @@ exports.undoKillPlayer = functions.https.onCall(async (data, context) => {
 Modify `functions/index.js` — add these two lines after the `killPlayer` block (matching the file's existing no-semicolon, double-quote-`require` style exactly):
 
 ```js
-const { undoKillPlayer } = require("./callableFunctions/undoKillPlayer")
-exports.undoKillPlayer = undoKillPlayer
+const { undoKillPlayer } = require('./callableFunctions/undoKillPlayer');
+exports.undoKillPlayer = undoKillPlayer;
 ```
 
 So the full file becomes:
 
 ```js
-const express = require("express");
-const cors = require("cors");
+const express = require('express');
+const cors = require('cors');
 
 var corsOptions = {
-    origin: "http://localhost:3000"
-  };
+    origin: 'http://localhost:3000',
+};
 
 const app = express();
 app.use(cors({ corsOptions }));
 
-const { killPlayer } = require("./callableFunctions/killPlayer")
-exports.killPlayer = killPlayer
+const { killPlayer } = require('./callableFunctions/killPlayer');
+exports.killPlayer = killPlayer;
 
-const { undoKillPlayer } = require("./callableFunctions/undoKillPlayer")
-exports.undoKillPlayer = undoKillPlayer
+const { undoKillPlayer } = require('./callableFunctions/undoKillPlayer');
+exports.undoKillPlayer = undoKillPlayer;
 
-const { joinRoom } = require("./callableFunctions/joinRoom")
-exports.joinRoom = joinRoom
+const { joinRoom } = require('./callableFunctions/joinRoom');
+exports.joinRoom = joinRoom;
 
-const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
-exports.cleanupEndedRooms = cleanupEndedRooms
+const { cleanupEndedRooms } = require('./scheduledFunctions/cleanupEndedRooms');
+exports.cleanupEndedRooms = cleanupEndedRooms;
 ```
 
 Create `src/components/undoKill.js`:
@@ -845,11 +855,13 @@ git commit -m "Add atomic undoKillPlayer Cloud Function and client wrapper"
 ### Task 3: Wire `PhotosDisplay.js`'s Undo to the new atomic reversal
 
 **Files:**
+
 - Modify: `src/components/photos_display_component/PhotosDisplay.js` (full current content below)
 - Modify: `src/components/photos_display_component/PhotosDisplay.test.jsx` (full current content below)
 - Modify: `docs/improvements.md` (add a new tracking item)
 
 **Interfaces:**
+
 - Consumes: `undoKill(roomID, photoID) → Promise<void>` from `src/components/undoKill.js` (Task 2).
 - Produces: no new exports — `PhotosDisplay`'s default export and no-props signature are unchanged.
 
@@ -1386,7 +1398,9 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
                 status: 'approved',
                 target: 'alice',
                 assassin: 'bob',
-                originalPlayerData: { alice: { score: 7, targets: ['carol'], assassins: ['dave'], isAlive: true } },
+                originalPlayerData: {
+                    alice: { score: 7, targets: ['carol'], assassins: ['dave'], isAlive: true },
+                },
             },
         ]);
 
@@ -1679,7 +1693,7 @@ Expected: PASS — 6/6 tests.
 
 - [ ] **Step 5: Add the backlog tracking note**
 
-Check the current highest item number in `docs/improvements.md` (run `grep -n "^### [0-9]" docs/improvements.md | tail -3` — expected to show item 48 as the highest at the time of writing this plan; use the next number after whatever is actually highest when you run it). Read item 47's exact heading/body format first (`### 47. \`addPlayerForRoom\` is now unreferenced by any production code path`) to match its tone precisely, then add a new item, inserted after the last existing item and before the `---` / `## Suggested sequencing` divider near the end of the file:
+Check the current highest item number in `docs/improvements.md` (run `grep -n "^### [0-9]" docs/improvements.md | tail -3` — expected to show item 48 as the highest at the time of writing this plan; use the next number after whatever is actually highest when you run it). Read item 47's exact heading/body format first (`### 47. \`addPlayerForRoom\` is now unreferenced by any production code path`) to match its tone precisely, then add a new item, inserted after the last existing item and before the `---`/`## Suggested sequencing` divider near the end of the file:
 
 ```markdown
 ### 49. `remapPlayerAsTarget` is now unreferenced by any production code path

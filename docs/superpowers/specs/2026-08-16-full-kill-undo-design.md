@@ -11,7 +11,7 @@ photo, only reverts the **target**'s side of the kill. A kill
 far more than the target:
 
 - **Target**: `score: 0, isAlive: false, openSeason: false, targets: [],
-  assassins: []`.
+assassins: []`.
 - **Killer**: `score += target's pre-kill score`, and the dead target is
   removed from their `targets` array.
 - **Every other player hunting the target** (if more than one — the data
@@ -236,8 +236,8 @@ captured values, not a fresh remap decision.
 Register the new function, matching the existing pattern:
 
 ```js
-const { undoKillPlayer } = require('./callableFunctions/undoKillPlayer')
-exports.undoKillPlayer = undoKillPlayer
+const { undoKillPlayer } = require('./callableFunctions/undoKillPlayer');
+exports.undoKillPlayer = undoKillPlayer;
 ```
 
 ### `src/components/undoKill.js` (new)
@@ -334,9 +334,9 @@ a new backlog note, not something to delete in this change.
   leaving everything unchanged.
 - **`executeKill.integration.test.js`** needs one existing assertion
   updated: line 48 currently asserts `result.preKillSnapshot).toEqual({
-  score: 5, targets: [], assassins: ['alice'] })` — the old flat shape.
+score: 5, targets: [], assassins: ['alice'] })` — the old flat shape.
   This becomes the new map shape, e.g. `{ bob: { score: 5, targets: [],
-  assassins: ['alice'], isAlive: true } }` (verify the exact expected
+assassins: ['alice'], isAlive: true } }` (verify the exact expected
   values against the test's actual seeded data at implementation time).
 - **`PhotosDisplay.test.jsx`** gets reworked for the `action === 'pass'`
   undo test(s): mock `undoKill` (new import) instead of the five
