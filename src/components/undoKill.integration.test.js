@@ -103,6 +103,32 @@ describe('undoKill', () => {
         expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(true);
     });
 
+    it('restores openSeason on the target after undoing an open-season kill', async () => {
+        // bob has no assigned hunter at all — alice is not on bob's
+        // assassins list and bob is not on alice's targets list — so the
+        // ONLY valid kill path here is bob's own openSeason flag. This
+        // proves the scenario is real, not vacuous: if openSeason were not
+        // actually driving the kill's validity, executeKill would reject it.
+        await seedRoom(ROOM, [
+            { name: 'alice', targets: [], assassins: [], score: 10 },
+            { name: 'bob', score: 5, targets: [], assassins: [], openSeason: true },
+        ]);
+        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        const photoId = await latestPhotoId();
+
+        const killResult = await executeKill('bob', 'alice', ROOM);
+        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+
+        // The kill itself clears openSeason on the target.
+        expect((await fetchPlayerForRoom('bob', ROOM)).data().openSeason).toBe(false);
+
+        await undoKill(ROOM, photoId);
+
+        const bob = (await fetchPlayerForRoom('bob', ROOM)).data();
+        expect(bob.isAlive).toBe(true);
+        expect(bob.openSeason).toBe(true);
+    });
+
     it('rejects a caller who is not the room host', async () => {
         await seedRoom(ROOM, [
             { name: 'alice', targets: ['bob'], score: 10 },

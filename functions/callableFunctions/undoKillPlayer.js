@@ -82,6 +82,7 @@ exports.undoKillPlayer = functions.https.onCall(async (data, context) => {
                 targets: snapshot.targets,
                 assassins: snapshot.assassins,
                 isAlive: snapshot.isAlive,
+                openSeason: snapshot.openSeason,
             });
         }
 

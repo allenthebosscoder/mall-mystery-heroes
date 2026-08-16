@@ -79,10 +79,11 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
             const key = normalizePlayerName(name);
             if (!preWriteDataByName.has(key)) {
                 preWriteDataByName.set(key, {
-                    score: data.score,
-                    targets: data.targets,
-                    assassins: data.assassins,
+                    score: data.score ?? 0,
+                    targets: data.targets || [],
+                    assassins: data.assassins || [],
                     isAlive: data.isAlive,
+                    openSeason: data.openSeason ?? false,
                 });
             }
         };
