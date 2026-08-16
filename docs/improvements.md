@@ -1652,6 +1652,40 @@ As of this writing, `remapPlayerAsTarget`
 function costs nothing sitting unused — but worth tracking rather than
 rediscovering later.
 
+### 50. `undoKillPlayer`'s snapshot replay has two inherent, tracked risks
+
+**Impact: low (informational) · Effort: —**
+
+Found during final review of the 2026-08-16 full-kill-undo redesign
+(`docs/superpowers/specs/2026-08-16-full-kill-undo-design.md`). Neither of
+these is a bug — both are inherent tradeoffs of the snapshot-replay design
+this redesign chose — but they're worth having on record rather than
+rediscovering later.
+
+**Undo's blast radius is now unbounded in time.** Since undo replays a full
+pre-kill snapshot for every touched player, anything that changed those
+players between approval and undo (a second kill, a manual points/score
+edit, another open-season toggle, a manual remap) gets silently overwritten
+by the undo. Previously only the target was at this kind of risk, since the
+old undo flow only reverted the target's own side of the kill; now it's
+every player the original kill touched — the killer and anyone the remap
+reassigned, in addition to the target. There's no time-based or state-based
+guard: `undoKillPlayer` will replay an old snapshot onto current data no
+matter how much has changed since. LIFO ordering (only the most recently
+judged photo can be undone) is enforced client-side by
+`PhotosDisplay.js`'s `handleUndo`, not server-side, so it constrains the
+normal UI path but not a direct call to the Cloud Function.
+
+**`undoKillPlayer` silently skips a player it can't find.** If a snapshot
+entry's `trimmedNameLowerCase` key no longer resolves to a document (for
+instance, the room's player list changed in some unexpected way between the
+kill and the undo), the restore for that entry is skipped with a
+`console.warn` only — no signal is surfaced to the GM. This mirrors
+`killPlayer.js`'s own existing precedent for the same situation (skipping an
+unresolvable neighbor during unmapping), so it's not a new class of risk,
+but it means an undo could report success while actually only partially
+restoring.
+
 ---
 
 ## Suggested sequencing
