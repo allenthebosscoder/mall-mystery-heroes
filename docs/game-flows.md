@@ -166,6 +166,8 @@ sequenceDiagram
     participant FS as Firestore
     participant PD as PhotosDisplay
     participant EK as executeKill (client)
+    participant UK as undoKill (client)
+    participant UKP as undoKillPlayer (Cloud Function)
     actor GM
 
     App->>FS: addDoc(photos, {url, assassin, target, timestamp, status:"pending"})
@@ -184,13 +186,18 @@ sequenceDiagram
         GM->>PD: ✗
         PD->>FS: updatePhotoStatusForRoom("denied")
         PD->>FS: addLog("attempt was denied")
-    else Undo last judgment
+    else Undo last judgment, previous action was Approve
+        GM->>PD: ←
+        PD->>UK: undoKill(roomID, photoId)
+        UK->>UKP: httpsCallable('undoKillPlayer', {roomId, photoId})
+        Note over UKP: one transaction: for every player in the photo's<br/>originalPlayerData, restore score/targets/assassins/<br/>isAlive/openSeason verbatim, then set photo status<br/>back to "pending"
+        UKP-->>UK: (void)
+        UK-->>PD: resolved promise
+        PD->>FS: addLog("Undo: target's death by assassin was reverted")
+    else Undo last judgment, previous action was Deny
         GM->>PD: ←
         PD->>FS: updatePhotoStatusForRoom("pending")
-        opt previous action was Approve
-            PD->>FS: handlePlayerRevive, restore score / targets / assassins from the persisted preKillSnapshot
-            PD->>FS: remapPlayerAsTarget(target, originalPlayerData.assassins)
-        end
+        PD->>FS: addLog("Undo: denial of assassin's claim on target was reverted.")
     end
 ```
 
@@ -200,10 +207,23 @@ item 5, then item 4 moved what `executeKill` does server-side. This closed
 what used to be two real gaps between the photo-approval path and `/kill`:
 approving a photo now validates the target the same way `/kill` does, and now
 remaps orphaned players the same way `/kill` does, since both call the same
-function. `preKillSnapshot` — the `{score, targets, assassins}` returned by
-`killPlayer` from before the kill — is persisted onto the photo document
-itself (`approvePhotoForRoom`) rather than kept only in React state, which is
-what makes Undo survive a reload (`improvements.md` item 6).
+function. `preKillSnapshot` — a map keyed by normalized player name, each
+value `{score, targets, assassins, isAlive, openSeason}`, one entry per
+player `killPlayer`'s transaction touched (target, killer, and anyone the
+remap reassigned) — is persisted onto the photo document itself
+(`approvePhotoForRoom`) rather than kept only in React state, which is what
+makes Undo survive a reload (`improvements.md` item 6).
+
+**Undoing an approval no longer replays individual client writes.** The
+2026-08-16 full-kill-undo redesign
+(`docs/superpowers/specs/2026-08-16-full-kill-undo-design.md`) replaced the
+old five-write sequence (`updatePhotoStatusForRoom` + `handlePlayerRevive` +
+`remapPlayerAsTarget`, run one at a time from the browser, which only ever
+reverted the target's own side of the kill) with a single atomic
+`undoKillPlayer` Cloud Function call: it resets the photo's status and
+restores every snapshotted player inside one Firestore transaction. Denying
+an undo (reverting a Deny back to pending) is unchanged — it was always just
+`updatePhotoStatusForRoom("pending")`, with no player data to restore.
 
 ---
 

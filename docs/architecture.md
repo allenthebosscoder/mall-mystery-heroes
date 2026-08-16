@@ -242,7 +242,7 @@ Gaps that remain, per [improvements.md](./improvements.md):
 
 ## Cloud Functions
 
-`functions/` contains three callables and one scheduled function:
+`functions/` contains four callables and one scheduled function:
 
 - `targetFunction` — a stub that checks `context.auth` and echoes its input
   back. Nothing in the game depends on it; its only caller, a debug button
@@ -256,6 +256,19 @@ Gaps that remain, per [improvements.md](./improvements.md):
   `src/components/executeKill.js` is now a thin `httpsCallable` wrapper
   around it. This is the one place in the app where game logic runs
   server-side rather than in the browser.
+- `undoKillPlayer` (`functions/callableFunctions/undoKillPlayer.js`) — the
+  atomic reversal of an approved kill (the 2026-08-16 full-kill-undo
+  redesign, `docs/superpowers/specs/2026-08-16-full-kill-undo-design.md`).
+  `killPlayer` snapshots every player its transaction touches (target,
+  killer, and anyone the remap reassigned) into `preKillSnapshot`, a map
+  keyed by normalized player name; `approvePhotoForRoom` persists that
+  snapshot onto the photo document as `originalPlayerData`.
+  `undoKillPlayer` reads it back and replays every entry verbatim —
+  score, targets, assassins, isAlive, openSeason — restoring every touched
+  player and resetting the photo to `'pending'`, all inside one Firestore
+  transaction via the Admin SDK. Replaced a client-side Undo that only ever
+  reverted the target's own side of the kill. `src/components/undoKill.js`
+  is its thin `httpsCallable` wrapper, same shape as `executeKill.js`.
 - `joinRoom` (`functions/callableFunctions/joinRoom.js`) — lets a player
   self-register into a room from their own device, atomically checking for
   a duplicate name and that the room is still in its Lobby phase, all
@@ -283,15 +296,16 @@ Gaps that remain, per [improvements.md](./improvements.md):
 never exports or uses it — pre-existing dead scaffolding, unrelated to
 either callable.
 
-**Kills are the one exception; everything else is still client-side.**
-Target _generation_ (the initial ring assignment), open-season toggling,
-task-completion scoring, and reviving a player all still execute in the
-browser and write directly to Firestore, same as before. `firestore.rules`
+**Kills and kill-undo are the exception; everything else is still
+client-side.** Target _generation_ (the initial ring assignment), open-season
+toggling, task-completion scoring, and reviving a player all still execute in
+the browser and write directly to Firestore, same as before. `firestore.rules`
 (item 2) scopes those writes to the room's host, but does not distinguish
 _which_ field a host writes — a signed-in host can still write a player's
-score directly, for anything that isn't a kill. See `firestore.rules`'s own
-header comment and `improvements.md` item 4's resolution for the exact
-boundary of what moved server-side and what didn't.
+score directly, for anything that isn't a kill or a kill-undo. See
+`firestore.rules`'s own header comment, `improvements.md` item 4's resolution
+for the original kill boundary, and the 2026-08-16 full-kill-undo design spec
+for how undo was brought inside that same boundary.
 
 `functions/` is a separate npm package sharing the root's dependency tree
 via npm workspaces (`package.json`'s `"workspaces": ["functions"]`) — a
