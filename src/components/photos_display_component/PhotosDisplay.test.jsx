@@ -70,7 +70,9 @@ beforeEach(() => {
     undoKill.mockResolvedValue(undefined);
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
-        preKillSnapshot: { score: 0, targets: [], assassins: [] },
+        preKillSnapshot: {
+            alice: { score: 0, targets: [], assassins: [], isAlive: true, openSeason: false },
+        },
         addedTargets: {},
         addedAssassins: {},
         remapLogs: [],
@@ -146,7 +148,15 @@ describe('approving a photo persists the undo snapshot (improvements item 6)', (
     it('calls executeKill and persists its preKillSnapshot', async () => {
         executeKill.mockResolvedValue({
             targetWasOpenSzn: false,
-            preKillSnapshot: { score: 12, targets: ['x'], assassins: ['y'] },
+            preKillSnapshot: {
+                bob: {
+                    score: 12,
+                    targets: ['x'],
+                    assassins: ['y'],
+                    isAlive: true,
+                    openSeason: false,
+                },
+            },
             addedTargets: {},
             addedAssassins: {},
             remapLogs: [],
@@ -157,9 +167,7 @@ describe('approving a photo persists the undo snapshot (improvements item 6)', (
 
         await waitFor(() => expect(executeKill).toHaveBeenCalledWith('alice', 'bob', 'room-a'));
         expect(dbCalls.approvePhotoForRoom).toHaveBeenCalledWith('room-a', 'photo-0', {
-            score: 12,
-            targets: ['x'],
-            assassins: ['y'],
+            bob: { score: 12, targets: ['x'], assassins: ['y'], isAlive: true, openSeason: false },
         });
     });
 
