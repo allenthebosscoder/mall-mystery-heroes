@@ -5,14 +5,11 @@ import {
     approvePhotoForRoom,
     fetchPhotosQueryByAscendingTimestampForRoom,
     updatePhotoStatusForRoom,
-    updatePointsForPlayer,
-    updateTargetsForPlayer,
-    updateAssassinsForPlayer,
-    remapPlayerAsTarget,
 } from '../firebase_calls/dbCalls';
 import { onSnapshot } from 'firebase/firestore';
 import { splitPhotosByStatus } from '../../game/photoJudgments';
 import { executeKill } from '../executeKill';
+import { undoKill } from '../undoKill';
 import confirm from '../../assets/enter-green.png';
 import deny from '../../assets/red-x.png';
 import undo from '../../assets/arrow-left.png';
@@ -25,7 +22,6 @@ const PhotosDisplay = () => {
     const [judgedPhotos, setJudgedPhotos] = useState([]);
     const { roomID } = useContext(gameContext);
     const {
-        handlePlayerRevive,
         addLog,
         handleRemapping,
         handleAddNewAssassins,
@@ -65,8 +61,9 @@ const PhotosDisplay = () => {
     // item 5). executeKill now runs the validate/transfer-points/kill/
     // unmap/remap sequence atomically server-side (item 4) — the same
     // Cloud Function /kill (ChatInput.js) calls, so the two paths can't
-    // diverge; its preKillSnapshot is exactly the {score, targets,
-    // assassins} shape handleUndo below expects as originalPlayerData.
+    // diverge; its preKillSnapshot is exactly the map of every touched
+    // player's pre-kill data that undoKillPlayer needs to fully reverse a
+    // kill (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md).
     const handlePass = async () => {
         if (unjudgedPhotos.length === 0) return;
         const [currentPhoto] = unjudgedPhotos;
@@ -116,41 +113,39 @@ const PhotosDisplay = () => {
         }
     };
 
+    // For an approved kill, the full reversal (every player killPlayer.js's
+    // transaction touched, not just the target) now happens atomically
+    // inside undoKillPlayer, which also resets the photo's status back to
+    // pending as part of the same transaction — so this function no longer
+    // needs to know anything about individual player fields, and no longer
+    // calls updatePhotoStatusForRoom for that path
+    // (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md). A
+    // denied judgment never touched player data, so undoing one is still
+    // just a status reset here.
     const handleUndo = async () => {
         if (judgedPhotos.length === 0) return;
 
         const last = judgedPhotos[judgedPhotos.length - 1];
-        const { photo, action, originalPlayerData } = last;
+        const { photo, action } = last;
 
         try {
-            // Step 1: Revert status in Firestore
-            await updatePhotoStatusForRoom(roomID, photo.id, 'pending');
-
-            // Step 2: Revert kill if it was approved
             if (action === 'pass') {
+                await undoKill(roomID, photo.id);
                 await addLog(
                     `Undo: ${photo.target}'s death by ${photo.assassin} was reverted`,
                     'blue.200'
                 );
-
-                await handlePlayerRevive(photo.target);
-                await updatePointsForPlayer(photo.target, originalPlayerData.score, roomID);
-                await updateTargetsForPlayer(photo.target, originalPlayerData.targets, roomID);
-                await updateAssassinsForPlayer(photo.target, originalPlayerData.assassins, roomID);
-                await remapPlayerAsTarget(photo.target, roomID, originalPlayerData.assassins);
-                // GameMasterView's players subscription (docs/improvements.md
-                // item 13) picks up handlePlayerRevive's isAlive write above
-                // — no local array mutation needed.
             }
 
             if (action === 'deny') {
+                await updatePhotoStatusForRoom(roomID, photo.id, 'pending');
                 await addLog(
                     `Undo: denial of ${photo.assassin}'s claim on ${photo.target} was reverted.`,
                     'blue.200'
                 );
             }
             // unjudgedPhotos/judgedPhotos update via the onSnapshot listener
-            // once the status write above lands — no local update needed.
+            // once the writes above land — no local update needed.
         } catch (error) {
             console.error('Error undoing photo judgment:', error);
             createAlert('error', 'Error undoing photo judgment', error.message, 1500);

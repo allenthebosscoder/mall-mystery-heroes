@@ -21,6 +21,7 @@ import PhotosDisplay from './PhotosDisplay';
 import { gameContext, executionContext } from '../Contexts';
 import * as dbCalls from '../firebase_calls/dbCalls';
 import { executeKill } from '../executeKill';
+import { undoKill } from '../undoKill';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -30,16 +31,12 @@ jest.mock('firebase/firestore', () => ({
 jest.mock('../firebase_calls/dbCalls', () => ({
     approvePhotoForRoom: jest.fn(),
     fetchPhotosQueryByAscendingTimestampForRoom: jest.fn(() => 'photos-query'),
-    remapPlayerAsTarget: jest.fn(),
-    updateAssassinsForPlayer: jest.fn(),
     updatePhotoStatusForRoom: jest.fn(),
-    updatePointsForPlayer: jest.fn(),
-    updateTargetsForPlayer: jest.fn(),
 }));
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
+jest.mock('../undoKill', () => ({ undoKill: jest.fn() }));
 
 const executionHandlers = {
-    handlePlayerRevive: jest.fn(),
     addLog: jest.fn(),
     handleRemapping: jest.fn(),
     handleAddNewAssassins: jest.fn(),
@@ -70,10 +67,7 @@ const mountWithSnapshot = (photoDocs) => {
 beforeEach(() => {
     jest.clearAllMocks();
     dbCalls.updatePhotoStatusForRoom.mockResolvedValue(undefined);
-    dbCalls.updatePointsForPlayer.mockResolvedValue(undefined);
-    dbCalls.updateTargetsForPlayer.mockResolvedValue(undefined);
-    dbCalls.updateAssassinsForPlayer.mockResolvedValue(undefined);
-    dbCalls.remapPlayerAsTarget.mockResolvedValue(undefined);
+    undoKill.mockResolvedValue(undefined);
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
         preKillSnapshot: { score: 0, targets: [], assassins: [] },
@@ -93,25 +87,28 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
                 status: 'approved',
                 target: 'alice',
                 assassin: 'bob',
-                originalPlayerData: { score: 7, targets: ['carol'], assassins: ['dave'] },
+                originalPlayerData: {
+                    alice: { score: 7, targets: ['carol'], assassins: ['dave'], isAlive: true },
+                },
             },
         ]);
 
         await userEvent.click(screen.getByAltText('Undo'));
 
-        // updateAssassinsForPlayer is the last await in handleUndo's success
-        // path, so waiting for it means the whole chain has settled.
-        await waitFor(() => expect(dbCalls.updateAssassinsForPlayer).toHaveBeenCalled());
-
-        expect(dbCalls.updatePhotoStatusForRoom).toHaveBeenCalledWith(
-            'room-a',
-            'photo-0',
-            'pending'
+        // The reversal (score/targets/assassins/isAlive, for every player
+        // killPlayer.js's transaction touched) now happens entirely inside
+        // the atomic undoKillPlayer Cloud Function — the client only needs
+        // to trigger it and log the result
+        // (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md).
+        await waitFor(() => expect(undoKill).toHaveBeenCalledWith('room-a', 'photo-0'));
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            "Undo: alice's death by bob was reverted",
+            'blue.200'
         );
-        expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith('alice');
-        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('alice', 7, 'room-a');
-        expect(dbCalls.updateTargetsForPlayer).toHaveBeenCalledWith('alice', ['carol'], 'room-a');
-        expect(dbCalls.updateAssassinsForPlayer).toHaveBeenCalledWith('alice', ['dave'], 'room-a');
+        // updatePhotoStatusForRoom is only for the deny-undo path now —
+        // undoKillPlayer's own transaction already resets status to
+        // 'pending' for an approval-undo.
+        expect(dbCalls.updatePhotoStatusForRoom).not.toHaveBeenCalled();
     });
 
     it('does nothing when there is no judged photo to undo', async () => {
@@ -119,7 +116,29 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
 
         await userEvent.click(screen.getByAltText('Undo'));
 
+        expect(undoKill).not.toHaveBeenCalled();
         expect(dbCalls.updatePhotoStatusForRoom).not.toHaveBeenCalled();
+    });
+
+    it('reverts a denied judgment by resetting status to pending, without calling undoKill', async () => {
+        mountWithSnapshot([
+            { status: 'denied', target: 'alice', assassin: 'bob', originalPlayerData: null },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Undo'));
+
+        await waitFor(() =>
+            expect(dbCalls.updatePhotoStatusForRoom).toHaveBeenCalledWith(
+                'room-a',
+                'photo-0',
+                'pending'
+            )
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            "Undo: denial of bob's claim on alice was reverted.",
+            'blue.200'
+        );
+        expect(undoKill).not.toHaveBeenCalled();
     });
 });
 

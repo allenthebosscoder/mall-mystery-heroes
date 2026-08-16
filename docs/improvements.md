@@ -1633,6 +1633,25 @@ few of these. A `useEffect` cleanup that revokes `previewUrl` on unmount,
 plus an explicit revoke added to the `catch` branch, would close both
 paths.
 
+### 49. `remapPlayerAsTarget` is now unreferenced by any production code path
+
+**Impact: low (informational) · Effort: —**
+
+The 2026-08-16 full-kill-undo redesign
+(`docs/superpowers/specs/2026-08-16-full-kill-undo-design.md`) replaced
+`PhotosDisplay.js`'s five separate client-side writes for undoing an
+approved kill (including a call to `remapPlayerAsTarget`) with one atomic
+`undoKillPlayer` Cloud Function call — the client no longer reconstructs
+any part of the reversal itself. Deleting `remapPlayerAsTarget` was
+explicitly out of scope for that change (mirroring how `addPlayerForRoom`
+was handled in item 47), so it was left in place.
+
+As of this writing, `remapPlayerAsTarget`
+(`src/components/firebase_calls/dbCalls.js`) has zero callers anywhere in
+`src/` outside its own definition. Not urgent — nothing is broken, and the
+function costs nothing sitting unused — but worth tracking rather than
+rediscovering later.
+
 ---
 
 ## Suggested sequencing
