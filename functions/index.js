@@ -11,6 +11,9 @@ app.use(cors({ corsOptions }));
 const { killPlayer } = require("./callableFunctions/killPlayer")
 exports.killPlayer = killPlayer
 
+const { undoKillPlayer } = require("./callableFunctions/undoKillPlayer")
+exports.undoKillPlayer = undoKillPlayer
+
 const { joinRoom } = require("./callableFunctions/joinRoom")
 exports.joinRoom = joinRoom
 
