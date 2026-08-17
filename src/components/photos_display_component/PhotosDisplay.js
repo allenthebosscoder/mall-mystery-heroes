@@ -156,7 +156,7 @@ const PhotosDisplay = () => {
         <>
             <Box sx={styles.photosContainer}>
                 <Heading size="lg" m="4px">
-                    Photos
+                    Photos{unjudgedPhotos.length > 0 ? ` (${unjudgedPhotos.length} pending)` : ''}
                 </Heading>
                 <Box sx={styles.photosBox}>
                     <GamePhotos photo={unjudgedPhotos[0]} />

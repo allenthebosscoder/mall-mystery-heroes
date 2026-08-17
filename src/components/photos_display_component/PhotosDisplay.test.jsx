@@ -209,3 +209,21 @@ describe('a photo approval executeKill rejects is not applied (improvements item
         expect(dbCalls.approvePhotoForRoom).not.toHaveBeenCalled();
     });
 });
+
+describe('GM pending-photo count in heading', () => {
+    it('shows the pending count in the heading when photos are awaiting review', () => {
+        mountWithSnapshot([
+            { assassin: 'alice', target: 'bob', status: 'pending' },
+            { assassin: 'carol', target: 'dave', status: 'pending' },
+        ]);
+
+        expect(screen.getByText('Photos (2 pending)')).toBeInTheDocument();
+    });
+
+    it('shows a plain heading when no photos are awaiting review', () => {
+        mountWithSnapshot([]);
+
+        expect(screen.getByText('Photos')).toBeInTheDocument();
+        expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+    });
+});
