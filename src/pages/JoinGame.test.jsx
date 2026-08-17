@@ -121,4 +121,10 @@ describe('JoinGame', () => {
 
         expect(await screen.findByText('Alice is already taken in this room.')).toBeInTheDocument();
     });
+
+    it('limits the name input to 40 characters', () => {
+        renderJoinGame();
+
+        expect(screen.getByPlaceholderText('Your name')).toHaveAttribute('maxlength', '40');
+    });
 });

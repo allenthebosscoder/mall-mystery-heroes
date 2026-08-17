@@ -120,6 +120,7 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
                 onKeyDown={handleKeyDown}
                 isDisabled={disabled}
                 mr={2}
+                maxLength={500}
             />
             <VisuallyHidden>
                 <input

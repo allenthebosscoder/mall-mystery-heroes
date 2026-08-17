@@ -351,4 +351,13 @@ describe('MessageComposer', () => {
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
         expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
     });
+
+    it('limits the chat message input to 500 characters', () => {
+        mountComposer();
+
+        expect(screen.getByPlaceholderText('Type a message...')).toHaveAttribute(
+            'maxlength',
+            '500'
+        );
+    });
 });
