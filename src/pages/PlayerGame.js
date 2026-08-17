@@ -7,23 +7,29 @@ import { auth } from '../utils/firebase';
 import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
+    fetchAllPlayersQueryForRoom,
 } from '../components/firebase_calls/dbCalls';
+import { buildLeaderboardStandings } from '../game/leaderboard';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 import MessageFeed from '../components/player_messages_components/MessageFeed';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
+import GameOverScreen from '../components/game_end_components/GameOverScreen';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
     const navigate = useNavigate();
     const [gameStarted, setGameStarted] = useState(false);
+    const [isGameActive, setIsGameActive] = useState(true);
     const [playerData, setPlayerData] = useState(null);
+    const [players, setPlayers] = useState([]);
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
 
-    // Shared by both subscriptions below: a permission error or the watched
-    // doc disappearing both mean this session no longer belongs here (room
-    // deleted, or — for the player doc — the GM removed this player from the
-    // roster), so both bounce the same way a deleted room already does.
+    // Shared by every subscription below: a permission error or the
+    // watched doc disappearing both mean this session no longer belongs
+    // here (room deleted, or — for the player doc — the GM removed this
+    // player from the roster), so both bounce the same way a deleted room
+    // already does.
     const handleSubscriptionError = useCallback(
         (err) => {
             console.error('Error watching game state:', err);
@@ -50,6 +56,7 @@ const PlayerGame = () => {
                     return;
                 }
                 setGameStarted(snapshot.data()?.gameStarted ?? false);
+                setIsGameActive(snapshot.data()?.isGameActive ?? true);
             },
             handleSubscriptionError
         );
@@ -77,6 +84,22 @@ const PlayerGame = () => {
         return () => unsubscribe();
     }, [roomID, gameStarted, playerName, navigate, handleSubscriptionError]);
 
+    // Only subscribes once the game has ended — GameOverScreen is the only
+    // consumer of the full roster, so this costs nothing during normal
+    // gameplay (docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md).
+    useEffect(() => {
+        if (!roomID || isGameActive) return undefined;
+        const playersQuery = fetchAllPlayersQueryForRoom(roomID);
+        const unsubscribe = onSnapshot(
+            playersQuery,
+            (snapshot) => {
+                setPlayers(snapshot.docs.map((doc) => doc.data()));
+            },
+            handleSubscriptionError
+        );
+        return () => unsubscribe();
+    }, [roomID, isGameActive, handleSubscriptionError]);
+
     const handleLeave = async () => {
         try {
             await signOut(auth);
@@ -86,6 +109,8 @@ const PlayerGame = () => {
         clearPlayerSession();
         navigate('/');
     };
+
+    const standings = buildLeaderboardStandings(players);
 
     return (
         <Flex height="100vh" direction="column" p={4}>
@@ -97,30 +122,35 @@ const PlayerGame = () => {
                     Leave
                 </Button>
             </Flex>
-            {!gameStarted && <Text mb={4}>Waiting for the host to start...</Text>}
-            {gameStarted && playerData?.isAlive && (
-                <Text mb={4}>
-                    {(playerData.targets ?? []).length > 0
-                        ? `Your target: ${(playerData.targets ?? []).join(', ')}`
-                        : 'Waiting for your target...'}
-                </Text>
-            )}
-            {gameStarted && playerData && !playerData.isAlive && (
+            {!isGameActive && <GameOverScreen standings={standings} />}
+            {isGameActive && (
                 <>
-                    <Heading size="md" mb={2}>
-                        You&apos;ve been eliminated
-                    </Heading>
-                    <Text mb={4}>
-                        You may be revived if the host assigns you a revival mission.
-                    </Text>
+                    {!gameStarted && <Text mb={4}>Waiting for the host to start...</Text>}
+                    {gameStarted && playerData?.isAlive && (
+                        <Text mb={4}>
+                            {(playerData.targets ?? []).length > 0
+                                ? `Your target: ${(playerData.targets ?? []).join(', ')}`
+                                : 'Waiting for your target...'}
+                        </Text>
+                    )}
+                    {gameStarted && playerData && !playerData.isAlive && (
+                        <>
+                            <Heading size="md" mb={2}>
+                                You&apos;ve been eliminated
+                            </Heading>
+                            <Text mb={4}>
+                                You may be revived if the host assigns you a revival mission.
+                            </Text>
+                        </>
+                    )}
+                    <MessageFeed roomID={roomID} playerName={playerName} />
+                    <MessageComposer
+                        roomID={roomID}
+                        playerName={playerName}
+                        targets={playerData?.targets ?? []}
+                    />
                 </>
             )}
-            <MessageFeed roomID={roomID} playerName={playerName} />
-            <MessageComposer
-                roomID={roomID}
-                playerName={playerName}
-                targets={playerData?.targets ?? []}
-            />
         </Flex>
     );
 };
