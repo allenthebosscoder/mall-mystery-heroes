@@ -57,9 +57,13 @@ nothing during normal gameplay):
 useEffect(() => {
     if (!roomID || isGameActive) return undefined;
     const playersQuery = fetchAllPlayersQueryForRoom(roomID);
-    const unsubscribe = onSnapshot(playersQuery, (snapshot) => {
-        setPlayers(snapshot.docs.map((doc) => doc.data()));
-    }, handleSubscriptionError);
+    const unsubscribe = onSnapshot(
+        playersQuery,
+        (snapshot) => {
+            setPlayers(snapshot.docs.map((doc) => doc.data()));
+        },
+        handleSubscriptionError
+    );
     return () => unsubscribe();
 }, [roomID, isGameActive, handleSubscriptionError]);
 ```
@@ -81,6 +85,7 @@ render body changes.
 
 Presentational, one prop: `standings` (the array `buildLeaderboardStandings`
 returns — `{name, score, isAlive}[]`, already sorted). Renders:
+
 - A heading ("Game Over") and the physical instruction text ("Please head
   back to the starting area").
 - The top 3 (`standings.slice(0, 3)`), name + score each.

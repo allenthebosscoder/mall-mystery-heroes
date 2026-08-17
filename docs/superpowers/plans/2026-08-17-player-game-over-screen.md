@@ -41,14 +41,16 @@ project, `firebase/rules-unit-testing`).
 ### Task 1: `LeaderboardModal` — the full ranked-list modal
 
 **Files:**
+
 - Create: `src/components/game_end_components/LeaderboardModal.js`
 - Test: `src/components/game_end_components/LeaderboardModal.test.jsx`
 
 **Interfaces:**
+
 - Consumes: nothing from other tasks in this plan.
 - Produces: `LeaderboardModal` — a default export, React component, props
   `{isOpen: boolean, onClose: () => void, standings: {name: string, score:
-  number, isAlive: boolean}[]}`. Task 2 imports and renders this directly.
+number, isAlive: boolean}[]}`. Task 2 imports and renders this directly.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -207,10 +209,12 @@ git commit -m "Add LeaderboardModal, the full ranked-list view for game over"
 ### Task 2: `GameOverScreen` — the top-3 view with a View Leaderboard button
 
 **Files:**
+
 - Create: `src/components/game_end_components/GameOverScreen.js`
 - Test: `src/components/game_end_components/GameOverScreen.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `LeaderboardModal` from Task 1 — default export, props
   `{isOpen, onClose, standings}`.
 - Produces: `GameOverScreen` — a default export, React component, one prop
@@ -361,15 +365,17 @@ git commit -m "Add GameOverScreen, the top-3 view shown when a game ends"
 ### Task 3: Wire `PlayerGame.js` to show `GameOverScreen` once the game has ended
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Test: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `GameOverScreen` from Task 2 (default export, prop `standings`).
   `fetchAllPlayersQueryForRoom` (already exists, `src/components/firebase_calls/dbCalls.js`
   — `(roomID: string) => CollectionReference`). `buildLeaderboardStandings`
   (already exists, `src/game/leaderboard.js` — `(players: {name, score,
-  isAlive}[]) => {name, score, isAlive}[]`, sorted descending by score).
+isAlive}[]) => {name, score, isAlive}[]`, sorted descending by score).
 - Produces: nothing new for later tasks — this is the last code task.
 
 - [ ] **Step 1: Write the failing tests**
@@ -398,56 +404,56 @@ block, right after the existing `'mounts the message feed even before the
 game has started'` test:
 
 ```jsx
-    it('does not subscribe to the full roster while the game is still active', () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({
-                    exists: () => true,
-                    data: () => ({ gameStarted: true, isGameActive: true }),
-                });
-            }
-            return () => {};
-        });
-
-        renderWaiting();
-
-        expect(fetchAllPlayersQueryForRoom).not.toHaveBeenCalled();
+it('does not subscribe to the full roster while the game is still active', () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({
+                exists: () => true,
+                data: () => ({ gameStarted: true, isGameActive: true }),
+            });
+        }
+        return () => {};
     });
 
-    it('shows the game-over screen and hides chat once the game has ended', () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        fetchAllPlayersQueryForRoom.mockReturnValue('players-query-ref');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({
-                    exists: () => true,
-                    data: () => ({ gameStarted: true, isGameActive: false }),
-                });
-            } else if (ref === 'players-query-ref') {
-                callback({
-                    docs: [
-                        { data: () => ({ name: 'alice', score: 10, isAlive: true }) },
-                        { data: () => ({ name: 'bob', score: 5, isAlive: false }) },
-                    ],
-                });
-            }
-            return () => {};
-        });
+    renderWaiting();
 
-        renderWaiting();
+    expect(fetchAllPlayersQueryForRoom).not.toHaveBeenCalled();
+});
 
-        expect(screen.getByText('Game Over')).toBeInTheDocument();
-        expect(screen.getByText('Please head back to the starting area.')).toBeInTheDocument();
-        expect(screen.getByText('1. alice — 10')).toBeInTheDocument();
-        expect(screen.queryByText(/your target/i)).not.toBeInTheDocument();
-        expect(
-            screen.queryByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
-        ).not.toBeInTheDocument();
-        expect(
-            screen.queryByText('message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[]')
-        ).not.toBeInTheDocument();
+it('shows the game-over screen and hides chat once the game has ended', () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    fetchAllPlayersQueryForRoom.mockReturnValue('players-query-ref');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({
+                exists: () => true,
+                data: () => ({ gameStarted: true, isGameActive: false }),
+            });
+        } else if (ref === 'players-query-ref') {
+            callback({
+                docs: [
+                    { data: () => ({ name: 'alice', score: 10, isAlive: true }) },
+                    { data: () => ({ name: 'bob', score: 5, isAlive: false }) },
+                ],
+            });
+        }
+        return () => {};
     });
+
+    renderWaiting();
+
+    expect(screen.getByText('Game Over')).toBeInTheDocument();
+    expect(screen.getByText('Please head back to the starting area.')).toBeInTheDocument();
+    expect(screen.getByText('1. alice — 10')).toBeInTheDocument();
+    expect(screen.queryByText(/your target/i)).not.toBeInTheDocument();
+    expect(
+        screen.queryByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
+    ).not.toBeInTheDocument();
+    expect(
+        screen.queryByText('message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[]')
+    ).not.toBeInTheDocument();
+});
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -651,9 +657,11 @@ git commit -m "Show GameOverScreen on PlayerGame once the room isGameActive is f
 ### Task 4: Pin the existing player-roster-list permission with a rules test
 
 **Files:**
+
 - Modify: `test/firestore.rules.test.js`
 
 **Interfaces:**
+
 - Consumes: nothing from other tasks in this plan — fully independent,
   can run before, after, or in parallel with Tasks 1-3.
 - Produces: nothing consumed elsewhere — this task only adds test coverage
@@ -677,13 +685,11 @@ test), add a new test immediately after that one and before `'denies a
 non-host write'`:
 
 ```js
-    it('allows a player who has joined this room to list the full players collection', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        const snapshot = await assertSucceeds(
-            getDocs(collection(db, 'rooms', 'room-a', 'players'))
-        );
-        expect(snapshot.docs.map((d) => d.id).sort()).toEqual(['alice', 'bob']);
-    });
+it('allows a player who has joined this room to list the full players collection', async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    const snapshot = await assertSucceeds(getDocs(collection(db, 'rooms', 'room-a', 'players')));
+    expect(snapshot.docs.map((d) => d.id).sort()).toEqual(['alice', 'bob']);
+});
 ```
 
 (`getDocs` and `collection` are already imported at the top of this file —
