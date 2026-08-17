@@ -83,16 +83,39 @@ describe('fetchAliveRosterForRoom', () => {
 });
 describe('fetchActiveRoomForHost', () => {
     it('returns the most recently created active room when a host has more than one (race-condition safety net)', async () => {
-        await seedRoom('room-old', [], {
-            createdAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')),
-        });
-        await seedRoom('room-new', [], {
+        // Room IDs are deliberately chosen so that Firestore's default
+        // (no-orderBy) query result order — which this emulator returns in
+        // ascending document-ID order — disagrees with createdAt order, so
+        // this test can only pass if fetchActiveRoomForHost genuinely sorts
+        // by createdAt rather than taking whatever the query returns first.
+        // (A prior version of this test used IDs 'room-old' / 'room-new',
+        // and a subsequent revision used 'room-aaa-newest' as the newest
+        // room — both happened to also be alphabetically first, so both
+        // passed even against the old, unsorted `.find()` implementation
+        // "by accident." Confirmed by empirically reverting
+        // fetchActiveRoomForHost to its old `.find()` form and rerunning:
+        // both of those room-naming choices passed anyway; see
+        // docs/superpowers/sdd/2026-08-17-audit-batch-a-fixes/
+        // task-5-report.md for the full empirical trail.) Here, the
+        // chronologically newest room ('room-zzz-new') is deliberately
+        // named to sort LAST alphabetically, so the old `.find()` would
+        // return the alphabetically-first ('room-aaa-old', chronologically
+        // OLDEST) room instead — a genuine wrong answer under the bug.
+        // Insertion order is also scrambled relative to both createdAt and
+        // ID order, so neither can coincidentally produce the right answer.
+        await seedRoom('room-mmm-mid', [], {
             createdAt: Timestamp.fromDate(new Date('2026-01-02T00:00:00Z')),
+        });
+        await seedRoom('room-zzz-new', [], {
+            createdAt: Timestamp.fromDate(new Date('2026-01-03T00:00:00Z')),
+        });
+        await seedRoom('room-aaa-old', [], {
+            createdAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')),
         });
 
         const result = await fetchActiveRoomForHost(auth.currentUser.uid);
 
-        expect(result.id).toBe('room-new');
+        expect(result.id).toBe('room-zzz-new');
     });
 
     it('returns null when the host has no active room', async () => {
