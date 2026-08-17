@@ -262,6 +262,12 @@ describe('rooms/{roomId}/players/{playerId}', () => {
         await assertSucceeds(getDoc(doc(db, 'rooms', 'room-a', 'players', 'alice')));
     });
 
+    it('allows a player who has joined this room to list the full players collection', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        const snapshot = await assertSucceeds(getDocs(collection(db, 'rooms', 'room-a', 'players')));
+        expect(snapshot.docs.map((d) => d.id).sort()).toEqual(['alice', 'bob']);
+    });
+
     it('denies a non-host write', async () => {
         const db = testEnv.authenticatedContext(OTHER_UID).firestore();
         await assertFails(
