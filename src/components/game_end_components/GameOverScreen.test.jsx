@@ -34,11 +34,11 @@ describe('GameOverScreen', () => {
         expect(screen.getByText('Please head back to the starting area.')).toBeInTheDocument();
     });
 
-    it('shows only the top 3 standings', () => {
+    it('shows only the top 3 standings, marking eliminated players', () => {
         mountScreen();
 
         expect(screen.getByText('1. alice — 30')).toBeInTheDocument();
-        expect(screen.getByText('2. bob — 20')).toBeInTheDocument();
+        expect(screen.getByText('2. bob — 20 (eliminated)')).toBeInTheDocument();
         expect(screen.getByText('3. carol — 10')).toBeInTheDocument();
         expect(screen.queryByText(/dave/)).not.toBeInTheDocument();
     });

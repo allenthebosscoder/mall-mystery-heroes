@@ -16,8 +16,9 @@ const GameOverScreen = ({ standings }) => {
             <Text>Please head back to the starting area.</Text>
             <VStack align="stretch" spacing={1}>
                 {topThree.map((player, index) => (
-                    <Text key={player.name}>
+                    <Text key={player.name} color={player.isAlive ? 'white' : '#b3b3b3'}>
                         {index + 1}. {player.name} — {player.score}
+                        {!player.isAlive && ' (eliminated)'}
                     </Text>
                 ))}
             </VStack>
