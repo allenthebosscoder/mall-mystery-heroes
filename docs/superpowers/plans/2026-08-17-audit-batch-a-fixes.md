@@ -303,12 +303,7 @@ const PlayerRemove = ({ onPlayerRemoved, arrayOfPlayers, roomID }) => {
                         </option>
                     ))}
                 </Select>
-                <Button
-                    onClick={handleRemoveClick}
-                    colorScheme="blue"
-                    size="lg"
-                    borderRadius="3xl"
-                >
+                <Button onClick={handleRemoveClick} colorScheme="blue" size="lg" borderRadius="3xl">
                     Remove
                 </Button>
             </Flex>
@@ -317,8 +312,8 @@ const PlayerRemove = ({ onPlayerRemoved, arrayOfPlayers, roomID }) => {
                 <AlertDialogContent bg="#202030">
                     <AlertDialogHeader color="red">WARNING</AlertDialogHeader>
                     <AlertDialogBody color="#FFFFFF">
-                        Remove {selectedPlayer}? This permanently deletes their player document
-                        and cannot be undone.
+                        Remove {selectedPlayer}? This permanently deletes their player document and
+                        cannot be undone.
                     </AlertDialogBody>
                     <AlertDialogFooter>
                         <Button ref={cancelRef} onClick={onClose} colorScheme="red">
@@ -407,21 +402,21 @@ its `describe`/`beforeEach` for the existing mock setup for
 these two tests, matching that file's existing style exactly:
 
 ```jsx
-    it('shows the pending count in the heading when photos are awaiting review', () => {
-        mountWithSnapshot([
-            { assassin: 'alice', target: 'bob', status: 'pending' },
-            { assassin: 'carol', target: 'dave', status: 'pending' },
-        ]);
+it('shows the pending count in the heading when photos are awaiting review', () => {
+    mountWithSnapshot([
+        { assassin: 'alice', target: 'bob', status: 'pending' },
+        { assassin: 'carol', target: 'dave', status: 'pending' },
+    ]);
 
-        expect(screen.getByText('Photos (2 pending)')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Photos (2 pending)')).toBeInTheDocument();
+});
 
-    it('shows a plain heading when no photos are awaiting review', () => {
-        mountWithSnapshot([]);
+it('shows a plain heading when no photos are awaiting review', () => {
+    mountWithSnapshot([]);
 
-        expect(screen.getByText('Photos')).toBeInTheDocument();
-        expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
-    });
+    expect(screen.getByText('Photos')).toBeInTheDocument();
+    expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+});
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -435,17 +430,17 @@ Expected: FAIL — the heading currently always renders the literal text
 In `src/components/photos_display_component/PhotosDisplay.js`, change:
 
 ```jsx
-                <Heading size="lg" m="4px">
-                    Photos
-                </Heading>
+<Heading size="lg" m="4px">
+    Photos
+</Heading>
 ```
 
 to:
 
 ```jsx
-                <Heading size="lg" m="4px">
-                    Photos{unjudgedPhotos.length > 0 ? ` (${unjudgedPhotos.length} pending)` : ''}
-                </Heading>
+<Heading size="lg" m="4px">
+    Photos{unjudgedPhotos.length > 0 ? ` (${unjudgedPhotos.length} pending)` : ''}
+</Heading>
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -518,29 +513,29 @@ Current full content of `public/manifest.json`:
 
 ```json
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+    "short_name": "React App",
+    "name": "Create React App Sample",
+    "icons": [
+        {
+            "src": "favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        },
+        {
+            "src": "logo192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "logo512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#000000",
+    "background_color": "#ffffff"
 }
 ```
 
@@ -548,29 +543,29 @@ Replace with:
 
 ```json
 {
-  "short_name": "Mall Mystery Heroes",
-  "name": "Mall Mystery Heroes",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#202030",
-  "background_color": "#202030"
+    "short_name": "Mall Mystery Heroes",
+    "name": "Mall Mystery Heroes",
+    "icons": [
+        {
+            "src": "favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        },
+        {
+            "src": "logo192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "logo512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": ".",
+    "display": "standalone",
+    "theme_color": "#202030",
+    "background_color": "#202030"
 }
 ```
 
@@ -677,27 +672,23 @@ casing, not the lowercased matching key", ...)` block). Add these two new
 tests immediately after those two, in the same `describe` block:
 
 ```jsx
-    it('/openseason start on an already-open season shows an error and does not write', async () => {
-        const commandInput = mountChatInput([
-            { name: 'Alice', isAlive: true, openSeason: true },
-        ]);
-        typeAndSubmit(commandInput, '/openseason alice start');
+it('/openseason start on an already-open season shows an error and does not write', async () => {
+    const commandInput = mountChatInput([{ name: 'Alice', isAlive: true, openSeason: true }]);
+    typeAndSubmit(commandInput, '/openseason alice start');
 
-        expect(await screen.findByText(/alice.?s open season is already started/i)).toBeInTheDocument();
-        expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
-        expect(executionHandlers.handleOpenSznstarted).not.toHaveBeenCalled();
-    });
+    expect(await screen.findByText(/alice.?s open season is already started/i)).toBeInTheDocument();
+    expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
+    expect(executionHandlers.handleOpenSznstarted).not.toHaveBeenCalled();
+});
 
-    it('/openseason end on an already-closed season shows an error and does not write', async () => {
-        const commandInput = mountChatInput([
-            { name: 'Alice', isAlive: true, openSeason: false },
-        ]);
-        typeAndSubmit(commandInput, '/openseason alice end');
+it('/openseason end on an already-closed season shows an error and does not write', async () => {
+    const commandInput = mountChatInput([{ name: 'Alice', isAlive: true, openSeason: false }]);
+    typeAndSubmit(commandInput, '/openseason alice end');
 
-        expect(await screen.findByText(/alice.?s open season is already ended/i)).toBeInTheDocument();
-        expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
-        expect(executionHandlers.handleOpenSznended).not.toHaveBeenCalled();
-    });
+    expect(await screen.findByText(/alice.?s open season is already ended/i)).toBeInTheDocument();
+    expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
+    expect(executionHandlers.handleOpenSznended).not.toHaveBeenCalled();
+});
 ```
 
 (The existing two `/openseason` tests in this same block use players with
@@ -957,18 +948,18 @@ when no active room exists'` test's assertion — add `createdAt` to the
 `objectContaining`:
 
 ```jsx
-        expect(setDoc).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({
-                hostId: 'host-uid',
-                isGameActive: true,
-                gameStarted: false,
-                joinedUids: [],
-                taskIndex: 1,
-                storageReference: [],
-                createdAt: 'server-timestamp-sentinel',
-            })
-        );
+expect(setDoc).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({
+        hostId: 'host-uid',
+        isGameActive: true,
+        gameStarted: false,
+        joinedUids: [],
+        taskIndex: 1,
+        storageReference: [],
+        createdAt: 'server-timestamp-sentinel',
+    })
+);
 ```
 
 In `src/components/firebase_calls/dbCalls.integration.test.js`, add
@@ -1039,15 +1030,15 @@ import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 And add `createdAt` to the room-creation `setDoc` call:
 
 ```jsx
-                await setDoc(roomRef, {
-                    hostId: user.uid,
-                    isGameActive: true,
-                    gameStarted: false,
-                    joinedUids: [],
-                    taskIndex: 1,
-                    storageReference: [],
-                    createdAt: serverTimestamp(),
-                });
+await setDoc(roomRef, {
+    hostId: user.uid,
+    isGameActive: true,
+    gameStarted: false,
+    joinedUids: [],
+    taskIndex: 1,
+    storageReference: [],
+    createdAt: serverTimestamp(),
+});
 ```
 
 In `src/components/firebase_calls/dbCalls.js`, replace
@@ -1144,12 +1135,12 @@ Current relevant JSX in `src/pages/JoinGame.js` (read the full file before
 editing — the rest of the form is unchanged by this task):
 
 ```jsx
-                <Input
-                    placeholder="Your name"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    borderWidth="3px"
-                />
+<Input
+    placeholder="Your name"
+    value={playerName}
+    onChange={(e) => setPlayerName(e.target.value)}
+    borderWidth="3px"
+/>
 ```
 
 Current relevant JSX in
@@ -1158,14 +1149,14 @@ full file before editing — the rest of the composer, including the hidden
 file input and camera button, is unchanged by this task):
 
 ```jsx
-            <Input
-                placeholder="Type a message..."
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={handleKeyDown}
-                isDisabled={disabled}
-                mr={2}
-            />
+<Input
+    placeholder="Type a message..."
+    value={text}
+    onChange={(event) => setText(event.target.value)}
+    onKeyDown={handleKeyDown}
+    isDisabled={disabled}
+    mr={2}
+/>
 ```
 
 - [ ] **Step 1: Write the failing tests**
@@ -1175,25 +1166,22 @@ In `src/pages/JoinGame.test.jsx`, add this test to the existing
 structure — read it first):
 
 ```jsx
-    it('limits the name input to 40 characters', () => {
-        renderJoinGame();
+it('limits the name input to 40 characters', () => {
+    renderJoinGame();
 
-        expect(screen.getByPlaceholderText('Your name')).toHaveAttribute('maxlength', '40');
-    });
+    expect(screen.getByPlaceholderText('Your name')).toHaveAttribute('maxlength', '40');
+});
 ```
 
 In `src/components/player_messages_components/MessageComposer.test.jsx`,
 add this test to the existing `describe('MessageComposer', ...)`:
 
 ```jsx
-    it('limits the chat message input to 500 characters', () => {
-        mountComposer();
+it('limits the chat message input to 500 characters', () => {
+    mountComposer();
 
-        expect(screen.getByPlaceholderText('Type a message...')).toHaveAttribute(
-            'maxlength',
-            '500'
-        );
-    });
+    expect(screen.getByPlaceholderText('Type a message...')).toHaveAttribute('maxlength', '500');
+});
 ```
 
 (HTML attributes are lowercase in the DOM regardless of the JSX prop's
@@ -1212,52 +1200,52 @@ yet.
 In `src/pages/JoinGame.js`, change:
 
 ```jsx
-                <Input
-                    placeholder="Your name"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    borderWidth="3px"
-                />
+<Input
+    placeholder="Your name"
+    value={playerName}
+    onChange={(e) => setPlayerName(e.target.value)}
+    borderWidth="3px"
+/>
 ```
 
 to:
 
 ```jsx
-                <Input
-                    placeholder="Your name"
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    borderWidth="3px"
-                    maxLength={40}
-                />
+<Input
+    placeholder="Your name"
+    value={playerName}
+    onChange={(e) => setPlayerName(e.target.value)}
+    borderWidth="3px"
+    maxLength={40}
+/>
 ```
 
 In `src/components/player_messages_components/MessageComposer.js`,
 change:
 
 ```jsx
-            <Input
-                placeholder="Type a message..."
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={handleKeyDown}
-                isDisabled={disabled}
-                mr={2}
-            />
+<Input
+    placeholder="Type a message..."
+    value={text}
+    onChange={(event) => setText(event.target.value)}
+    onKeyDown={handleKeyDown}
+    isDisabled={disabled}
+    mr={2}
+/>
 ```
 
 to:
 
 ```jsx
-            <Input
-                placeholder="Type a message..."
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-                onKeyDown={handleKeyDown}
-                isDisabled={disabled}
-                mr={2}
-                maxLength={500}
-            />
+<Input
+    placeholder="Type a message..."
+    value={text}
+    onChange={(event) => setText(event.target.value)}
+    onKeyDown={handleKeyDown}
+    isDisabled={disabled}
+    mr={2}
+    maxLength={500}
+/>
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -1347,7 +1335,8 @@ Two things to note:
   players even though `MAXTARGETS` logic assumes more.
 - The roster is passed forward in **router state**, not refetched. Reloading the
   console loses it.
-```
+
+`````
 
 with:
 
@@ -1388,7 +1377,7 @@ sequenceDiagram
     end
     TG->>Lobby: handleLobbyRoom()
     Lobby->>Lobby: navigate(/rooms/{roomID}/GameMasterView)
-```
+`````
 
 Two things to note:
 
@@ -1398,7 +1387,8 @@ Two things to note:
 - `GameMasterView` no longer receives the roster via router state — it
   subscribes live via `onSnapshot` (`docs/improvements.md` item 13), so a
   reload no longer loses it.
-````
+
+`````
 
 - [ ] **Step 2: Rewrite "The target assignment algorithm"**
 
@@ -1436,7 +1426,7 @@ The `randomizeArray` helper used to shuffle is a subtly incorrect Fisher–Yates
 it iterates **forward** while drawing `j` from `[0, i]`, which does not produce a
 uniform permutation. All three copies share the defect, and `TargetGenerator`'s
 copy additionally stops at `length - 1`, never touching the final element.
-````
+`````
 
 with:
 
@@ -1525,14 +1515,14 @@ Replace the entire table (everything from `| Surface` through the row
 ending `Yes — lost entirely |`) with:
 
 ```markdown
-| Surface                                        | Mechanism                                                                    | Stale after reload?      |
-| ----------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ |
-| Player list with scores and targets            | `onSnapshot`                                                                   | No — always live         |
-| Photo queue                                    | `onSnapshot`                                                                   | No — always live         |
-| Log panel                                      | `onSnapshot` (`docs/improvements.md` item 22)                                  | No — always live         |
-| `Players (n)` header count                     | derived from the same live `onSnapshot` roster (item 13)                       | No — always live         |
-| Alive/dead arrays driving `/revive` validation | refetched via `fetchPlayersByStatusForRoom` on every command                   | No — always current      |
-| Photo undo history                             | persisted on the photo doc itself (`preKillSnapshot`), not React state (item 6) | No — survives a reload   |
+| Surface                                        | Mechanism                                                                       | Stale after reload?    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------- |
+| Player list with scores and targets            | `onSnapshot`                                                                    | No — always live       |
+| Photo queue                                    | `onSnapshot`                                                                    | No — always live       |
+| Log panel                                      | `onSnapshot` (`docs/improvements.md` item 22)                                   | No — always live       |
+| `Players (n)` header count                     | derived from the same live `onSnapshot` roster (item 13)                        | No — always live       |
+| Alive/dead arrays driving `/revive` validation | refetched via `fetchPlayersByStatusForRoom` on every command                    | No — always current    |
+| Photo undo history                             | persisted on the photo doc itself (`preKillSnapshot`), not React state (item 6) | No — survives a reload |
 ```
 
 - [ ] **Step 6: Run the full gate**
