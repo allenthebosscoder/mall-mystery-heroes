@@ -21,10 +21,12 @@
 ### Task 1: Delete `addPlayerForRoom`
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js:273-294` (delete)
 - Modify: `src/components/firebase_calls/dbCalls.integration.test.js:85-155` (delete)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — `addPlayerForRoom` is removed from `dbCalls.js`'s exports entirely. No other task in this plan depends on it.
 
@@ -164,9 +166,11 @@ git commit -m "Delete addPlayerForRoom, unreferenced since the simplified-lobby 
 ### Task 2: Delete `remapPlayerAsTarget`
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js:473-491` (delete)
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: nothing — `remapPlayerAsTarget` is removed from `dbCalls.js`'s exports entirely.
 
@@ -220,10 +224,12 @@ git commit -m "Delete remapPlayerAsTarget, unreferenced since the full-kill-undo
 ### Task 3: Fix the blob-URL leaks in `MessageComposer.js`
 
 **Files:**
+
 - Modify: `src/components/player_messages_components/MessageComposer.js` (full current content below)
 - Modify: `src/components/player_messages_components/MessageComposer.test.jsx` (full current content below)
 
 **Interfaces:**
+
 - Consumes: `global.URL.revokeObjectURL`/`global.URL.createObjectURL` (already mocked in this test file's existing `beforeEach`, unchanged).
 - Produces: no interface change — `MessageComposer`'s props and exports are unchanged. Purely internal cleanup behavior.
 
@@ -386,32 +392,32 @@ The file's existing structure: a docblock, imports (`React`, `ChakraProvider`, `
 Add these two new tests inside the existing `describe('MessageComposer', () => { ... })` block, after the last existing test (`'shows a processing indicator immediately after capture, before compression resolves'`):
 
 ```jsx
-    it('revokes the preview URL on unmount', async () => {
-        const { unmount } = mountComposer();
+it('revokes the preview URL on unmount', async () => {
+    const { unmount } = mountComposer();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await screen.findByAltText('Kill photo preview');
+    await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+    await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+    await screen.findByAltText('Kill photo preview');
 
-        unmount();
+    unmount();
 
-        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
-    });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
+});
 
-    it('revokes the previous preview URL when a second capture fails to compress', async () => {
-        mountComposer();
+it('revokes the previous preview URL when a second capture fails to compress', async () => {
+    mountComposer();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
-        await screen.findByAltText('Kill photo preview');
-        URL.revokeObjectURL.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+    await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+    await screen.findByAltText('Kill photo preview');
+    URL.revokeObjectURL.mockClear();
 
-        compressImage.mockRejectedValueOnce(new Error('bad file'));
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+    compressImage.mockRejectedValueOnce(new Error('bad file'));
+    await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
 
-        await screen.findByText('Could not read that photo. Try taking it again.');
-        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
-    });
+    await screen.findByText('Could not read that photo. Try taking it again.');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -438,15 +444,15 @@ import React, { useEffect, useRef, useState } from 'react';
 Add this `useEffect` right after the existing `useState`/`useRef` declarations (after `const fileInputRef = useRef(null);`, before `const handleSend = async () => {`):
 
 ```jsx
-    // Revokes any outstanding preview URL if the composer unmounts before
-    // the player submits or dismisses their capture — otherwise the
-    // browser holds that blob's memory until the tab itself closes
-    // (docs/improvements.md item 48).
-    useEffect(() => {
-        return () => {
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-        };
-    }, [previewUrl]);
+// Revokes any outstanding preview URL if the composer unmounts before
+// the player submits or dismisses their capture — otherwise the
+// browser holds that blob's memory until the tab itself closes
+// (docs/improvements.md item 48).
+useEffect(() => {
+    return () => {
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+}, [previewUrl]);
 ```
 
 Change `handleFileChange`'s `catch` block from:
@@ -494,10 +500,12 @@ git commit -m "Revoke stale preview object URLs on unmount and on a failed re-ca
 ### Task 4: Make `undoKillPlayer` fail loudly on an unresolvable player
 
 **Files:**
+
 - Modify: `functions/callableFunctions/undoKillPlayer.js` (full current content below)
 - Modify: `src/components/undoKill.integration.test.js` (full current content below)
 
 **Interfaces:**
+
 - Consumes: `deleteDoc`, `doc` from `firebase/firestore` (new imports for the test file); `db` from `../utils/firebase` (new import for the test file, same export `dbCalls.js` itself uses via `../../utils/firebase` — one fewer `../` here since this test file lives at `src/components/`, one directory shallower than `dbCalls.js` at `src/components/firebase_calls/`); `normalizePlayerName` from `../game/playerNames` (new import for the test file, to compute the `trimmedNameLowerCase` doc ID to delete).
 - Produces: no interface change — `undoKillPlayer`'s callable signature (`{ roomId, photoId }`) and the `undoKill(roomID, photoID)` wrapper are unchanged. Only the not-found branch's behavior changes (throw instead of warn-and-continue).
 
@@ -769,32 +777,32 @@ import { normalizePlayerName } from '../game/playerNames';
 Add this new test inside the `describe('undoKill', () => { ... })` block, after the `'restores openSeason...'` test and before `'rejects a caller who is not the room host'`:
 
 ```js
-    it('rejects undo when a snapshotted player no longer exists, and mutates nothing', async () => {
-        await seedRoom(ROOM, [
-            { name: 'alice', targets: ['bob'], score: 10 },
-            { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
-        ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
-        const photoId = await latestPhotoId();
+it('rejects undo when a snapshotted player no longer exists, and mutates nothing', async () => {
+    await seedRoom(ROOM, [
+        { name: 'alice', targets: ['bob'], score: 10 },
+        { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
+    ]);
+    await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+    const photoId = await latestPhotoId();
 
-        const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+    const killResult = await executeKill('bob', 'alice', ROOM);
+    await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
 
-        // Simulates the room's player list changing in some unexpected way
-        // between the kill and the undo — delete the killer's own doc
-        // directly, bypassing the normal app flow, which has no "remove a
-        // player entirely" path for a still-referenced killer.
-        await deleteDoc(doc(db, 'rooms', ROOM, 'players', normalizePlayerName('alice')));
+    // Simulates the room's player list changing in some unexpected way
+    // between the kill and the undo — delete the killer's own doc
+    // directly, bypassing the normal app flow, which has no "remove a
+    // player entirely" path for a still-referenced killer.
+    await deleteDoc(doc(db, 'rooms', ROOM, 'players', normalizePlayerName('alice')));
 
-        await expect(undoKill(ROOM, photoId)).rejects.toThrow(/no longer exists/i);
+    await expect(undoKill(ROOM, photoId)).rejects.toThrow(/no longer exists/i);
 
-        // Bob (who could have been resolved and restored) must not have
-        // been touched either — this is one atomic transaction, not a
-        // best-effort partial restore.
-        expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
-        const photoSnapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
-        expect(photoSnapshot.docs[0].data().status).toBe('approved');
-    });
+    // Bob (who could have been resolved and restored) must not have
+    // been touched either — this is one atomic transaction, not a
+    // best-effort partial restore.
+    expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
+    const photoSnapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+    expect(photoSnapshot.docs[0].data().status).toBe('approved');
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -816,12 +824,12 @@ In `functions/callableFunctions/undoKillPlayer.js`, replace:
 with:
 
 ```js
-            if (playerSnapshot.empty) {
-                throw new functions.https.HttpsError(
-                    'failed-precondition',
-                    `Cannot undo: player ${key} no longer exists.`
-                );
-            }
+if (playerSnapshot.empty) {
+    throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Cannot undo: player ${key} no longer exists.`
+    );
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -847,9 +855,11 @@ git commit -m "Make undoKillPlayer fail loudly instead of silently skipping a mi
 ### Task 5: Mark items 47-50 resolved in `docs/improvements.md`
 
 **Files:**
+
 - Modify: `docs/improvements.md`
 
 **Interfaces:**
+
 - Consumes: nothing from earlier tasks except their completion — this task only makes sense once Tasks 1-4 have all landed, since its text describes what they did.
 - Produces: nothing — documentation only.
 
@@ -878,7 +888,6 @@ become:
 Immediately after item 47's existing paragraph (ending "...that identity work never happened" — actually, locate the exact final sentence of item 47's body by reading the file; it ends with the sentence about the `firestore.rules` grant being worth re-examining if the function is ever removed), add:
 
 ```markdown
-
 **Resolution:** deleted. `firestore.rules`' `players/{playerId}` write
 grant needed no change — it's the same generic host-write rule every
 other player-mutating function still depends on, not something scoped
@@ -888,7 +897,6 @@ to `addPlayerForRoom` alone.
 Immediately after item 48's existing body (ends with the sentence about a `useEffect` cleanup plus a `catch`-branch revoke closing both paths), add:
 
 ```markdown
-
 **Resolution:** fixed exactly as suggested above — a `useEffect` cleanup
 revokes `previewUrl` on unmount, and `handleFileChange`'s `catch` branch
 now revokes the previous `previewUrl` before setting the error.
@@ -897,7 +905,6 @@ now revokes the previous `previewUrl` before setting the error.
 Immediately after item 49's existing body (ends with "worth tracking rather than rediscovering later"), add:
 
 ```markdown
-
 **Resolution:** deleted. No test needed updating — it never had
 dedicated coverage.
 ```
@@ -905,7 +912,6 @@ dedicated coverage.
 Immediately after item 50's existing body (ends with the "silently skips a player it can't find" paragraph), add:
 
 ```markdown
-
 **Resolution, silent-skip half:** `undoKillPlayer` now throws
 (`failed-precondition`, "Cannot undo: player {name} no longer exists")
 instead of warning and continuing. Since the restore already runs inside
