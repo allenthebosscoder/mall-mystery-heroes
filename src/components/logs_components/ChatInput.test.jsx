@@ -483,6 +483,28 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
         expect(executionHandlers.handleOpenSznended).toHaveBeenCalledWith('Alice');
     });
 
+    it('/openseason start on an already-open season shows an error and does not write', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true, openSeason: true }]);
+        typeAndSubmit(commandInput, '/openseason alice start');
+
+        expect(
+            await screen.findByText(/alice.?s open season is already started/i)
+        ).toBeInTheDocument();
+        expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
+        expect(executionHandlers.handleOpenSznstarted).not.toHaveBeenCalled();
+    });
+
+    it('/openseason end on an already-closed season shows an error and does not write', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true, openSeason: false }]);
+        typeAndSubmit(commandInput, '/openseason alice end');
+
+        expect(
+            await screen.findByText(/alice.?s open season is already ended/i)
+        ).toBeInTheDocument();
+        expect(dbCalls.setOpenSznOfPlayerToValueForRoom).not.toHaveBeenCalled();
+        expect(executionHandlers.handleOpenSznended).not.toHaveBeenCalled();
+    });
+
     it('a successful /revive passes the actual casing to handlePlayerRevive', async () => {
         dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Alice']);
         const commandInput = mountChatInput([{ name: 'Alice', isAlive: false }]);

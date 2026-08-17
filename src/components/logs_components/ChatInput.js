@@ -324,17 +324,36 @@ const handleCommandExecution = async (
                 break;
 
             case '/openseason':
-                // TO DO: double check szn alrdy on/off
-                // sanity check openSeason target
                 playerName = args[0] ? normalizePlayerName(args[0]) : '';
                 arg = args[1] ? args[1].toLowerCase() : '';
                 if (arrayOfPlayerNames.includes(playerName)) {
+                    const openSznTarget = players.find(
+                        (player) => normalizePlayerName(player.name) === playerName
+                    );
                     switch (arg) {
                         case 'start':
+                            if (openSznTarget?.openSeason === true) {
+                                createAlert(
+                                    'error',
+                                    'Error',
+                                    `${resolvePlayerDisplayName(playerName, players)}'s open season is already started`,
+                                    1500
+                                );
+                                break;
+                            }
                             await setOpenSznOfPlayerToValueForRoom(playerName, true, roomID);
                             handleOpenSznstarted(resolvePlayerDisplayName(playerName, players));
                             break;
                         case 'end':
+                            if (openSznTarget?.openSeason === false) {
+                                createAlert(
+                                    'error',
+                                    'Error',
+                                    `${resolvePlayerDisplayName(playerName, players)}'s open season is already ended`,
+                                    1500
+                                );
+                                break;
+                            }
                             await setOpenSznOfPlayerToValueForRoom(playerName, false, roomID);
                             handleOpenSznended(resolvePlayerDisplayName(playerName, players));
                             break;
