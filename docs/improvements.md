@@ -58,6 +58,10 @@ plus the auth and add-player work below:
 | 42 — chat autosuggest is stale and has no Tab-to-complete                    | `onSuggestionsFetchRequested` now reads the value `react-autosuggest` actually passes it instead of a stale closure (was one keystroke behind); Tab now accepts the highlighted or first suggestion. 1 new test, which caught the staleness bug before the Tab fix was even in scope.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 45 — GM's `GMChatPanel.js` has no timestamps while `MessageFeed.js` now does | New `GMChatMessage.js` row component calls `formatMessageTime` on `message.timestamp`, the same pattern `MessageBubble.js` uses. See `docs/superpowers/specs/2026-08-14-gm-chat-panel-parity-design.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 46 — `GMChatPanel.js` still remaps the full snapshot on every event          | `GMChatPanel.js` now merges via `applyMessageChanges` into an unfiltered `allMessages` state, derives the rendered `type === 'chat'` list via `useMemo`, and renders through the memoized `GMChatMessage` row component — the same pattern `MessageFeed.js`/`MessageBubble.js` already used. Same spec as item 45.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 47 — `addPlayerForRoom` unreferenced                                         | Deleted, along with its 6-test integration describe block. `firestore.rules`' write grant needed no change — shared by other still-active functions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 48 — two blob-URL leaks in `MessageComposer.js`                              | Fixed with a `useEffect` cleanup on unmount plus a revoke in the compression-failure `catch` branch. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 49 — `remapPlayerAsTarget` unreferenced                                      | Deleted. Never had dedicated test coverage.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 50 — `undoKillPlayer`'s silent skip                                          | Now throws instead of warning and continuing, aborting the whole transaction. 1 new emulator test. Blast-radius half of this item is unaddressed, deliberately.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ### ⚠️ Partially addressed
 
@@ -1572,7 +1576,7 @@ filtered/rendered list via `useMemo`, and renders through the new
 memoized `GMChatMessage` row component. See the design spec,
 `docs/superpowers/specs/2026-08-14-gm-chat-panel-parity-design.md`.
 
-### 47. `addPlayerForRoom` is now unreferenced by any production code path
+### 47. `addPlayerForRoom` is now unreferenced by any production code path ✅ Resolved
 
 **Impact: low (informational) · Effort: —**
 
@@ -1596,7 +1600,12 @@ player-create write path this function exercised, which is now unused
 write surface. If it's ever removed, that rules grant is worth
 re-examining at the same time.
 
-### 48. Two pre-existing kill-photo blob-URL leaks in `MessageComposer.js`
+**Resolution:** deleted. `firestore.rules`' `players/{playerId}` write
+grant needed no change — it's the same generic host-write rule every
+other player-mutating function still depends on, not something scoped
+to `addPlayerForRoom` alone.
+
+### 48. Two pre-existing kill-photo blob-URL leaks in `MessageComposer.js` ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -1633,7 +1642,11 @@ few of these. A `useEffect` cleanup that revokes `previewUrl` on unmount,
 plus an explicit revoke added to the `catch` branch, would close both
 paths.
 
-### 49. `remapPlayerAsTarget` is now unreferenced by any production code path
+**Resolution:** fixed exactly as suggested above — a `useEffect` cleanup
+revokes `previewUrl` on unmount, and `handleFileChange`'s `catch` branch
+now revokes the previous `previewUrl` before setting the error.
+
+### 49. `remapPlayerAsTarget` is now unreferenced by any production code path ✅ Resolved
 
 **Impact: low (informational) · Effort: —**
 
@@ -1652,7 +1665,10 @@ As of this writing, `remapPlayerAsTarget`
 function costs nothing sitting unused — but worth tracking rather than
 rediscovering later.
 
-### 50. `undoKillPlayer`'s snapshot replay has two inherent, tracked risks
+**Resolution:** deleted. No test needed updating — it never had
+dedicated coverage.
+
+### 50. `undoKillPlayer`'s snapshot replay has two inherent, tracked risks ✅ Resolved
 
 **Impact: low (informational) · Effort: —**
 
@@ -1685,6 +1701,16 @@ kill and the undo), the restore for that entry is skipped with a
 unresolvable neighbor during unmapping), so it's not a new class of risk,
 but it means an undo could report success while actually only partially
 restoring.
+
+**Resolution, silent-skip half:** `undoKillPlayer` now throws
+(`failed-precondition`, "Cannot undo: player {name} no longer exists")
+instead of warning and continuing. Since the restore already runs inside
+one Firestore transaction, this aborts every write in that transaction —
+no new partial-state risk, just a clear failure instead of a silent one.
+
+**Not addressed:** the blast-radius concern (no guard against another
+change to a touched player between approval and undo) is unchanged —
+deliberately out of scope, per the design spec.
 
 ---
 
