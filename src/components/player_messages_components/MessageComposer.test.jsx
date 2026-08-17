@@ -71,6 +71,7 @@ const mountComposer = (playerName = 'Alice', targets = ['bob']) =>
 
 const fakeBlob = new Blob(['fake'], { type: 'image/jpeg' });
 const fakeFile = new File(['fake'], 'photo.jpg', { type: 'image/jpeg' });
+const fakeFile2 = new File(['fake2'], 'photo2.jpg', { type: 'image/jpeg' });
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -343,7 +344,7 @@ describe('MessageComposer', () => {
         URL.revokeObjectURL.mockClear();
 
         compressImage.mockRejectedValueOnce(new Error('bad file'));
-        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile2);
 
         await screen.findByText('Could not read that photo. Try taking it again.');
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
