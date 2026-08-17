@@ -16,70 +16,78 @@ sequenceDiagram
     participant TG as TargetGenerator
     participant FS as Firestore
 
-    GM->>DB: "Host Room"
-    loop until unique, max 300 tries
-        DB->>DB: uniqueNamesGenerator() → "Fluffy42317"
-        DB->>FS: checkForRoomIDDupes(roomID)
+    GM->>DB: sign in
+    DB->>FS: fetchActiveRoomForHost(uid)
+    alt no active room for this host
+        loop until unique, max 300 tries
+            DB->>DB: uniqueNamesGenerator() → "Fluffy42317"
+            DB->>FS: checkForRoomIDDupes(roomID)
+        end
+        DB->>FS: setDoc(rooms/{roomID}, {hostId, isGameActive, gameStarted, joinedUids:[], taskIndex:1, storageReference:[], createdAt})
     end
-    DB->>FS: setDoc(rooms/{roomID}, {hostId, isGameActive, logs:[], taskIndex:1})
     DB->>Lobby: navigate(/rooms/{roomID}/lobby)
 
-    Lobby->>FS: fetchAllPlayersForRoom(roomID)
-    Note over Lobby: players arrive via the separate self-service joinRoom flow, not shown in this loop
-    loop roster building
+    Note over Lobby: players arrive via the separate self-service joinRoom flow, live via onSnapshot — not shown in this loop
+    loop roster management
         GM->>Lobby: remove player
         Lobby->>FS: removePlayerForRoom
-        Note over Lobby: also mutates local arrayOfPlayers
     end
 
     GM->>TG: "Begin Game"
-    TG->>TG: InitializeTargets() — pure client-side graph build
+    TG->>TG: buildTargetGraph(players) — pure client-side graph build
     TG-->>GM: preview dialog of every player's targets
     GM->>TG: "Confirm and Begin Game"
+    TG->>FS: markGameAsStarted(roomID) — gameStarted: true
     loop per player
         TG->>FS: updateTargetsForPlayer(player, targets)
         TG->>FS: updateAssassinsForPlayer(player, assassins)
     end
     TG->>Lobby: handleLobbyRoom()
-    Lobby->>Lobby: navigate(/rooms/{roomID}/GameMasterView, {state:{arrayOfPlayers}})
+    Lobby->>Lobby: navigate(/rooms/{roomID}/GameMasterView)
 ```
 
 Two things to note:
 
 - The guard is `arrayOfPlayers.length <= 1`, so a game can start with two
-  players even though `MAXTARGETS` logic assumes more.
-- The roster is passed forward in **router state**, not refetched. Reloading the
-  console loses it.
+  players — `maxTargetsFor` (below) clamps each player's target count down
+  for a small roster rather than refusing to start.
+- `GameMasterView` no longer receives the roster via router state — it
+  subscribes live via `onSnapshot` (`docs/improvements.md` item 13), so a
+  reload no longer loses it.
 
 ### The target assignment algorithm
 
-`TargetGenerator.InitializeTargets` (and its verbatim copy in
-`ResetTargetsButton`) builds the graph like this:
+`buildTargetGraph` (`src/game/targetGraph.js`) builds the graph like this:
 
 ```
-MAXTARGETS = players > 15 ? 3 : players > 5 ? 2 : 1
+maxTargetsFor(playerCount) = clamp(playerCount > 15 ? 3 : playerCount > 5 ? 2 : 1, 0, playerCount - 1)
 
-shuffle the roster
-for each player P:
-    for k in 1..MAXTARGETS:
-        walk forward from P's lastTargetIndex, wrapping, until a candidate T
-        satisfies all of:
-          · T has fewer than MAXTARGETS assassins
-          · T is not P
-          · T is not already one of P's assassins
-        assign T; record P as one of T's assassins
-        if the walk wraps all the way around, give up on this slot
+shuffle the roster (Fisher–Yates/Durstenfeld, on a copy)
+lay the shuffled roster out in a ring
+for each player P at ring position i:
+    for step in 1..maxTargets:
+        P hunts the player at ring position (i + step) % count
 ```
 
-It is a randomized ring-walk, not a true cycle construction. Because a slot can
-be abandoned when the walk wraps, players can end up with fewer than
-`MAXTARGETS` targets, and the resulting graph is not guaranteed to be a single
-connected cycle — it can partition into disjoint sub-games.
+This is a true ring construction, not a search: every player gets exactly
+`maxTargets` targets and `maxTargets` assassins, by construction, with no
+self-targeting and (whenever `2 * maxTargets < playerCount`) no mutual
+pairs. `TargetGenerator.js` and `ResetTargetsButton.js` both call this
+same shared function — it replaced two ~120-line duplicate
+implementations, plus a differently-shaped third copy in `RemapPlayers.js`
+(`docs/improvements.md` item 11).
 
-The `randomizeArray` helper used to shuffle is a subtly incorrect Fisher–Yates:
-it iterates **forward** while drawing `j` from `[0, i]`, which does not produce a
-uniform permutation. All three copies share the defect, and `TargetGenerator`'s
-copy additionally stops at `length - 1`, never touching the final element.
+It replaced `TargetGenerator.InitializeTargets`, a randomized ring-walk
+that could abandon a slot when its search wrapped all the way around,
+leaving players with fewer than `MAXTARGETS` targets and a graph that
+could fracture into disjoint sub-games — and `randomizeArray`, a subtly
+incorrect Fisher–Yates that iterated forward while drawing `j` from
+`[0, i]`, which does not produce a uniform permutation
+(`docs/improvements.md` item 12).
+
+`functions/callableFunctions/killPlayer.js` and `joinRoom.js` also depend
+on this file, via a vendored copy — see "Keeping the Cloud Functions
+self-contained" below.
 
 ---
 
@@ -150,6 +158,23 @@ roster is read) rather than one Firestore document fetched per candidate.
 `RemapPlayers.js` itself still exists and is still used for `/revive` — see
 flow 4 — where the same one-write-at-a-time caveat described in
 `improvements.md` item 17 still applies.
+
+### Keeping the Cloud Functions self-contained
+
+`killPlayer.js` and `joinRoom.js` both `require()` `../vendor/game/remapPlan`,
+`../vendor/game/playerNames`, and `../vendor/game/targetGraph` rather than
+reaching into `src/game/` directly. Firebase's functions deploy uploads
+only the `functions/` directory in isolation, so a `require()` reaching
+outside it resolves fine locally and under the emulator (both run from
+the full repo checkout) but cannot resolve in the actual deployed bundle.
+`functions/scripts/sync-shared-game-logic.js` copies the specific
+`src/game/` modules these two functions depend on into the gitignored
+`functions/vendor/game/` — run automatically before every deploy
+(`firebase.json`'s `functions[0].predeploy`) and before
+`npm run test:emulator`/`npm run test:rules`, which exercise the same
+require paths the real deploy uses. `src/game/` stays the single source
+of truth; `functions/vendor/` is a regenerated build artifact, never
+hand-edited or committed.
 
 ---
 
@@ -260,8 +285,9 @@ A revived player keeps the score of `0` set at death — revival restores life b
 not points. The third route back to life, undoing a photo approval, _does_
 restore the score, so the two paths are inconsistent.
 
-`/revive` silently does nothing when the named player is not in the dead list:
-the `if` has no `else`, so a typo produces no feedback at all.
+`/revive` alerts the GM (`"<name>" is not dead`) when the named player is
+not in the dead list — previously the `if` had no `else`, so a typo
+produced no feedback at all; fixed by `docs/improvements.md` item 21.
 
 ---
 
@@ -270,11 +296,11 @@ the `if` has no `else`, so a typo produces no feedback at all.
 Because [state lives in three places](./architecture.md#state-management), each
 flow updates the UI differently:
 
-| Surface                                        | Mechanism                                  | Stale after reload?                                           |
-| ---------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
-| Player list with scores and targets            | `onSnapshot`                               | No — always live                                              |
-| Photo queue                                    | `onSnapshot`                               | No — always live                                              |
-| Log panel                                      | fetched once, appended locally             | Yes — shows only this session's writes plus the initial fetch |
-| `Players (n)` header count                     | router state from `Lobby`                  | Yes — becomes `0`                                             |
-| Alive/dead arrays driving `/revive` validation | fetched once on mount, mutated by handlers | Yes                                                           |
-| Photo undo history                             | React state only                           | Yes — lost entirely                                           |
+| Surface                                        | Mechanism                                                                       | Stale after reload?    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------- |
+| Player list with scores and targets            | `onSnapshot`                                                                    | No — always live       |
+| Photo queue                                    | `onSnapshot`                                                                    | No — always live       |
+| Log panel                                      | `onSnapshot` (`docs/improvements.md` item 22)                                   | No — always live       |
+| `Players (n)` header count                     | derived from the same live `onSnapshot` roster (item 13)                        | No — always live       |
+| Alive/dead arrays driving `/revive` validation | refetched via `fetchPlayersByStatusForRoom` on every command                    | No — always current    |
+| Photo undo history                             | persisted on the photo doc itself (`preKillSnapshot`), not React state (item 6) | No — survives a reload |
