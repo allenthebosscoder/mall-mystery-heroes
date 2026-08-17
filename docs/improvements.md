@@ -1719,6 +1719,31 @@ killPlayer.js's old behavior here was never a requirement.
 change to a touched player between approval and undo) is unchanged —
 deliberately out of scope, per the design spec.
 
+### 51. GM can broadcast into a void after ending a game
+
+**Impact: low · Effort: M**
+
+Found during the final review of the 2026-08-17 player-game-over-screen
+feature (docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md).
+That feature deliberately left the GM console untouched after "End
+Game" — `GameMasterView.js`'s command bar (`/broadcast`, `/leaderboard
+send`, etc.) keeps working, and every write it makes (`playerMessages`,
+`logs`) still succeeds. But `PlayerGame.js` now unmounts
+`MessageFeed`/`MessageComposer` entirely once the room's `isGameActive` is
+`false`, so nothing the GM sends after ending the game is ever rendered to
+any player — the write succeeds, the GM's own log shows success, and the
+message is invisible. A GM correcting a real-time detail after ending the
+game (e.g. "meet at the food court, not the entrance") has no way to know
+their message went nowhere.
+
+**Not addressed:** this is a real, if narrow, gap — deliberately deferred,
+matching the design spec's explicit "GM console is untouched" decision,
+not an oversight in that feature's implementation. Fixing it needs either
+gating GM broadcasts after end-game (so the GM gets an error instead of a
+false success) or keeping the player-side chat feed mounted through the
+game-over screen — a design decision, not a small fix, and out of scope
+for this note.
+
 ---
 
 ## Suggested sequencing

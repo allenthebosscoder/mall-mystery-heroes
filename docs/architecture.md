@@ -77,17 +77,17 @@ src/index.js
 Defined in `src/App.js`. Three are wrapped in `RequireAuth` — see
 [Authentication](#authentication-and-authorization).
 
-| Path                            | Page             | Purpose                                                                                                   | Guarded |
-| ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------- | ------- |
-| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                                                                         |         |
-| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here)                                                         |         |
-| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                                                                                |         |
-| `/signup`                       | `SignUp`         | Account creation                                                                                          |         |
-| `/join`                         | `JoinGame`       | Player self-registration: game ID + name                                                                  |         |
-| `/dashboard`                    | `DashBoard`      | No UI — resolves the GM's existing room or hosts a new one, then redirects                                | ✅      |
-| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation                                                                      | ✅      |
-| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                                                                                     | ✅      |
-| `/rooms/:roomID/waiting`        | `PlayerGame`     | Continuous post-join screen: status line (waiting/target/eliminated) plus a live chat feed of GM messages | ✅      |
+| Path                            | Page             | Purpose                                                                                                                                                                                                                 | Guarded |
+| ------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `/`                             | `Homepage`       | "Host Game" / "Join Game" landing                                                                                                                                                                                       |         |
+| `/login`                        | `Login`          | Email + password sign-in ("Host Game" lands here)                                                                                                                                                                       |         |
+| `/login/password-reset`         | `PasswordReset`  | Sends Firebase reset email                                                                                                                                                                                              |         |
+| `/signup`                       | `SignUp`         | Account creation                                                                                                                                                                                                        |         |
+| `/join`                         | `JoinGame`       | Player self-registration: game ID + name                                                                                                                                                                                |         |
+| `/dashboard`                    | `DashBoard`      | No UI — resolves the GM's existing room or hosts a new one, then redirects                                                                                                                                              | ✅      |
+| `/rooms/:roomID/lobby`          | `Lobby`          | Roster management, target generation                                                                                                                                                                                    | ✅      |
+| `/rooms/:roomID/GameMasterView` | `GameMasterView` | The live game console                                                                                                                                                                                                   | ✅      |
+| `/rooms/:roomID/waiting`        | `PlayerGame`     | Continuous post-join screen: status line (waiting/target/eliminated) plus a live chat feed, until the GM ends the game — then a game-over screen (top-3 standings, full leaderboard via a modal) replaces both entirely | ✅      |
 
 `NotFound` is the catch-all `*` route (`improvements.md` item 30).
 

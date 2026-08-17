@@ -24,7 +24,7 @@ screen shows once the GM has manually ended the game.
 
 - **No navigation.** "Return to the starting area" is a physical, in-person
   instruction for this live-action game, not a UI concept — the screen
-  stays on the same route (`/rooms/:roomID/game`) and just tells players
+  stays on the same route (`/rooms/:roomID/waiting`) and just tells players
   to go meet up there. No re-routing to Homepage, no re-signing-in, works
   even if a player's device auto-locked and they're just now looking at it.
 - **Ranking is by score**, reusing the existing, already-tested
