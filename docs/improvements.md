@@ -1703,7 +1703,8 @@ but it means an undo could report success while actually only partially
 restoring.
 
 **Resolution, silent-skip half:** `undoKillPlayer` now throws
-(`failed-precondition`, "Cannot undo: player {name} no longer exists")
+(`failed-precondition`, "Cannot undo: a player from this kill (key) no
+longer exists")
 instead of warning and continuing. Since the restore already runs inside
 one Firestore transaction, this aborts every write in that transaction —
 no new partial-state risk, just a clear failure instead of a silent one.
