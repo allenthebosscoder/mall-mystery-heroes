@@ -270,29 +270,6 @@ export const fetchPlayerForRoom = async (playerName, roomID) => {
 // before this change keep their old auto-generated IDs, which
 // fetchPlayerReferenceForRoom cannot resolve; such players won't get a live
 // player-doc subscription.
-export const addPlayerForRoom = async (player, roomID) => {
-    const trimmedLowercaseName = normalizePlayerName(player);
-    const playerRef = doc(db, 'rooms', roomID, 'players', trimmedLowercaseName);
-
-    await runTransaction(db, async (transaction) => {
-        const existing = await transaction.get(playerRef);
-        if (existing.exists()) {
-            throw new Error('Player already exists');
-        }
-        transaction.set(playerRef, {
-            name: player,
-            trimmedNameLowerCase: trimmedLowercaseName,
-            isAlive: true,
-            score: 10,
-            targets: [],
-            assassins: [],
-            openSeason: false,
-        });
-    });
-
-    return playerRef;
-};
-
 //removes player from database
 export const removePlayerForRoom = async (player, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');

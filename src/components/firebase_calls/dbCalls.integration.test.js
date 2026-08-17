@@ -10,7 +10,6 @@ import {
     addChatMessageForRoom,
     addLogForRoom,
     addPhotoForRoom,
-    addPlayerForRoom,
     addPlayerMessageForRoom,
     endGame,
     fetchAliveRosterForRoom,
@@ -81,79 +80,6 @@ describe('fetchAliveRosterForRoom', () => {
         expect(await fetchAliveRosterForRoom(ROOM)).toEqual([]);
     });
 });
-
-describe('addPlayerForRoom', () => {
-    it('writes the trimmedNameLowerCase field the duplicate check depends on', async () => {
-        await seedRoom(ROOM, []);
-
-        await addPlayerForRoom('Alice Smith', ROOM);
-
-        const doc = await fetchPlayerForRoom('Alice Smith', ROOM);
-        expect(doc.data().trimmedNameLowerCase).toBe('alicesmith');
-    });
-
-    it('resolves with a reference to the document it created', async () => {
-        await seedRoom(ROOM, []);
-
-        const ref = await addPlayerForRoom('dana', ROOM);
-
-        expect(ref).toBeDefined();
-        expect(ref.id).toEqual(expect.any(String));
-    });
-
-    it('leaves no write in flight once it resolves', async () => {
-        // A write still pending here contends with the next test's emulator
-        // reset and stalls it for the full timeout.
-        await seedRoom(ROOM, []);
-
-        await addPlayerForRoom('erin', ROOM);
-        await clearFirestore();
-        // Reads are now room-scoped (isHostOrPlayerOfRoom in firestore.rules),
-        // so clearFirestore also wiped away this caller's proof of being the
-        // room's host — re-seed the room itself (not its players) so the
-        // query below is authorized. If addPlayerForRoom's write were still
-        // in flight, it would land here as a stray 'erin' doc.
-        await seedRoom(ROOM, []);
-
-        expect(await fetchAllPlayersForRoom(ROOM)).toEqual([]);
-    });
-
-    it('rejects a duplicate that differs only by case and spacing', async () => {
-        await seedRoom(ROOM, [{ name: 'Alice Smith', trimmedNameLowerCase: 'alicesmith' }]);
-
-        await expect(addPlayerForRoom('alicesmith', ROOM)).rejects.toThrow('Player already exists');
-    });
-
-    it('starts a new player on 10 points and alive', async () => {
-        await seedRoom(ROOM, []);
-
-        await addPlayerForRoom('bob', ROOM);
-
-        const data = (await fetchPlayerForRoom('bob', ROOM)).data();
-        expect(data.score).toBe(10);
-        expect(data.isAlive).toBe(true);
-    });
-
-    it('does not create two players when two calls race on the same name', async () => {
-        // Reproduces the double-Enter-while-laggy bug: addPlayerForRoom's
-        // duplicate check and its write were not atomic, so two concurrent
-        // calls could both see "no duplicate" before either write landed.
-        await seedRoom(ROOM, []);
-
-        const results = await Promise.allSettled([
-            addPlayerForRoom('123', ROOM),
-            addPlayerForRoom('123', ROOM),
-        ]);
-
-        const fulfilled = results.filter((r) => r.status === 'fulfilled');
-        const rejected = results.filter((r) => r.status === 'rejected');
-        expect(fulfilled).toHaveLength(1);
-        expect(rejected).toHaveLength(1);
-        expect(rejected[0].reason.message).toBe('Player already exists');
-        expect(await fetchAllPlayersForRoom(ROOM)).toEqual(['123']);
-    });
-});
-
 describe('player lookups are case- and whitespace-insensitive (improvements item 1)', () => {
     it('fetchPlayerForRoom finds a player by a differently-cased name', async () => {
         // Commands lowercase their arguments, but every lookup used to query
