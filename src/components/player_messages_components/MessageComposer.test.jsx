@@ -321,4 +321,31 @@ describe('MessageComposer', () => {
         );
         expect(screen.queryByText('Processing photo…')).not.toBeInTheDocument();
     });
+
+    it('revokes the preview URL on unmount', async () => {
+        const { unmount } = mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await screen.findByAltText('Kill photo preview');
+
+        unmount();
+
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
+    });
+
+    it('revokes the previous preview URL when a second capture fails to compress', async () => {
+        mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await screen.findByAltText('Kill photo preview');
+        URL.revokeObjectURL.mockClear();
+
+        compressImage.mockRejectedValueOnce(new Error('bad file'));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+
+        await screen.findByText('Could not read that photo. Try taking it again.');
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
+    });
 });

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Flex, Input, Button, VisuallyHidden } from '@chakra-ui/react';
 import { addChatMessageForRoom, addPhotoForRoom } from '../firebase_calls/dbCalls';
 import { compressImage } from '../../utils/compressImage';
@@ -22,6 +22,16 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
     const [photoError, setPhotoError] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Revokes any outstanding preview URL if the composer unmounts before
+    // the player submits or dismisses their capture — otherwise the
+    // browser holds that blob's memory until the tab itself closes
+    // (docs/improvements.md item 48).
+    useEffect(() => {
+        return () => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+        };
+    }, [previewUrl]);
 
     const handleSend = async () => {
         const trimmed = text.trim();
@@ -68,6 +78,11 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
             setCompressedBlob(blob);
             setPreviewUrl(URL.createObjectURL(blob));
         } catch (compressError) {
+            // A second capture attempt after a first one already succeeded
+            // leaves that first previewUrl orphaned in state — nothing else
+            // in this catch branch would otherwise revoke it
+            // (docs/improvements.md item 48).
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
             console.error('Error compressing photo:', compressError);
             setPhotoError('Could not read that photo. Try taking it again.');
         }
