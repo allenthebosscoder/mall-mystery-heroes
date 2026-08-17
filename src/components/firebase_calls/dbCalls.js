@@ -446,23 +446,3 @@ export const fetchTaskIndexThenIncrement = async (roomID) => {
         return index;
     });
 };
-
-export const remapPlayerAsTarget = async (revivedPlayerName, roomID, originalAssassins) => {
-    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
-    const snapshot = await getDocs(playerCollectionRef);
-
-    for (const docSnap of snapshot.docs) {
-        const player = docSnap.data();
-        const docRef = docSnap.ref;
-
-        const isAlive = player.isAlive;
-        const alreadyTargeted = player.targets?.includes(revivedPlayerName);
-
-        if (isAlive && originalAssassins.includes(player.name) && !alreadyTargeted) {
-            const updatedTargets = [...(player.targets || []), revivedPlayerName];
-            await updateDoc(docRef, {
-                targets: updatedTargets,
-            });
-        }
-    }
-};
