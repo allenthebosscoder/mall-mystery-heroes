@@ -412,13 +412,28 @@ export const checkForRoomIDDupes = async (roomID) => {
 // isGameActive filter happens here in JS rather than as a second `where`
 // clause. A host realistically has at most a couple of rooms, so filtering
 // client-side after one read is not a real cost.
+//
+// Two near-simultaneous logins as the same host can each pass the
+// "no active room" check before either write lands, creating two active
+// rooms for one host (docs/improvements.md item 52). Sorting by
+// `createdAt` here doesn't prevent that — it just makes every subsequent
+// lookup land on the same (newest) room instead of an arbitrary one, so a
+// returning host is never bounced between two rooms across reloads. A
+// room created before this field existed has no `createdAt` at all, and
+// sorts as older than any timestamped room.
 export const fetchActiveRoomForHost = async (hostId) => {
     const roomsCollectionRef = collection(db, 'rooms');
     const roomsQuery = query(roomsCollectionRef, where('hostId', '==', hostId));
     const roomsSnapshot = await getDocs(roomsQuery);
-    const activeRoomDoc = roomsSnapshot.docs.find(
+    const activeRoomDocs = roomsSnapshot.docs.filter(
         (roomDoc) => roomDoc.data().isGameActive === true
     );
+    const newestFirst = [...activeRoomDocs].sort((a, b) => {
+        const aMillis = a.data().createdAt?.toMillis() ?? 0;
+        const bMillis = b.data().createdAt?.toMillis() ?? 0;
+        return bMillis - aMillis;
+    });
+    const activeRoomDoc = newestFirst[0];
     if (!activeRoomDoc) return null;
     return { id: activeRoomDoc.id, gameStarted: activeRoomDoc.data().gameStarted };
 };

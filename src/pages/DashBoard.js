@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { auth, db } from '../utils/firebase';
-import { setDoc, doc } from 'firebase/firestore';
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Center, Spinner } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { adjectives, uniqueNamesGenerator } from 'unique-names-generator';
@@ -61,6 +61,7 @@ const DashBoard = () => {
                     joinedUids: [],
                     taskIndex: 1,
                     storageReference: [],
+                    createdAt: serverTimestamp(),
                 });
                 navigate(`/rooms/${roomRef.id}/lobby`, { replace: true });
             } catch (error) {

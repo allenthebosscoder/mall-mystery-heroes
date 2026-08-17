@@ -13,6 +13,7 @@ import {
     addPlayerMessageForRoom,
     endGame,
     fetchAliveRosterForRoom,
+    fetchActiveRoomForHost,
     fetchAllPlayersForRoom,
     fetchAssassinsForPlayer,
     fetchLogsQueryByAscendingTimestampForRoom,
@@ -24,7 +25,7 @@ import {
     updateIsCompleteToTrueForTaskByIndex,
     updatePointsForPlayer,
 } from './dbCalls';
-import { doc, getDoc, getDocs, terminate } from 'firebase/firestore';
+import { doc, getDoc, getDocs, terminate, Timestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { auth, db } from '../../utils/firebase';
 import {
@@ -80,6 +81,47 @@ describe('fetchAliveRosterForRoom', () => {
         expect(await fetchAliveRosterForRoom(ROOM)).toEqual([]);
     });
 });
+describe('fetchActiveRoomForHost', () => {
+    it('returns the most recently created active room when a host has more than one (race-condition safety net)', async () => {
+        await seedRoom('room-old', [], {
+            createdAt: Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')),
+        });
+        await seedRoom('room-new', [], {
+            createdAt: Timestamp.fromDate(new Date('2026-01-02T00:00:00Z')),
+        });
+
+        const result = await fetchActiveRoomForHost(auth.currentUser.uid);
+
+        expect(result.id).toBe('room-new');
+    });
+
+    it('returns null when the host has no active room', async () => {
+        // firestore.rules' `allow list` only authorizes a query for the
+        // signed-in user's own hostId (see fetchActiveRoomForHost's
+        // comment), and `allow create` only lets a room be written with
+        // hostId == the writer's own uid — so "someone else's" room has to
+        // be seeded by a genuinely independent identity, not a hand-typed
+        // literal hostId under the shared identity's write. Querying as the
+        // signed-in identity itself, which owns no room here, proves a
+        // room that isn't this host's own doesn't leak into the result.
+        const independentHost = await createIndependentIdentity();
+        try {
+            await seedRoom(
+                'someone-elses-room',
+                [],
+                { hostId: independentHost.uid },
+                independentHost.db
+            );
+
+            const result = await fetchActiveRoomForHost(auth.currentUser.uid);
+
+            expect(result).toBeNull();
+        } finally {
+            await terminate(independentHost.db);
+        }
+    });
+});
+
 describe('player lookups are case- and whitespace-insensitive (improvements item 1)', () => {
     it('fetchPlayerForRoom finds a player by a differently-cased name', async () => {
         // Commands lowercase their arguments, but every lookup used to query

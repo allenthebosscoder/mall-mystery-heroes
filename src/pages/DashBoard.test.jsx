@@ -19,6 +19,7 @@ import { checkForRoomIDDupes, fetchActiveRoomForHost } from '../components/fireb
 jest.mock('firebase/firestore', () => ({
     setDoc: jest.fn(),
     doc: jest.fn((db, collectionName, id) => ({ id })),
+    serverTimestamp: jest.fn(() => 'server-timestamp-sentinel'),
 }));
 jest.mock('../utils/firebase', () => ({
     auth: { currentUser: { uid: 'host-uid' } },
@@ -85,6 +86,7 @@ describe('DashBoard', () => {
                 joinedUids: [],
                 taskIndex: 1,
                 storageReference: [],
+                createdAt: 'server-timestamp-sentinel',
             })
         );
     });
