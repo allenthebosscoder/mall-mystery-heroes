@@ -12,7 +12,7 @@
  * `PhotosDisplay.js`'s Accept flow does, so the snapshot being undone is
  * genuine, not hand-constructed.
  */
-import { getDocs } from 'firebase/firestore';
+import { deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { undoKill } from './undoKill';
 import { executeKill } from './executeKill';
 import {
@@ -22,6 +22,8 @@ import {
     fetchPlayerForRoom,
 } from './firebase_calls/dbCalls';
 import { callableAsNonHost, clearFirestore, seedRoom, shutdown } from '../../test/emulatorHelpers';
+import { db } from '../utils/firebase';
+import { normalizePlayerName } from '../game/playerNames';
 
 const ROOM = 'test-room';
 
@@ -127,6 +129,33 @@ describe('undoKill', () => {
         const bob = (await fetchPlayerForRoom('bob', ROOM)).data();
         expect(bob.isAlive).toBe(true);
         expect(bob.openSeason).toBe(true);
+    });
+
+    it('rejects undo when a snapshotted player no longer exists, and mutates nothing', async () => {
+        await seedRoom(ROOM, [
+            { name: 'alice', targets: ['bob'], score: 10 },
+            { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
+        ]);
+        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        const photoId = await latestPhotoId();
+
+        const killResult = await executeKill('bob', 'alice', ROOM);
+        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+
+        // Simulates the room's player list changing in some unexpected way
+        // between the kill and the undo — delete the killer's own doc
+        // directly, bypassing the normal app flow, which has no "remove a
+        // player entirely" path for a still-referenced killer.
+        await deleteDoc(doc(db, 'rooms', ROOM, 'players', normalizePlayerName('alice')));
+
+        await expect(undoKill(ROOM, photoId)).rejects.toThrow(/no longer exists/i);
+
+        // Bob (who could have been resolved and restored) must not have
+        // been touched either — this is one atomic transaction, not a
+        // best-effort partial restore.
+        expect((await fetchPlayerForRoom('bob', ROOM)).data().isAlive).toBe(false);
+        const photoSnapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+        expect(photoSnapshot.docs[0].data().status).toBe('approved');
     });
 
     it('rejects a caller who is not the room host', async () => {

@@ -68,8 +68,10 @@ exports.undoKillPlayer = functions.https.onCall(async (data, context) => {
                 playersRef.where('trimmedNameLowerCase', '==', key)
             );
             if (playerSnapshot.empty) {
-                console.warn(`undoKillPlayer: player not found, skipping restore: ${key}`);
-                continue;
+                throw new functions.https.HttpsError(
+                    'failed-precondition',
+                    `Cannot undo: player ${key} no longer exists.`
+                );
             }
             playerRefsByKey.set(key, playerSnapshot.docs[0].ref);
         }
