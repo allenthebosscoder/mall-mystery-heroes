@@ -20,9 +20,8 @@ if (admin.apps.length === 0) {
 const db = admin.firestore();
 
 /**
- * Lets a player join a room from their own device — the player-facing
- * counterpart to dbCalls.addPlayerForRoom, callable by anyone signed in
- * (Google or anonymous/guest), not just the room's host
+ * Lets a player join a room from their own device, callable by anyone
+ * signed in (Google or anonymous/guest), not just the room's host
  * (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
  *
  * Runs under the Admin SDK, which bypasses firestore.rules entirely —

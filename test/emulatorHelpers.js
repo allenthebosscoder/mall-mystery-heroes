@@ -67,7 +67,7 @@ export const callableAsNonHost = (functionName) => {
 };
 
 /**
- * Seeds a room with players. Writes the same fields `addPlayerForRoom` and
+ * Seeds a room with players. Writes the same fields `joinRoom` and
  * `DashBoard` write, so tests exercise realistic documents.
  *
  * `dbInstance` defaults to the shared singleton `db` (every existing caller's
@@ -108,8 +108,9 @@ export const seedRoom = async (roomID, players = [], roomOverrides = {}, dbInsta
             if (value === undefined) delete fields[key];
         }
 
-        // Keyed on trimmedNameLowerCase to match addPlayerForRoom's scheme
-        // (see its comment in dbCalls.js) rather than the raw name.
+        // Keyed on trimmedNameLowerCase to match the scheme every player-doc
+        // creator uses (see fetchPlayerReferenceForRoom's comment in dbCalls.js)
+        // rather than the raw name.
         await setDoc(
             doc(dbInstance, 'rooms', roomID, 'players', fields.trimmedNameLowerCase),
             fields

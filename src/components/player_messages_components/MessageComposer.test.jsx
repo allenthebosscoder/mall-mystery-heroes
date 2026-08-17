@@ -332,6 +332,7 @@ describe('MessageComposer', () => {
 
         unmount();
 
+        expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
     });
 
@@ -348,5 +349,6 @@ describe('MessageComposer', () => {
 
         await screen.findByText('Could not read that photo. Try taking it again.');
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:fake-preview');
+        expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
     });
 });

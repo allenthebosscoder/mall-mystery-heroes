@@ -148,7 +148,10 @@ describe('undoKill', () => {
         // player entirely" path for a still-referenced killer.
         await deleteDoc(doc(db, 'rooms', ROOM, 'players', normalizePlayerName('alice')));
 
-        await expect(undoKill(ROOM, photoId)).rejects.toThrow(/no longer exists/i);
+        await expect(undoKill(ROOM, photoId)).rejects.toMatchObject({
+            code: 'functions/failed-precondition',
+            message: expect.stringMatching(/no longer exists/i),
+        });
 
         // Bob (who could have been resolved and restored) must not have
         // been touched either — this is one atomic transaction, not a

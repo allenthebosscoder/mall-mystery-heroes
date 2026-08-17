@@ -272,8 +272,7 @@ Gaps that remain, per [improvements.md](./improvements.md):
 - `joinRoom` (`functions/callableFunctions/joinRoom.js`) — lets a player
   self-register into a room from their own device, atomically checking for
   a duplicate name and that the room is still in its Lobby phase, all
-  inside one Firestore transaction via the Admin SDK — the player-facing
-  counterpart to `dbCalls.addPlayerForRoom`
+  inside one Firestore transaction via the Admin SDK
   (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
   Also records the joining `uid` on the new player doc and appends it to
   the room's `joinedUids`, which is what `firestore.rules`' room-scoping

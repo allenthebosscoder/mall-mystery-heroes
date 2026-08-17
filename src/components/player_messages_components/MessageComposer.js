@@ -78,11 +78,10 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
             setCompressedBlob(blob);
             setPreviewUrl(URL.createObjectURL(blob));
         } catch (compressError) {
-            // A second capture attempt after a first one already succeeded
-            // leaves that first previewUrl orphaned in state — nothing else
-            // in this catch branch would otherwise revoke it
-            // (docs/improvements.md item 48).
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            // setPreviewUrl(null) above already cleared the reference, and
+            // the useEffect cleanup (registered alongside previewUrl state)
+            // revokes the stale blob URL when that happens — nothing further
+            // needed here (docs/improvements.md item 48).
             console.error('Error compressing photo:', compressError);
             setPhotoError('Could not read that photo. Try taking it again.');
         }

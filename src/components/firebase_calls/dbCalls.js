@@ -257,19 +257,6 @@ export const fetchPlayerForRoom = async (playerName, roomID) => {
     return playerSnapshot.docs[0];
 };
 
-//add player to database
-//
-// Keyed on trimmedNameLowerCase rather than an auto-generated ID so the
-// duplicate check and the write can run as one atomic transaction: a plain
-// query-then-addDoc lets two concurrent calls both see "no duplicate" before
-// either write lands (e.g. two Enter presses during UI lag), creating two
-// players with the same name. fetchPlayerReferenceForRoom now builds this
-// same doc ID directly to subscribe to a player's own doc, so this ID
-// scheme is a public contract, not just an internal safety property of this
-// function — changing it would break that lookup too. Player docs created
-// before this change keep their old auto-generated IDs, which
-// fetchPlayerReferenceForRoom cannot resolve; such players won't get a live
-// player-doc subscription.
 //removes player from database
 export const removePlayerForRoom = async (player, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
@@ -386,8 +373,13 @@ export const fetchRoomReferenceForRoom = (roomID) => {
 // PlayerGame.js watch its own target/alive status live once the game
 // starts, the same way fetchRoomReferenceForRoom lets it watch
 // gameStarted. Keyed the same way every other player lookup in this file
-// is (trimmedNameLowerCase via normalizePlayerName) — addPlayerForRoom
-// already uses this exact value as the document ID (dbCalls.js:212).
+// is (trimmedNameLowerCase via normalizePlayerName) —
+// functions/callableFunctions/joinRoom.js builds this exact same value as
+// the document ID when a player joins, so this ID scheme is a public
+// contract, not just an implementation detail of this function. Player
+// docs created before that scheme keep their old auto-generated IDs,
+// which this by-ID lookup cannot resolve; such players would not get a
+// live player-doc subscription.
 export const fetchPlayerReferenceForRoom = (playerName, roomID) => {
     return doc(db, 'rooms', roomID, 'players', normalizePlayerName(playerName));
 };

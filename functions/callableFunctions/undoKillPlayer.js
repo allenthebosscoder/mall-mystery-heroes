@@ -70,16 +70,14 @@ exports.undoKillPlayer = functions.https.onCall(async (data, context) => {
             if (playerSnapshot.empty) {
                 throw new functions.https.HttpsError(
                     'failed-precondition',
-                    `Cannot undo: player ${key} no longer exists.`
+                    `Cannot undo: a player from this kill (${key}) no longer exists.`
                 );
             }
             playerRefsByKey.set(key, playerSnapshot.docs[0].ref);
         }
 
         for (const [key, snapshot] of snapshotEntries) {
-            const ref = playerRefsByKey.get(key);
-            if (!ref) continue;
-            transaction.update(ref, {
+            transaction.update(playerRefsByKey.get(key), {
                 score: snapshot.score,
                 targets: snapshot.targets,
                 assassins: snapshot.assassins,
