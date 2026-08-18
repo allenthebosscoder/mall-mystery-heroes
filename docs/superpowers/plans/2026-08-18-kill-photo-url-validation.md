@@ -34,15 +34,15 @@ against the Firestore emulator (`npm run test:rules`).
 - Investigated at plan-writing time whether any other emulator-integration
   test (`dbCalls.integration.test.js`, `undoKill.integration.test.js`)
   would break: both call `addPhotoForRoom(...,
-  'https://example.com/photo.jpg')` while signed in as the room's own
+'https://example.com/photo.jpg')` while signed in as the room's own
   host identity (the shared default identity every `seedRoom()` call in
   this suite signs in as via `hostUid()`, with no identity switch before
   these calls) — so those writes go through `allow write: if
-  isHostOfExistingRoom(roomId)`, which has no field-shape restrictions at
+isHostOfExistingRoom(roomId)`, which has no field-shape restrictions at
   all, not through the narrower `allow create` this task modifies. They
   are unaffected and need no changes. Only `test/firestore.rules.test.js`'s
   tests that explicitly authenticate as `PLAYER_UID` exercise `allow
-  create`'s field checks.
+create`'s field checks.
 
 ---
 
@@ -152,106 +152,106 @@ In `test/firestore.rules.test.js`, replace the entire
 (everything between its opening `{` and closing `});`) with:
 
 ```js
-    it('denies an unauthenticated read', async () => {
-        const db = testEnv.unauthenticatedContext().firestore();
-        await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
-    });
+it('denies an unauthenticated read', async () => {
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
+});
 
-    it('denies a signed-in stranger who is neither the host nor a player of this room', async () => {
-        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
-        await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
-    });
+it('denies a signed-in stranger who is neither the host nor a player of this room', async () => {
+    const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+    await assertFails(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
+});
 
-    it('allows a player who has joined this room to read photos', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertSucceeds(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
-    });
+it('allows a player who has joined this room to read photos', async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertSucceeds(getDocs(collection(db, 'rooms', 'room-a', 'photos')));
+});
 
-    it('denies a non-host write', async () => {
-        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), { url: 'x', status: 'pending' })
-        );
-    });
+it('denies a non-host write', async () => {
+    const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+    await assertFails(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), { url: 'x', status: 'pending' })
+    );
+});
 
-    it('allows the host to write', async () => {
-        const db = testEnv.authenticatedContext(HOST_UID).firestore();
-        await assertSucceeds(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), { url: 'x', status: 'pending' })
-        );
-    });
+it('allows the host to write', async () => {
+    const db = testEnv.authenticatedContext(HOST_UID).firestore();
+    await assertSucceeds(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), { url: 'x', status: 'pending' })
+    );
+});
 
-    // A URL shaped like a real getDownloadURL result for this room's own
-    // Storage path — uploadKillPhoto (storageCalls.js) uploads to
-    // rooms/{roomID}/photos/{photoID}.jpg, and Firebase Storage encodes
-    // the path's slashes as %2F in the returned download URL.
-    const REALISTIC_ROOM_A_PHOTO_URL =
-        'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Froom-a%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token';
+// A URL shaped like a real getDownloadURL result for this room's own
+// Storage path — uploadKillPhoto (storageCalls.js) uploads to
+// rooms/{roomID}/photos/{photoID}.jpg, and Firebase Storage encodes
+// the path's slashes as %2F in the returned download URL.
+const REALISTIC_ROOM_A_PHOTO_URL =
+    'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Froom-a%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token';
 
-    it('allows a player to create a photo with pending status, no originalPlayerData, and a url under this room\'s own Storage path', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertSucceeds(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
+it("allows a player to create a photo with pending status, no originalPlayerData, and a url under this room's own Storage path", async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertSucceeds(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+            url: REALISTIC_ROOM_A_PHOTO_URL,
+            assassin: 'bob',
+            target: 'alice',
+            status: 'pending',
+            originalPlayerData: null,
+        })
+    );
+});
 
-    it('denies a player creating a photo with a non-pending status', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'approved',
-                originalPlayerData: null,
-            })
-        );
-    });
+it('denies a player creating a photo with a non-pending status', async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertFails(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+            url: REALISTIC_ROOM_A_PHOTO_URL,
+            assassin: 'bob',
+            target: 'alice',
+            status: 'approved',
+            originalPlayerData: null,
+        })
+    );
+});
 
-    it('denies a player creating a photo with a non-null originalPlayerData', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: { score: 10, targets: [], assassins: [] },
-            })
-        );
-    });
+it('denies a player creating a photo with a non-null originalPlayerData', async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertFails(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+            url: REALISTIC_ROOM_A_PHOTO_URL,
+            assassin: 'bob',
+            target: 'alice',
+            status: 'pending',
+            originalPlayerData: { score: 10, targets: [], assassins: [] },
+        })
+    );
+});
 
-    it('denies a player creating a photo whose url does not point at Firebase Storage at all', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://evil.example.com/x.jpg',
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
+it('denies a player creating a photo whose url does not point at Firebase Storage at all', async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertFails(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+            url: 'https://evil.example.com/x.jpg',
+            assassin: 'bob',
+            target: 'alice',
+            status: 'pending',
+            originalPlayerData: null,
+        })
+    );
+});
 
-    it('denies a player creating a photo whose url points at a different room\'s Storage path', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Fsome-other-room%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token',
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
+it("denies a player creating a photo whose url points at a different room's Storage path", async () => {
+    const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+    await assertFails(
+        addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+            url: 'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Fsome-other-room%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token',
+            assassin: 'bob',
+            target: 'alice',
+            status: 'pending',
+            originalPlayerData: null,
+        })
+    );
+});
 ```
 
 (Keep the surrounding `describe('rooms/{roomId}/photos/{photoId}', () =>

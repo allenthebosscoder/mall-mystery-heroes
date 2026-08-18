@@ -68,6 +68,7 @@ plus the auth and add-player work below:
 | 55 — `/openseason` gave no feedback on a redundant command                   | `ChatInput.js` now checks the target's current `openSeason` value before writing, and shows an error alert instead of a silent no-op when the requested state already matches. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 56 — Two near-simultaneous logins could create duplicate active rooms        | Rooms now carry `createdAt` (`serverTimestamp()`), and `fetchActiveRoomForHost` picks the most recently created active room. Guarantees every subsequent lookup lands on the same room. 2 new tests (1 component, 1 emulator integration).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | 58 — `docs/game-flows.md` had rotted significantly out of sync               | All sections rewritten to match current reality, including a new "Keeping the Cloud Functions self-contained" subsection documenting `functions/scripts/sync-shared-game-logic.js`. Docs-only, no test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 60 — kill-photo `url` was not validated against this room's Storage path     | `firestore.rules`'s `photos` `allow create` now anchors the submitted `url` to an allowed Storage origin plus this room's own `/o/rooms%2F{roomId}%2Fphotos%2F` object path, instead of merely looking for that path segment somewhere in the string. 6 new rules tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### ⚠️ Partially addressed
 
@@ -1891,6 +1892,52 @@ in case the GM's own console had the same gap.
 desc`) — nothing gates this on `isGameActive`, so it keeps showing a
 real-time, already-ranked standings view both during and after the game.
 No code change made.
+
+### 60. Kill-photo `url` was not validated to actually point at this room's Storage path ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow security audit.
+`firestore.rules`'s `photos/{photoId}` `allow create` rule validated
+`status`/`originalPlayerData` but nothing about the submitted `url` — a
+modified client could point a kill-photo claim at an arbitrary external
+host, which `GamePhotos.js` would then render directly into an `<Image
+src>`, beaconing the GM's browser to that host and letting an attacker
+substitute fake "evidence" imagery.
+
+The first attempt at the fix did not work, and is worth recording because
+the mistake is easy to repeat: it checked
+`url.matches('.*/o/rooms%2F' + roomId + '%2Fphotos%2F.*')`. Firestore's
+`matches()` is a whole-string match, but that pattern's leading `.*` meant
+the room's path segment only had to appear _somewhere_ in a string the
+attacker controls end to end — so `https://evil.example.com/o/rooms%2Froom-a%2Fphotos%2Fx.jpg`,
+a lookalike host like `firebasestorage.googleapis.com.evil.example.com`,
+the segment hidden in a query string, and a plain-`http` LAN address were
+all still accepted. Verified empirically against the Firestore emulator,
+not by reading the regex.
+
+**Resolution:** `allow create` now anchors both ends of the `url`. The
+whole string must start with an allowed Storage origin — production
+`https://firebasestorage.googleapis.com`, or `http://localhost:9199`,
+confirmed by probing what `getDownloadURL` actually returns against this
+repo's Storage emulator — and then carry
+`/v0/b/{bucket}/o/rooms%2F{roomId}%2Fphotos%2F` with no `/` left in the
+trailing filename and query. Pinning the origin is what the first attempt
+missed. The `{bucket}` segment is deliberately left a wildcard: production
+(`mall-mystery-heroes.firebasestorage.app`) and the emulator
+(`demo-mall-mystery-heroes.appspot.com`) use different buckets, and
+pinning the wrong one would silently deny every real upload. That leaves
+one narrow residual — an attacker with a Firebase project of their own
+could host a spoofed object at an identically-shaped path on the real
+Storage host — which belongs with the parked kill-photo identity-binding
+work (who submitted this photo) rather than with origin validation. 6 new
+rules tests: an emulator-shaped legitimate URL, the four bypass URLs
+above, and a lookalike host that differs from the real one only in a dot
+position (proving the host's dots are regex-escaped).
+`docs/data-model.md`'s `photos` section carries the same correction.
+
+Not covered here: `npm run test:rules` is still not wired into CI, so
+these tests only run locally. Raised separately.
 
 ---
 

@@ -200,13 +200,23 @@ their assigned targets — `dbCalls.addPhotoForRoom`, called from
 `MessageComposer.js` after the photo is uploaded to Storage via
 `storageCalls.uploadKillPhoto`
 (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-`firestore.rules` scopes a player's create to `status: 'pending'` and
-`originalPlayerData: null` — a player can submit a claim but cannot
-self-approve it or forge the pre-kill snapshot the Undo flow relies on.
+`firestore.rules` scopes a player's create to `status: 'pending'`,
+`originalPlayerData: null`, and a `url` that matches this room's own
+Firebase Storage download-URL shape — a player can submit a claim but
+cannot self-approve it, forge the pre-kill snapshot the Undo flow relies
+on, or point the claim at an image somewhere else. The `url` check is
+anchored at both ends: the whole string must begin with an allowed Storage
+origin (`https://firebasestorage.googleapis.com` in production, or
+`http://localhost:9199` — what `getDownloadURL` actually returns against
+the Storage emulator) and then carry
+`/v0/b/{bucket}/o/rooms%2F{roomID}%2Fphotos%2F`, this room's own
+percent-encoded object path. The bucket segment stays a wildcard because
+production and the emulator use different buckets
+(docs/improvements.md item 60).
 
 | Field                | Type                                                                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`                | `string`                                                                         | Download URL. Rendered directly into an `<Image src>`.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `url`                | `string`                                                                         | Download URL from `storageCalls.uploadKillPhoto`. Rendered directly into an `<Image src>`, which is why `firestore.rules` requires a player-submitted value to match an allowed Storage origin _and_ this room's own `rooms/{roomID}/photos/` object path (see above) rather than any host the client cares to name.                                                                                                                                                                |
 | `assassin`           | `string`                                                                         | Claiming player's name.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `target`             | `string`                                                                         | Claimed victim's name.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `timestamp`          | `Timestamp`                                                                      | `serverTimestamp()`. The queue orders ascending by this field, so the GM judges oldest-first.                                                                                                                                                                                                                                                                                                                                                                                       |
