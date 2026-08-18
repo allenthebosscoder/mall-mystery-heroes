@@ -62,6 +62,12 @@ plus the auth and add-player work below:
 | 48 — two blob-URL leaks in `MessageComposer.js`                              | Fixed with a `useEffect` cleanup on unmount plus a revoke in the compression-failure `catch` branch. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 49 — `remapPlayerAsTarget` unreferenced                                      | Deleted. Never had dedicated test coverage.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 50 — `undoKillPlayer`'s silent skip                                          | Now throws instead of warning and continuing, aborting the whole transaction. 1 new emulator test. Blast-radius half of this item is unaddressed, deliberately.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 52 — Removing a player had no confirmation                                   | `PlayerRemove.js` now opens an `AlertDialog` naming the selected player; only its Confirm button removes them (matching `ResetTargetsButton.js`'s pattern). 4 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 53 — GM had no signal for pending kill photos                                | `PhotosDisplay.js` heading now reads "Photos (N pending)" when `unjudgedPhotos.length > 0`. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 54 — PWA manifest was CRA's default boilerplate                              | `public/manifest.json` now reads "Mall Mystery Heroes" with correct `theme_color`/`background_color`; `public/index.html` `<meta name="theme-color">` fixed; `logo192.png`/`logo512.png` regenerated from the real logo via `sips`. No automated test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 55 — `/openseason` gave no feedback on a redundant command                   | `ChatInput.js` now checks the target's current `openSeason` value before writing, and shows an error alert instead of a silent no-op when the requested state already matches. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 56 — Two near-simultaneous logins could create duplicate active rooms        | Rooms now carry `createdAt` (`serverTimestamp()`), and `fetchActiveRoomForHost` picks the most recently created active room. Guarantees every subsequent lookup lands on the same room. 2 new tests (1 component, 1 emulator integration).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 58 — `docs/game-flows.md` had rotted significantly out of sync               | All sections rewritten to match current reality, including a new "Keeping the Cloud Functions self-contained" subsection documenting `functions/scripts/sync-shared-game-logic.js`. Docs-only, no test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### ⚠️ Partially addressed
 
@@ -70,6 +76,7 @@ plus the auth and add-player work below:
 | 25 — no environment separation               | Emulator targeting is now an explicit `REACT_APP_USE_EMULATORS` flag rather than `NODE_ENV`, and Jest can no longer reach a live project. `.firebaserc` still maps `dev` and `prod` to the same project — unchanged.                                                                                                                                                                                                                                     |
 | 29 — dead `console.log` calls at module load | Both concrete instances this item named are gone. The broader "~40 calls, logging helper" aside is unaddressed — always an aside, not a scoped requirement.                                                                                                                                                                                                                                                                                              |
 | 15 — mission feature half-disconnected       | Restored (not removed) — creation and listing are reachable again, as `TaskCreationModal`/`TaskListModal` popups opened via `/mission start`/`/mission view`, not a permanent panel (`TaskExecution`, the panel that combined them, was tried first, then deleted — see the item's full writeup). `TaskCreation`/`TaskList` both have test coverage, as do the two modals. The separate `isGameActive` gating gap this item also flagged is unaddressed. |
+| 57 — No length caps on chat/join-name inputs | `JoinGame.js` and `MessageComposer.js` inputs now carry `maxLength` (40 and 500 characters). Client-side half complete; server-side/`firestore.rules` enforcement deliberately deferred to a later batch addressing identity binding and rate limiting together.                                                                                                                                                                                         |
 
 ---
 
@@ -1743,6 +1750,129 @@ gating GM broadcasts after end-game (so the GM gets an error instead of a
 false success) or keeping the player-side chat feed mounted through the
 game-over screen — a design decision, not a small fix, and out of scope
 for this note.
+
+### 52. Removing a player from the roster had no confirmation ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit. `PlayerRemove.js`
+called `removePlayerForRoom` — a plain, irreversible `deleteDoc` — directly
+from a Select+Button pair with no confirmation, unlike every other
+destructive GM action (`Endgamebutton.js`, `ResetTargetsButton.js`), both
+of which already use a Chakra `AlertDialog`.
+
+**Resolution:** `PlayerRemove.js` now opens an `AlertDialog` (matching
+`ResetTargetsButton.js`'s existing pattern exactly) naming the selected
+player; only its Confirm button actually removes them. 4 new tests.
+
+### 53. GM had no signal that kill photos were awaiting review ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit. `PhotosDisplay.js`'s
+"Photos" heading looked identical whether 0 or 50 photos were pending
+review.
+
+**Resolution:** The heading now reads "Photos (N pending)" whenever
+`unjudgedPhotos.length > 0`, plain "Photos" otherwise — no new
+subscription, `unjudgedPhotos` was already computed state. 2 new tests.
+
+### 54. The PWA manifest was still Create React App's default boilerplate ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit. `public/manifest.json`
+still had `short_name: "React App"`, the stock CRA atom icon, and a
+black/white theme — despite a real logo (`src/assets/mall-logo-white-2.png`)
+already existing in the repo. This undermined "Add to Home Screen," the
+one available mitigation for this app having no push notifications on
+phones.
+
+**Resolution:** `manifest.json` now reads "Mall Mystery Heroes" with
+`theme_color`/`background_color` matching the app's actual dark
+background (`#202030`, `theme.js`'s `brand.300`); `public/index.html`'s
+matching `<meta name="theme-color">` was also wrong and is fixed too;
+`logo192.png`/`logo512.png` regenerated from the real logo via `sips`. No
+automated test — verified via `npm run build` and inspecting the build
+output directly.
+
+### 55. \`/openseason\` gave no feedback on a redundant command ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit — a stale `// TO DO:
+double check szn alrdy on/off` comment in `ChatInput.js` marked this as
+already known. Re-running `/openseason <name> start` when that player's
+season was already open (or `end` when already closed) silently
+succeeded with no indication anything was a no-op.
+
+**Resolution:** `ChatInput.js` now checks the target's current
+`openSeason` value (already available in the live roster) before writing,
+and shows an error alert instead of a silent no-op write when the
+requested state already matches. 2 new tests.
+
+### 56. Two near-simultaneous logins as the same host could create two active rooms ✅ Resolved
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit. `DashBoard.js`'s
+`resolveDestination` is a check-then-act: it queries for an existing
+active room, and if none, creates one. Two tabs/devices logging in as the
+same host at nearly the same moment could each find no existing room and
+each create their own, leaving the host with two simultaneously
+`isGameActive: true` rooms — and `fetchActiveRoomForHost`'s old
+`.find()` on an unordered query result meant a later reload's choice
+between them wasn't even consistent.
+
+**Resolution:** Rooms now carry a `createdAt` (`serverTimestamp()`), and
+`fetchActiveRoomForHost` picks the most recently created active room
+instead of an arbitrary one. This does not prevent the rare race from
+creating two rooms — a genuinely correct fix would need a transactional
+per-host pointer doc, deliberately out of scope here — but it does
+guarantee every subsequent lookup lands on the same room, so a GM is
+never silently bounced between two of them. 2 new tests (1 component, 1
+emulator integration).
+
+### 57. No length caps on the chat message or join-name inputs ⚠️ Partially addressed
+
+**Impact: low · Effort: S**
+
+Found during the 2026-08-17 live-game-flow audit, as part of a broader
+security review — this item's finding also noted the lack of any
+`firestore.rules`-level length enforcement, which amplifies the
+Storage/write-abuse concerns tracked separately.
+
+**Resolution, client-side half:** `JoinGame.js`'s name input and
+`MessageComposer.js`'s chat-message input now carry `maxLength` (40 and
+500 characters respectively), stopping accidental abuse from the normal
+UI. 2 new tests.
+
+**Not addressed:** server-side/`firestore.rules` enforcement — a modified
+client can still bypass a client-side `maxLength` entirely. Deliberately
+deferred to a later batch addressing kill-photo/chat identity binding and
+rate limiting together, where "can a client lie to the server" concerns
+belong.
+
+### 58. \`docs/game-flows.md\` had rotted significantly out of sync with the code ✅ Resolved
+
+**Impact: low · Effort: M**
+
+Found during the 2026-08-17 live-game-flow audit. The "target assignment
+algorithm" section still described `TargetGenerator.InitializeTargets`'s
+ring-walk and the broken `randomizeArray` shuffle, both replaced by
+`buildTargetGraph`/`shuffle` (`docs/improvements.md` items 11, 12); the
+"Where each flow updates the screen" table claimed the log panel,
+`Players (n)` header, alive/dead arrays, and photo-undo history were all
+stale-after-reload, none of which has been true since items 22, 13, and
+6; flow 1's diagram still named `InitializeTargets` and an inaccurate
+room-creation field list; and the `functions/vendor/game/` sync mechanism
+`killPlayer.js`/`joinRoom.js` actually depend on for deployment was
+undocumented anywhere.
+
+**Resolution:** All of the above rewritten to match current reality,
+including a new "Keeping the Cloud Functions self-contained" subsection
+documenting `functions/scripts/sync-shared-game-logic.js`. Docs-only, no
+test.
 
 ---
 
