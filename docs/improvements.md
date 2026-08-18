@@ -1796,7 +1796,7 @@ matching `<meta name="theme-color">` was also wrong and is fixed too;
 automated test — verified via `npm run build` and inspecting the build
 output directly.
 
-### 55. \`/openseason\` gave no feedback on a redundant command ✅ Resolved
+### 55. `/openseason` gave no feedback on a redundant command ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -1830,8 +1830,9 @@ instead of an arbitrary one. This does not prevent the rare race from
 creating two rooms — a genuinely correct fix would need a transactional
 per-host pointer doc, deliberately out of scope here — but it does
 guarantee every subsequent lookup lands on the same room, so a GM is
-never silently bounced between two of them. 2 new tests (1 component, 1
-emulator integration).
+never silently bounced between two of them. 2 new tests, both emulator
+integration; an existing DashBoard component test was updated to assert
+the new `createdAt` field.
 
 ### 57. No length caps on the chat message or join-name inputs ⚠️ Partially addressed
 
@@ -1853,7 +1854,7 @@ deferred to a later batch addressing kill-photo/chat identity binding and
 rate limiting together, where "can a client lie to the server" concerns
 belong.
 
-### 58. \`docs/game-flows.md\` had rotted significantly out of sync with the code ✅ Resolved
+### 58. `docs/game-flows.md` had rotted significantly out of sync with the code ✅ Resolved
 
 **Impact: low · Effort: M**
 
