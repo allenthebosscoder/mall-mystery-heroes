@@ -380,11 +380,18 @@ describe('rooms/{roomId}/photos/{photoId}', () => {
         );
     });
 
-    it('allows a player to create a photo with pending status and no originalPlayerData', async () => {
+    // A URL shaped like a real getDownloadURL result for this room's own
+    // Storage path — uploadKillPhoto (storageCalls.js) uploads to
+    // rooms/{roomID}/photos/{photoID}.jpg, and Firebase Storage encodes
+    // the path's slashes as %2F in the returned download URL.
+    const REALISTIC_ROOM_A_PHOTO_URL =
+        'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Froom-a%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token';
+
+    it("allows a player to create a photo with pending status, no originalPlayerData, and a url under this room's own Storage path", async () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
         await assertSucceeds(
             addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://example.com/photo.jpg',
+                url: REALISTIC_ROOM_A_PHOTO_URL,
                 assassin: 'bob',
                 target: 'alice',
                 status: 'pending',
@@ -397,7 +404,7 @@ describe('rooms/{roomId}/photos/{photoId}', () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
         await assertFails(
             addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://example.com/photo.jpg',
+                url: REALISTIC_ROOM_A_PHOTO_URL,
                 assassin: 'bob',
                 target: 'alice',
                 status: 'approved',
@@ -410,11 +417,37 @@ describe('rooms/{roomId}/photos/{photoId}', () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
         await assertFails(
             addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://example.com/photo.jpg',
+                url: REALISTIC_ROOM_A_PHOTO_URL,
                 assassin: 'bob',
                 target: 'alice',
                 status: 'pending',
                 originalPlayerData: { score: 10, targets: [], assassins: [] },
+            })
+        );
+    });
+
+    it('denies a player creating a photo whose url does not point at Firebase Storage at all', async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+                url: 'https://evil.example.com/x.jpg',
+                assassin: 'bob',
+                target: 'alice',
+                status: 'pending',
+                originalPlayerData: null,
+            })
+        );
+    });
+
+    it("denies a player creating a photo whose url points at a different room's Storage path", async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(
+            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
+                url: 'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.appspot.com/o/rooms%2Fsome-other-room%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token',
+                assassin: 'bob',
+                target: 'alice',
+                status: 'pending',
+                originalPlayerData: null,
             })
         );
     });
