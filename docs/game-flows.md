@@ -18,14 +18,18 @@ sequenceDiagram
 
     GM->>DB: sign in
     DB->>FS: fetchActiveRoomForHost(uid)
-    alt no active room for this host
+    alt active room already exists, gameStarted
+        DB->>DB: navigate(/rooms/{roomID}/GameMasterView)
+    else active room exists, not yet started
+        DB->>Lobby: navigate(/rooms/{roomID}/lobby)
+    else no active room for this host
         loop until unique, max 300 tries
             DB->>DB: uniqueNamesGenerator() → "Fluffy42317"
             DB->>FS: checkForRoomIDDupes(roomID)
         end
         DB->>FS: setDoc(rooms/{roomID}, {hostId, isGameActive, gameStarted, joinedUids:[], taskIndex:1, storageReference:[], createdAt})
+        DB->>Lobby: navigate(/rooms/{roomID}/lobby)
     end
-    DB->>Lobby: navigate(/rooms/{roomID}/lobby)
 
     Note over Lobby: players arrive via the separate self-service joinRoom flow, live via onSnapshot — not shown in this loop
     loop roster management
@@ -161,9 +165,12 @@ flow 4 — where the same one-write-at-a-time caveat described in
 
 ### Keeping the Cloud Functions self-contained
 
-`killPlayer.js` and `joinRoom.js` both `require()` `../vendor/game/remapPlan`,
-`../vendor/game/playerNames`, and `../vendor/game/targetGraph` rather than
-reaching into `src/game/` directly. Firebase's functions deploy uploads
+`killPlayer.js` requires `../vendor/game/remapPlan` and
+`../vendor/game/playerNames`; `joinRoom.js` requires
+`../vendor/game/playerNames`. Neither requires `../vendor/game/targetGraph`
+directly — `remapPlan.js` itself requires it, so it's vendored
+transitively for `killPlayer.js`'s sake. All three are vendored rather
+than reaching into `src/game/` directly. Firebase's functions deploy uploads
 only the `functions/` directory in isolation, so a `require()` reaching
 outside it resolves fine locally and under the emulator (both run from
 the full repo checkout) but cannot resolve in the actual deployed bundle.
@@ -171,10 +178,10 @@ the full repo checkout) but cannot resolve in the actual deployed bundle.
 `src/game/` modules these two functions depend on into the gitignored
 `functions/vendor/game/` — run automatically before every deploy
 (`firebase.json`'s `functions[0].predeploy`) and before
-`npm run test:emulator`/`npm run test:rules`, which exercise the same
-require paths the real deploy uses. `src/game/` stays the single source
-of truth; `functions/vendor/` is a regenerated build artifact, never
-hand-edited or committed.
+`npm run test:emulator`, which exercises the same require paths the real
+deploy uses. `src/game/` stays the single source of truth;
+`functions/vendor/` is a regenerated build artifact, never hand-edited or
+committed.
 
 ---
 

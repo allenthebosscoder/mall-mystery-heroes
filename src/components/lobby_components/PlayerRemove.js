@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     AlertDialog,
     AlertDialogBody,
@@ -11,7 +11,6 @@ import {
     Select,
     useDisclosure,
 } from '@chakra-ui/react';
-import { useState } from 'react';
 import CreateAlert from '../CreateAlert';
 import { removePlayerForRoom } from '../firebase_calls/dbCalls';
 

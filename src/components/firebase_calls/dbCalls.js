@@ -415,7 +415,7 @@ export const checkForRoomIDDupes = async (roomID) => {
 //
 // Two near-simultaneous logins as the same host can each pass the
 // "no active room" check before either write lands, creating two active
-// rooms for one host (docs/improvements.md item 52). Sorting by
+// rooms for one host (docs/improvements.md item 56). Sorting by
 // `createdAt` here doesn't prevent that — it just makes every subsequent
 // lookup land on the same (newest) room instead of an arbitrary one, so a
 // returning host is never bounced between two rooms across reloads. A
