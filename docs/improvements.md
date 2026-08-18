@@ -1875,6 +1875,23 @@ including a new "Keeping the Cloud Functions self-contained" subsection
 documenting `functions/scripts/sync-shared-game-logic.js`. Docs-only, no
 test.
 
+### 59. GM console has no automatic or frozen final-standings view ✅ Not an issue
+
+**Impact: — · Effort: —**
+
+Raised as a possible gap during the 2026-08-17 live-game-flow audit,
+alongside item 1's manual-`/leaderboard`-only concern — worth re-checking
+once the player-facing game-over screen shipped
+(`docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md`),
+in case the GM's own console had the same gap.
+
+**Checked, no gap found:** `GameMasterView.js` already renders
+`PlayersList` continuously via a live `onSnapshot` subscription on
+`fetchPlayersQueryByDescendPointsThenIsAliveForRoom` (`isAlive desc, score
+desc`) — nothing gates this on `isGameActive`, so it keeps showing a
+real-time, already-ranked standings view both during and after the game.
+No code change made.
+
 ---
 
 ## Suggested sequencing
