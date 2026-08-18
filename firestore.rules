@@ -133,9 +133,11 @@ service cloud.firestore {
         // (`mall-mystery-heroes.firebasestorage.app` vs
         // `demo-mall-mystery-heroes.appspot.com`), and pinning the wrong one
         // would silently deny every real upload. The residual that leaves is
-        // narrow — an attacker who owns a Firebase project of their own could
-        // host a spoofed object at an identically-shaped path on the real
-        // Storage host — and is tracked in docs/improvements.md item 60.
+        // real, not just theoretical: anyone can create a free Firebase
+        // project and host a spoofed object at an identically-shaped path on
+        // the real Storage host — no special access needed, just the
+        // roomId, which an attacker reaching this check already has.
+        // Tracked in docs/improvements.md item 60.
         //
         // roomId is spliced raw into both a regex and a percent-encoded path
         // comparison. That is safe today because room IDs are machine-generated

@@ -1927,10 +1927,12 @@ missed. The `{bucket}` segment is deliberately left a wildcard: production
 (`mall-mystery-heroes.firebasestorage.app`) and the emulator
 (`demo-mall-mystery-heroes.appspot.com`) use different buckets, and
 pinning the wrong one would silently deny every real upload. That leaves
-one narrow residual — an attacker with a Firebase project of their own
-could host a spoofed object at an identically-shaped path on the real
-Storage host — which belongs with the parked kill-photo identity-binding
-work (who submitted this photo) rather than with origin validation. 6 new
+a real, easily-reachable residual — anyone can create a free Firebase
+project and host a spoofed object at an identically-shaped path on the
+real Storage host, no special access needed beyond the roomId an attacker
+reaching this check already has — which belongs with the parked
+kill-photo identity-binding work (who submitted this photo) rather than
+with origin validation. 6 new
 rules tests: an emulator-shaped legitimate URL, the four bypass URLs
 above, and a lookalike host that differs from the real one only in a dot
 position (proving the host's dots are regex-escaped).
