@@ -16,7 +16,7 @@ run retries both operations) — it never blocks cleanup of the other
 expired rooms in the same invocation.
 
 **Tech Stack:** Firebase Admin SDK (`admin.storage()`), Firestore emulator
-+ Storage emulator via `firebase-functions-test`'s `wrap()`, run with
+and Storage emulator via `firebase-functions-test`'s `wrap()`, run with
 `npm run test:emulator`.
 
 ## Global Constraints
@@ -36,7 +36,7 @@ expired rooms in the same invocation.
 - TDD: write the failing tests first, per CLAUDE.md.
 - No changes to `storage.rules`, `functions/scheduledFunctions/selectExpiredRooms.js`,
   or `cleanupEndedRooms`'s public exports/signature (`{ cleanupEndedRooms,
-  setRetentionDaysForTesting }`).
+setRetentionDaysForTesting }`).
 - No changes to the retention window or any manually-triggered deletion
   path — this task is the scheduled cleanup function only.
 
@@ -206,75 +206,75 @@ block in `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js`,
 after the existing four:
 
 ```js
-    it('deletes a rooms Storage photos along with its Firestore data', async () => {
-        setRetentionDaysForTesting(3);
-        await seedRoom('old-room', ['Alice'], {
-            endedAt: new Date('2020-01-01'),
-        });
-        await admin
-            .storage()
-            .bucket()
-            .file('rooms/old-room/photos/test.jpg')
-            .save(Buffer.from('fake-image-data'));
-
-        await functionsTest.wrap(cleanupEndedRooms)();
-
-        const room = await db.collection('rooms').doc('old-room').get();
-        expect(room.exists).toBe(false);
-        const [photoExists] = await admin
-            .storage()
-            .bucket()
-            .file('rooms/old-room/photos/test.jpg')
-            .exists();
-        expect(photoExists).toBe(false);
+it('deletes a rooms Storage photos along with its Firestore data', async () => {
+    setRetentionDaysForTesting(3);
+    await seedRoom('old-room', ['Alice'], {
+        endedAt: new Date('2020-01-01'),
     });
+    await admin
+        .storage()
+        .bucket()
+        .file('rooms/old-room/photos/test.jpg')
+        .save(Buffer.from('fake-image-data'));
 
-    it('skips only the failing room when its Storage delete fails, leaving other expired rooms unaffected', async () => {
-        setRetentionDaysForTesting(3);
-        await seedRoom('failing-room', ['Alice'], {
-            endedAt: new Date('2020-01-01'),
-        });
-        await seedRoom('other-room', ['Bob'], {
-            endedAt: new Date('2020-01-01'),
-        });
-        const bucket = admin.storage().bucket();
-        const realDeleteFiles = bucket.deleteFiles.bind(bucket);
-        const deleteFilesSpy = jest.spyOn(bucket, 'deleteFiles').mockImplementation((options) => {
-            if (options.prefix === 'rooms/failing-room/photos/') {
-                return Promise.reject(new Error('Simulated Storage failure'));
-            }
-            return realDeleteFiles(options);
-        });
+    await functionsTest.wrap(cleanupEndedRooms)();
 
-        try {
-            await functionsTest.wrap(cleanupEndedRooms)();
+    const room = await db.collection('rooms').doc('old-room').get();
+    expect(room.exists).toBe(false);
+    const [photoExists] = await admin
+        .storage()
+        .bucket()
+        .file('rooms/old-room/photos/test.jpg')
+        .exists();
+    expect(photoExists).toBe(false);
+});
 
-            const failingRoom = await db.collection('rooms').doc('failing-room').get();
-            expect(failingRoom.exists).toBe(true);
-            const otherRoom = await db.collection('rooms').doc('other-room').get();
-            expect(otherRoom.exists).toBe(false);
-        } finally {
-            deleteFilesSpy.mockRestore();
+it('skips only the failing room when its Storage delete fails, leaving other expired rooms unaffected', async () => {
+    setRetentionDaysForTesting(3);
+    await seedRoom('failing-room', ['Alice'], {
+        endedAt: new Date('2020-01-01'),
+    });
+    await seedRoom('other-room', ['Bob'], {
+        endedAt: new Date('2020-01-01'),
+    });
+    const bucket = admin.storage().bucket();
+    const realDeleteFiles = bucket.deleteFiles.bind(bucket);
+    const deleteFilesSpy = jest.spyOn(bucket, 'deleteFiles').mockImplementation((options) => {
+        if (options.prefix === 'rooms/failing-room/photos/') {
+            return Promise.reject(new Error('Simulated Storage failure'));
         }
+        return realDeleteFiles(options);
     });
 
-    it('does nothing to Storage when a room has no photos (existing tests keep passing)', async () => {
-        setRetentionDaysForTesting(3);
-        await seedRoom('photoless-room', ['Alice'], {
-            endedAt: new Date('2020-01-01'),
-        });
-
+    try {
         await functionsTest.wrap(cleanupEndedRooms)();
 
-        const room = await db.collection('rooms').doc('photoless-room').get();
-        expect(room.exists).toBe(false);
+        const failingRoom = await db.collection('rooms').doc('failing-room').get();
+        expect(failingRoom.exists).toBe(true);
+        const otherRoom = await db.collection('rooms').doc('other-room').get();
+        expect(otherRoom.exists).toBe(false);
+    } finally {
+        deleteFilesSpy.mockRestore();
+    }
+});
+
+it('does nothing to Storage when a room has no photos (existing tests keep passing)', async () => {
+    setRetentionDaysForTesting(3);
+    await seedRoom('photoless-room', ['Alice'], {
+        endedAt: new Date('2020-01-01'),
     });
+
+    await functionsTest.wrap(cleanupEndedRooms)();
+
+    const room = await db.collection('rooms').doc('photoless-room').get();
+    expect(room.exists).toBe(false);
+});
 ```
 
 (The spy in the second test is scoped to that one test only — `jest.spyOn`
 with `mockImplementation` overrides the method, and this repo's
 `jest.config.js` sets `clearMocks: true` on the `integration` project,
-which resets mock *call data* between tests but does NOT restore an
+which resets mock _call data_ between tests but does NOT restore an
 overridden implementation, so the explicit `deleteFilesSpy.mockRestore()`
 in the `finally` block is required — without it, the mocked rejection for
 `'rooms/failing-room/photos/'` would leak into later tests in this file.
@@ -298,23 +298,26 @@ yet), so both rooms get deleted from Firestore identically and the
 In `functions/scheduledFunctions/cleanupEndedRooms.js`, change:
 
 ```js
-    for (const roomId of expiredRoomIds) {
-        await db.recursiveDelete(db.collection('rooms').doc(roomId));
-    }
+for (const roomId of expiredRoomIds) {
+    await db.recursiveDelete(db.collection('rooms').doc(roomId));
+}
 ```
 
 to:
 
 ```js
-    for (const roomId of expiredRoomIds) {
-        try {
-            await admin.storage().bucket().deleteFiles({ prefix: `rooms/${roomId}/photos/` });
-        } catch (error) {
-            console.error(`Error deleting Storage photos for room ${roomId}:`, error);
-            continue;
-        }
-        await db.recursiveDelete(db.collection('rooms').doc(roomId));
+for (const roomId of expiredRoomIds) {
+    try {
+        await admin
+            .storage()
+            .bucket()
+            .deleteFiles({ prefix: `rooms/${roomId}/photos/` });
+    } catch (error) {
+        console.error(`Error deleting Storage photos for room ${roomId}:`, error);
+        continue;
     }
+    await db.recursiveDelete(db.collection('rooms').doc(roomId));
+}
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -361,5 +364,5 @@ git commit -m "Delete a rooms Storage photos when its scheduled Firestore cleanu
   explicit run command with an expected result.
 - **Type consistency:** N/A — single task, no cross-task interfaces. The
   function's existing exports (`{ cleanupEndedRooms,
-  setRetentionDaysForTesting }`) are unchanged, confirmed against the
+setRetentionDaysForTesting }`) are unchanged, confirmed against the
   reproduced current file content above.

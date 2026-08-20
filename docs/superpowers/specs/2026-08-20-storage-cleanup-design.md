@@ -48,7 +48,10 @@ the current `await db.recursiveDelete(db.collection('rooms').doc(roomId));`:
 ```js
 for (const roomId of expiredRoomIds) {
     try {
-        await admin.storage().bucket().deleteFiles({ prefix: `rooms/${roomId}/photos/` });
+        await admin
+            .storage()
+            .bucket()
+            .deleteFiles({ prefix: `rooms/${roomId}/photos/` });
     } catch (error) {
         console.error(`Error deleting Storage photos for room ${roomId}:`, error);
         continue;
@@ -69,7 +72,7 @@ Admin SDK calls bypass Storage rules entirely, the same reason
 ## Testing
 
 Extend `functions/scheduledFunctions/cleanupEndedRooms.integration.test.js`
-(real Firestore *and* Storage emulator — both already started by
+(real Firestore _and_ Storage emulator — both already started by
 `npm run test:emulator`):
 
 - A room with an actual uploaded photo, past retention: after running the
