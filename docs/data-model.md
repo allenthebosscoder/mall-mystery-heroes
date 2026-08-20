@@ -286,12 +286,20 @@ bound.
 ## Room cleanup
 
 `functions/scheduledFunctions/cleanupEndedRooms.js` runs once every 24
-hours and deletes any room (and everything under it — players, logs,
-tasks, photos, playerMessages, via the Admin SDK's `recursiveDelete()`)
-whose `endedAt` is older than a retention window. The window is a
-module-level constant, currently `null` — a deliberate no-op until a
-duration is chosen
+hours and deletes any room whose `endedAt` is older than a retention
+window. The window is a module-level `let RETENTION_DAYS`, currently `1`
+day — enough time to review standings, kill photos, and flag any
+last-minute mistake before a room's data disappears
 (docs/superpowers/specs/2026-08-06-player-access-and-room-lifecycle-design.md).
+For each expired room, it first deletes that room's Firebase Storage
+photos (`rooms/{roomId}/photos/**`, see the Firebase Storage section
+below) and only then deletes everything under the room in Firestore —
+players, logs, tasks, photos, playerMessages — via the Admin SDK's
+`recursiveDelete()`. The Storage delete is wrapped in its own
+`try`/`catch`: if it fails, that room is skipped for this run (its
+Firestore data stays in place, so the next scheduled run retries both
+operations) without blocking cleanup of any other expired room in the
+same invocation (docs/improvements.md item 61).
 A room that's abandoned mid-lobby and never explicitly ended (`endedAt`
 never set) is not covered by this and is never automatically deleted.
 
@@ -314,6 +322,10 @@ and returns its download URL, which `addPhotoForRoom` then writes onto the
 unrelated `storageCalls.js` (a broken `fetchPhotoURLFromStorageForRoom`
 with no callers) was deleted as dead code (`improvements.md` item 14);
 this is a new module, added for kill-photo submission.
+
+On the deletion side, `cleanupEndedRooms.js` now deletes a room's
+`rooms/{roomId}/photos/**` objects via `bucket.deleteFiles({ prefix })` as
+part of its scheduled cleanup pass — see the Room cleanup section above.
 
 ---
 

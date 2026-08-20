@@ -136,6 +136,8 @@ describe('cleanupEndedRooms', () => {
             expect(failingRoom.exists).toBe(true);
             const otherRoom = await db.collection('rooms').doc('other-room').get();
             expect(otherRoom.exists).toBe(false);
+            expect(deleteFilesSpy).toHaveBeenCalledWith({ prefix: 'rooms/failing-room/photos/' });
+            expect(deleteFilesSpy).toHaveBeenCalledWith({ prefix: 'rooms/other-room/photos/' });
         } finally {
             deleteFilesSpy.mockRestore();
         }
