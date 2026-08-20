@@ -21,6 +21,7 @@ const admin = require('firebase-admin');
 // the data seedRoom (client SDK, correctly targeted) just wrote.
 const { cleanupEndedRooms, setRetentionDaysForTesting } = require('./cleanupEndedRooms');
 const functionsTest = require('firebase-functions-test')();
+const { Bucket } = require('@google-cloud/storage');
 const { clearFirestore, seedRoom, shutdown } = require('../../test/emulatorHelpers');
 
 beforeEach(clearFirestore);
@@ -78,5 +79,77 @@ describe('cleanupEndedRooms', () => {
 
         const room = await db.collection('rooms').doc('lobby-room').get();
         expect(room.exists).toBe(true);
+    });
+
+    it('deletes a rooms Storage photos along with its Firestore data', async () => {
+        setRetentionDaysForTesting(3);
+        await seedRoom('old-room', ['Alice'], {
+            endedAt: new Date('2020-01-01'),
+        });
+        await admin
+            .storage()
+            .bucket()
+            .file('rooms/old-room/photos/test.jpg')
+            .save(Buffer.from('fake-image-data'));
+
+        await functionsTest.wrap(cleanupEndedRooms)();
+
+        const room = await db.collection('rooms').doc('old-room').get();
+        expect(room.exists).toBe(false);
+        const [photoExists] = await admin
+            .storage()
+            .bucket()
+            .file('rooms/old-room/photos/test.jpg')
+            .exists();
+        expect(photoExists).toBe(false);
+    });
+
+    it('skips only the failing room when its Storage delete fails, leaving other expired rooms unaffected', async () => {
+        setRetentionDaysForTesting(3);
+        await seedRoom('failing-room', ['Alice'], {
+            endedAt: new Date('2020-01-01'),
+        });
+        await seedRoom('other-room', ['Bob'], {
+            endedAt: new Date('2020-01-01'),
+        });
+        // Spying on a single bucket instance's own `deleteFiles` doesn't work here:
+        // @google-cloud/storage's Storage.prototype.bucket() constructs a brand-new
+        // Bucket object on every call (no caching), so cleanupEndedRooms.js's own
+        // `admin.storage().bucket()` call gets a different object than this test's,
+        // and an instance-level jest.spyOn never sees it. Spying on the shared
+        // Bucket.prototype.deleteFiles instead intercepts calls through any Bucket
+        // instance, including the one the implementation creates.
+        const realDeleteFiles = Bucket.prototype.deleteFiles;
+        const deleteFilesSpy = jest
+            .spyOn(Bucket.prototype, 'deleteFiles')
+            .mockImplementation(function (options) {
+                if (options.prefix === 'rooms/failing-room/photos/') {
+                    return Promise.reject(new Error('Simulated Storage failure'));
+                }
+                return realDeleteFiles.call(this, options);
+            });
+
+        try {
+            await functionsTest.wrap(cleanupEndedRooms)();
+
+            const failingRoom = await db.collection('rooms').doc('failing-room').get();
+            expect(failingRoom.exists).toBe(true);
+            const otherRoom = await db.collection('rooms').doc('other-room').get();
+            expect(otherRoom.exists).toBe(false);
+        } finally {
+            deleteFilesSpy.mockRestore();
+        }
+    });
+
+    it('does nothing to Storage when a room has no photos (existing tests keep passing)', async () => {
+        setRetentionDaysForTesting(3);
+        await seedRoom('photoless-room', ['Alice'], {
+            endedAt: new Date('2020-01-01'),
+        });
+
+        await functionsTest.wrap(cleanupEndedRooms)();
+
+        const room = await db.collection('rooms').doc('photoless-room').get();
+        expect(room.exists).toBe(false);
     });
 });

@@ -36,6 +36,15 @@ const cleanupEndedRooms = functions.pubsub.schedule('every 24 hours').onRun(asyn
     const expiredRoomIds = selectExpiredRooms(rooms, now, RETENTION_DAYS);
 
     for (const roomId of expiredRoomIds) {
+        try {
+            await admin
+                .storage()
+                .bucket()
+                .deleteFiles({ prefix: `rooms/${roomId}/photos/` });
+        } catch (error) {
+            console.error(`Error deleting Storage photos for room ${roomId}:`, error);
+            continue;
+        }
         await db.recursiveDelete(db.collection('rooms').doc(roomId));
     }
 
