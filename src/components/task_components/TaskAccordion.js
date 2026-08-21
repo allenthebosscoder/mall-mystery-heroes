@@ -3,12 +3,40 @@ import {
     AccordionButton,
     AccordionItem,
     AccordionPanel,
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogContent,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogOverlay,
+    Button,
     Text,
+    useDisclosure,
 } from '@chakra-ui/react';
-import React from 'react';
+import React, { useContext, useRef, useState } from 'react';
+import { gameContext } from '../Contexts';
+import { deleteTaskForRoom } from '../firebase_calls/dbCalls';
+import CreateAlert from '../CreateAlert';
+import TaskEditModal from './TaskEditModal';
 
 const TaskAccordion = (props) => {
     const task = props.task;
+    const { roomID } = useContext(gameContext);
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+    const cancelRef = useRef();
+    const createAlert = CreateAlert();
+
+    const handleConfirmDelete = async () => {
+        try {
+            await deleteTaskForRoom(task.taskIndex, roomID);
+        } catch (error) {
+            console.error('Error deleting mission:', error);
+            createAlert('error', 'Error deleting mission', error.message, 1500);
+        } finally {
+            onDeleteClose();
+        }
+    };
 
     return (
         <AccordionItem key={task.title} fontSize="md">
@@ -33,7 +61,47 @@ const TaskAccordion = (props) => {
                         ? 'Incomplete'
                         : `Completed By: ${task.completedBy.length === '0' ? 'None' : task.completedBy.join(', ')}`}
                 </Text>
+                <Button size="sm" mr={2} onClick={() => setIsEditOpen(true)}>
+                    Edit
+                </Button>
+                <Button size="sm" colorScheme="red" onClick={onDeleteOpen}>
+                    Delete
+                </Button>
             </AccordionPanel>
+            <TaskEditModal
+                isOpen={isEditOpen}
+                onClose={() => setIsEditOpen(false)}
+                task={task}
+                roomID={roomID}
+            />
+            <AlertDialog
+                isOpen={isDeleteOpen}
+                leastDestructiveRef={cancelRef}
+                onClose={onDeleteClose}
+            >
+                <AlertDialogOverlay />
+                <AlertDialogContent bg="#202030">
+                    <AlertDialogHeader color="red">WARNING</AlertDialogHeader>
+                    <AlertDialogBody color="#FFFFFF">
+                        Delete {task.title}? This cannot be undone.
+                        {task.completedBy.length > 0 && (
+                            <Text mt={2}>
+                                {task.completedBy.length} player
+                                {task.completedBy.length === 1 ? '' : 's'} already completed this
+                                mission.
+                            </Text>
+                        )}
+                    </AlertDialogBody>
+                    <AlertDialogFooter>
+                        <Button ref={cancelRef} onClick={onDeleteClose} colorScheme="red">
+                            Go Back
+                        </Button>
+                        <Button colorScheme="green" onClick={handleConfirmDelete}>
+                            Confirm
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AccordionItem>
     );
 };
