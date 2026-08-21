@@ -1963,6 +1963,84 @@ emulator tests.
 
 ---
 
+### 62. Editing or deleting a mission leaves no log entry
+
+**Impact: low · Effort: S**
+
+Found during the final review of the 2026-08-20 mission-edit-delete
+feature (docs/superpowers/specs/2026-08-20-mission-edit-delete-design.md).
+Kills, revivals, mission completions, and auto-ends all call
+`addLogForRoom`, so the GM's own event log carries a record of them.
+Editing a mission's fields (including a retroactive score adjustment) and
+deleting a mission outright — the latter explicitly irreversible, per the
+`AlertDialog` it is gated behind — do neither, leaving no trace of either
+action in that log.
+
+**Not addressed:** deliberately out of scope for that plan, which only
+covered adding the edit/delete capability itself. Worth a small follow-up
+given delete in particular removes a mission (and, indirectly, the
+history of who completed it) with nothing else in the app recording that
+it ever existed.
+
+### 63. `/mission done <index>` on a deleted mission shows a less friendly error than before deletion existed
+
+**Impact: low · Effort: S**
+
+Found during the final review of the 2026-08-20 mission-edit-delete
+feature. `ChatInput.js`'s `/mission done` handler has a graceful `if
+(!task)` branch that shows "Invalid task index" — but it is reached only
+after `fetchReferenceByIndexForTask` resolves, and that function throws
+`Task not found` first for an index that no longer has a document.
+Before this plan, no code path could delete a task, so the throwing
+branch was unreachable; deletion makes it reachable, and the thrown error
+(caught by the outer try/catch and shown as a raw error toast) surfaces
+instead of the friendlier message that was written for exactly this case.
+
+**Not addressed:** fixing this means swapping the lookup order in
+`ChatInput.js`, which the mission-edit-delete design doc explicitly
+scoped out ("Any change to mission creation... or completion... — this
+plan only adds edit and delete"). Small, low-impact, and localized —
+worth picking up whenever `ChatInput.js`'s `/mission` handling is next
+touched.
+
+### 64. `docs/data-model.md`'s description default note does not cover the edit path
+
+**Impact: low · Effort: S**
+
+Found during the scoped re-review that closed out the 2026-08-20
+mission-edit-delete feature. The `tasks` collection's `description` field
+row says "Defaults to `'No description provided'` if left blank" — true
+for `TaskCreation.js`, which applies that default before writing, but not
+for `TaskEditModal.js`, which writes whatever the description field holds
+verbatim, including an empty string if a GM clears it while editing.
+
+**Not addressed:** either make `TaskEditModal.js` apply the same default
+(matching creation's behavior) or narrow the doc row to say the default
+only applies at creation time. Deferred as a documentation-accuracy
+nit — no known case where an edit-created blank description has caused a
+problem.
+
+### 65. `TaskEditModal.js`'s retry-progress reset has no direct test
+
+**Impact: low · Effort: S**
+
+Found during the scoped re-review that closed out the 2026-08-20
+mission-edit-delete feature. `resetApplyProgress()` clears the
+per-attempt tracking that keeps a "Confirm" retry from re-awarding a
+player who already succeeded (docs/improvements.md item covering that fix
+is folded into that feature's own history, not a separate numbered
+entry). It is called at the start of every fresh `handleSave`, and is
+exercised indirectly by the existing "starts a fresh attempt when Save is
+clicked again after a failed one" test, but no test isolates the reset
+function itself.
+
+**Not addressed:** low risk — the indirect coverage would catch a
+regression that broke fresh-attempt behavior, just not one that broke
+`resetApplyProgress()` in a way that happened not to affect that specific
+scenario. Worth a direct unit test next time this file is touched.
+
+---
+
 ## Suggested sequencing
 
 If this backlog gets picked up, the dependencies run roughly:
