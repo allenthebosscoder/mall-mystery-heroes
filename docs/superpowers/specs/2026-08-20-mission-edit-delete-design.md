@@ -38,7 +38,7 @@ description, point value, or type has no way to fix or remove it.
   (matching `PlayerRemove.js`'s just-shipped pattern), regardless of
   completion state. Deleting the mission doc never touches player
   scores/alive-status — those are historical facts, same philosophy as
-  edits not retroactively changing a *different* field's past effect. The
+  edits not retroactively changing a _different_ field's past effect. The
   confirmation dialog's text mentions the completion count when
   `completedBy.length > 0`, so the GM knows players already got credit
   for it before removing the record.
@@ -119,6 +119,7 @@ Fields: title, description, taskType, pointValue, maxCompletions — same
 set `TaskCreation.js` collects, independently implemented here.
 
 On submit:
+
 1. Build `updates` from the changed fields.
 2. Call `planScoreAdjustment(task, { ...task, ...updates })`.
 3. If it returns non-null, show a confirmation notice before proceeding

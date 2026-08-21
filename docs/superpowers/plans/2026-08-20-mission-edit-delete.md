@@ -52,7 +52,7 @@ the new `dbCalls.js` functions).
 - Consumes: nothing from other tasks.
 - Produces: `planScoreAdjustment(oldTask, newTask)` — a named export,
   pure function, `(oldTask: {taskType, pointValue, completedBy}, newTask:
-  {taskType, pointValue}) => {delta: number, players: string[]} | null`.
+{taskType, pointValue}) => {delta: number, players: string[]} | null`.
   Task 3 imports and calls this directly.
 
 - [ ] **Step 1: Write the failing tests**
@@ -167,8 +167,8 @@ git commit -m "Add planScoreAdjustment, the pure decision for mission-edit score
 
 - Consumes: nothing from other tasks.
 - Produces: `updateTaskForRoom(index: number, updates: object, roomID:
-  string) => Promise<void>` and `deleteTaskForRoom(index: number, roomID:
-  string) => Promise<void>` — both named exports from `dbCalls.js`. Task 3
+string) => Promise<void>` and `deleteTaskForRoom(index: number, roomID:
+string) => Promise<void>` — both named exports from `dbCalls.js`. Task 3
   and Task 4 import these directly.
 
 `fetchReferenceByIndexForTask` already exists in `dbCalls.js` (find it by
@@ -333,11 +333,11 @@ git commit -m "Add updateTaskForRoom and deleteTaskForRoom to dbCalls"
   `(oldTask, newTask) => {delta, players} | null`). `updateTaskForRoom`
   and `updatePointsForPlayer` from `../firebase_calls/dbCalls` (Task 2 +
   pre-existing; `updatePointsForPlayer(player: string, points: number,
-  roomID: string) => Promise<void>`, additive).
+roomID: string) => Promise<void>`, additive).
 - Produces: `TaskEditModal` — a default export, React component, props
   `{isOpen: boolean, onClose: () => void, task: {taskIndex, title,
-  description, taskType, pointValue, maxCompletions, completedBy},
-  roomID: string}`. Task 4 imports and renders this directly.
+description, taskType, pointValue, maxCompletions, completedBy},
+roomID: string}`. Task 4 imports and renders this directly.
 
 Current full content of `src/components/task_components/TaskCreationModal.js`
 (reference for Modal chrome — do not modify this file):
@@ -471,7 +471,9 @@ describe('TaskEditModal', () => {
         await userEvent.type(screen.getByLabelText(/point value/i), '15');
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-        expect(await screen.findByText(/adjust 2 players. scores by \+5 each/i)).toBeInTheDocument();
+        expect(
+            await screen.findByText(/adjust 2 players. scores by \+5 each/i)
+        ).toBeInTheDocument();
         await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
         expect(updateTaskForRoom).toHaveBeenCalledWith(
@@ -655,11 +657,7 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                                 <NumberDecrementStepper color="white" />
                             </NumberInputStepper>
                         </NumberInput>
-                        <NumberInput
-                            value={maxCompletions}
-                            onChange={setMaxCompletions}
-                            min={0}
-                        >
+                        <NumberInput value={maxCompletions} onChange={setMaxCompletions} min={0}>
                             <NumberInputField placeholder="Max completions" />
                             <NumberInputStepper>
                                 <NumberIncrementStepper color="white" />
@@ -677,7 +675,8 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                                 <AlertIcon />
                                 <Text>
                                     This will adjust {pendingAdjustment.adjustment.players.length}{' '}
-                                    player{pendingAdjustment.adjustment.players.length === 1 ? '' : 's'}
+                                    player
+                                    {pendingAdjustment.adjustment.players.length === 1 ? '' : 's'}
                                     &apos; scores by{' '}
                                     {pendingAdjustment.adjustment.delta > 0 ? '+' : ''}
                                     {pendingAdjustment.adjustment.delta} each.
@@ -748,9 +747,9 @@ git commit -m "Add TaskEditModal for editing an existing mission"
 **Interfaces:**
 
 - Consumes: `TaskEditModal` from Task 3 (default export, props `{isOpen,
-  onClose, task, roomID}`). `deleteTaskForRoom` from
+onClose, task, roomID}`). `deleteTaskForRoom` from
   `../firebase_calls/dbCalls` (Task 2, `(index, roomID) =>
-  Promise<void>`). `gameContext` from `../Contexts` (already exists,
+Promise<void>`). `gameContext` from `../Contexts` (already exists,
   provides `roomID` among other fields).
 - Produces: nothing consumed elsewhere — this is the last task in this
   plan.
@@ -847,8 +846,9 @@ import { deleteTaskForRoom } from '../firebase_calls/dbCalls';
 jest.mock('../firebase_calls/dbCalls', () => ({
     deleteTaskForRoom: jest.fn(),
 }));
-jest.mock('./TaskEditModal', () => (props) =>
-    props.isOpen ? <div>task-edit-modal-stub task={props.task.title}</div> : null
+jest.mock(
+    './TaskEditModal',
+    () => (props) => (props.isOpen ? <div>task-edit-modal-stub task={props.task.title}</div> : null)
 );
 
 const baseTask = {
@@ -1020,7 +1020,11 @@ const TaskAccordion = (props) => {
                 task={task}
                 roomID={roomID}
             />
-            <AlertDialog isOpen={isDeleteOpen} leastDestructiveRef={cancelRef} onClose={onDeleteClose}>
+            <AlertDialog
+                isOpen={isDeleteOpen}
+                leastDestructiveRef={cancelRef}
+                onClose={onDeleteClose}
+            >
                 <AlertDialogOverlay />
                 <AlertDialogContent bg="#202030">
                     <AlertDialogHeader color="red">WARNING</AlertDialogHeader>
@@ -1088,8 +1092,7 @@ git commit -m "Add Edit and Delete to TaskAccordion"
   score recalculation via delta" → Task 1's `planScoreAdjustment`,
   consumed by Task 3. "Type-change blocked once completed" → Task 3's
   `isDisabled={hasCompletions}` on the type Select. "Delete always
-  allowed, confirmed via AlertDialog, mentions completion count" → Task
-  4. "No title-uniqueness re-check on edit" → Task 3 has no dupe-check
+  allowed, confirmed via AlertDialog, mentions completion count" → Task 4. "No title-uniqueness re-check on edit" → Task 3 has no dupe-check
   call anywhere, confirmed absent from its implementation.
 - **Placeholder scan:** none found — every step has complete code or an
   explicit run command with an expected result.
