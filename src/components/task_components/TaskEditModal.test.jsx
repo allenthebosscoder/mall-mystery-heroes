@@ -133,4 +133,53 @@ describe('TaskEditModal', () => {
         expect(await screen.findByText(/player not found/i)).toBeInTheDocument();
         expect(onClose).not.toHaveBeenCalled();
     });
+
+    it('applies the score adjustment one player at a time, stopping at the first rejection instead of firing every call upfront', async () => {
+        // Distinguishes the required sequential/fail-stop loop from a
+        // Promise.all-based rewrite: with three players and the SECOND
+        // one rejecting, a sequential for-of/await loop calls the first
+        // player, awaits it to completion, calls the second, awaits its
+        // rejection, and stops there, never calling the third. A
+        // Promise.all(...map(...)) rewrite would instead invoke all three
+        // updatePointsForPlayer calls synchronously up front (bob and
+        // carol included) regardless of alice's outcome, which both the
+        // call-count/argument assertions and the callOrder assertion below
+        // would catch.
+        const callOrder = [];
+        updatePointsForPlayer.mockImplementation((player) => {
+            callOrder.push(`start:${player}`);
+            if (player === 'bob') {
+                return Promise.reject(new Error('player not found')).finally(() => {
+                    callOrder.push('end:bob');
+                });
+            }
+            return Promise.resolve().then(() => {
+                callOrder.push(`end:${player}`);
+            });
+        });
+
+        mountModal({ ...baseTask, pointValue: 10, completedBy: ['alice', 'bob', 'carol'] });
+
+        await userEvent.clear(screen.getByDisplayValue('10'));
+        await userEvent.type(screen.getByLabelText(/point value/i), '15');
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+        await screen.findByText(/adjust 3 players. scores by \+5 each/i);
+        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+        expect(await screen.findByText(/player not found/i)).toBeInTheDocument();
+
+        // Alice (before the failure) got her adjustment; bob (the
+        // rejecting call) was attempted; carol (after the failure) was
+        // never attempted at all.
+        expect(updatePointsForPlayer).toHaveBeenCalledWith('alice', 5, 'room-a');
+        expect(updatePointsForPlayer).toHaveBeenCalledWith('bob', 5, 'room-a');
+        expect(updatePointsForPlayer).not.toHaveBeenCalledWith('carol', 5, 'room-a');
+        expect(updatePointsForPlayer).toHaveBeenCalledTimes(2);
+
+        // Alice's call must have fully started AND settled before bob's
+        // call even starts — proof of true sequential execution. A
+        // Promise.all rewrite would show both starts back-to-back before
+        // either settles (['start:alice', 'start:bob', ...]).
+        expect(callOrder).toEqual(['start:alice', 'end:alice', 'start:bob', 'end:bob']);
+    });
 });
