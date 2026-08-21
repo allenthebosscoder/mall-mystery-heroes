@@ -320,6 +320,16 @@ export const fetchReferenceByIndexForTask = async (index, roomID) => {
     return taskSnapshot.docs[0].ref;
 };
 
+export const updateTaskForRoom = async (index, updates, roomID) => {
+    const taskDocRef = await fetchReferenceByIndexForTask(index, roomID);
+    await updateDoc(taskDocRef, updates);
+};
+
+export const deleteTaskForRoom = async (index, roomID) => {
+    const taskDocRef = await fetchReferenceByIndexForTask(index, roomID);
+    await deleteDoc(taskDocRef);
+};
+
 //fetches array of alive player names in room
 export const fetchAlivePlayerNamesForRoom = async (roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');

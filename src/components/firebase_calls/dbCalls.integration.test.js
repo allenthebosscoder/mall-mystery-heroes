@@ -11,6 +11,8 @@ import {
     addLogForRoom,
     addPhotoForRoom,
     addPlayerMessageForRoom,
+    addTaskForRoom,
+    deleteTaskForRoom,
     endGame,
     fetchAliveRosterForRoom,
     fetchActiveRoomForHost,
@@ -20,10 +22,12 @@ import {
     fetchPhotosQueryByAscendingTimestampForRoom,
     fetchPlayerForRoom,
     fetchPlayerMessagesQueryForRoom,
+    fetchReferenceByIndexForTask,
     fetchTaskIndexThenIncrement,
     updateIsAliveForPlayer,
     updateIsCompleteToTrueForTaskByIndex,
     updatePointsForPlayer,
+    updateTaskForRoom,
 } from './dbCalls';
 import { doc, getDoc, getDocs, terminate, Timestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -222,6 +226,73 @@ describe('fetchTaskIndexThenIncrement', () => {
         ]);
 
         expect(new Set(indices).size).toBe(3);
+    });
+});
+
+describe('updateTaskForRoom', () => {
+    it('updates the fields of an existing task, leaving others untouched', async () => {
+        await seedRoom(ROOM, []);
+        await addTaskForRoom(
+            {
+                title: 'Find the clue',
+                titleTrimmedLowerCase: 'findtheclue',
+                description: 'Look around',
+                pointValue: 10,
+                taskType: 'Task',
+                maxCompletions: null,
+                dateCreated: '12:00 PM',
+                isComplete: false,
+                completedBy: [],
+                taskIndex: 1,
+            },
+            ROOM
+        );
+
+        await updateTaskForRoom(1, { pointValue: 20 }, ROOM);
+
+        const taskRef = await fetchReferenceByIndexForTask(1, ROOM);
+        const taskSnapshot = await getDoc(taskRef);
+        expect(taskSnapshot.data().pointValue).toBe(20);
+        expect(taskSnapshot.data().title).toBe('Find the clue');
+    });
+
+    it('throws when the task index does not exist', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(updateTaskForRoom(999, { pointValue: 5 }, ROOM)).rejects.toThrow(
+            'Task not found'
+        );
+    });
+});
+
+describe('deleteTaskForRoom', () => {
+    it('deletes an existing task', async () => {
+        await seedRoom(ROOM, []);
+        await addTaskForRoom(
+            {
+                title: 'Find the clue',
+                titleTrimmedLowerCase: 'findtheclue',
+                description: 'Look around',
+                pointValue: 10,
+                taskType: 'Task',
+                maxCompletions: null,
+                dateCreated: '12:00 PM',
+                isComplete: false,
+                completedBy: [],
+                taskIndex: 1,
+            },
+            ROOM
+        );
+
+        await deleteTaskForRoom(1, ROOM);
+
+        await expect(fetchReferenceByIndexForTask(1, ROOM)).rejects.toThrow('Task not found');
+    });
+
+    it('throws when the task index does not exist', async () => {
+        await seedRoom(ROOM, []);
+
+        await expect(deleteTaskForRoom(999, ROOM)).rejects.toThrow('Task not found');
     });
 });
 
