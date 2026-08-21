@@ -336,6 +336,12 @@ describe('TaskEditModal', () => {
         await userEvent.selectOptions(screen.getByRole('combobox'), 'Revival Mission');
         rerender(renderModal({ ...baseTask, completedBy: ['alice'] }));
 
+        // The dropdown itself must reflect the locked-back value once
+        // completions land, not the GM's now-discarded selection — showing
+        // "Revival Mission" here while Save silently writes "Task" would
+        // be its own, separate bug even though the write is correct.
+        expect(screen.getByRole('combobox')).toHaveValue('Task');
+
         await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
         expect(await screen.findByText(/task updated/i)).toBeInTheDocument();

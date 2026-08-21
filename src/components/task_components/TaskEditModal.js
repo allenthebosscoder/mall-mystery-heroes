@@ -65,6 +65,15 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
     // Mission completion revives a player, and retroactively undoing
     // either is out of scope (see the design doc's Decisions section).
     const hasCompletions = task.completedBy.length > 0;
+    // The taskType Select is disabled once anyone has completed the
+    // mission, but a completion can land (another GM's view, a /mission
+    // done in chat) after the GM has already changed the dropdown — so the
+    // constraint is re-checked here rather than trusted from what the UI
+    // happened to show. Read both by buildUpdates (what gets written) and
+    // by the Select's own `value` (what the GM sees), so a save that gets
+    // silently locked back to task.taskType never displays a different,
+    // about-to-be-discarded value in the dropdown.
+    const effectiveTaskType = hasCompletions ? task.taskType : taskType;
 
     // What of the current save attempt has already landed in Firestore.
     // A "Confirm" retry after a mid-loop failure re-enters applyUpdate
@@ -82,12 +91,6 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
     };
 
     const buildUpdates = () => {
-        // The taskType Select is disabled once anyone has completed the
-        // mission, but a completion can land (another GM's view, a
-        // /mission done in chat) after the GM has already changed the
-        // dropdown — so the constraint is re-checked here at build time
-        // rather than trusted from what the UI happened to show.
-        const effectiveTaskType = hasCompletions ? task.taskType : taskType;
         return {
             title,
             // Kept in step with `title` on every edit: it is the only
@@ -195,7 +198,7 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                             onChange={(event) => setDescription(event.target.value)}
                         />
                         <Select
-                            value={taskType}
+                            value={effectiveTaskType}
                             onChange={(event) => setTaskType(event.target.value)}
                             isDisabled={hasCompletions}
                         >
@@ -217,9 +220,9 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                         */}
                         <NumberInput
                             id="edit-point-value"
-                            value={taskType === 'Revival Mission' ? '0' : pointValue}
+                            value={effectiveTaskType === 'Revival Mission' ? '0' : pointValue}
                             onChange={setPointValue}
-                            isDisabled={taskType === 'Revival Mission'}
+                            isDisabled={effectiveTaskType === 'Revival Mission'}
                         >
                             <NumberInputField />
                             <NumberInputStepper>
