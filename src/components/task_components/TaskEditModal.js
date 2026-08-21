@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
     Alert,
     AlertIcon,
@@ -37,6 +37,13 @@ import { planScoreAdjustment } from '../../game/missionEdit';
 // separate persistent inline error box, which would otherwise render the
 // same message text twice (toast description + inline box) and break a
 // single-match `findByText` lookup.
+//
+// Every field's state is seeded once, from the `task` prop, by its
+// useState initializer — so this component must be mounted only while it
+// is open. TaskAccordion renders it behind `{isEditOpen && ...}` for
+// exactly that reason: closing unmounts it, and reopening remounts it
+// with the current task's values, instead of resurrecting edits the GM
+// abandoned by clicking "Close".
 const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
     const [title, setTitle] = useState(task.title);
     const [description, setDescription] = useState(task.description);
@@ -59,23 +66,67 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
     // either is out of scope (see the design doc's Decisions section).
     const hasCompletions = task.completedBy.length > 0;
 
-    const buildUpdates = () => ({
-        title,
-        description,
-        taskType,
-        pointValue: Number(pointValue),
-        maxCompletions: maxCompletions === '' ? null : Number(maxCompletions),
-    });
+    // What of the current save attempt has already landed in Firestore.
+    // A "Confirm" retry after a mid-loop failure re-enters applyUpdate
+    // from the top with the same adjustment, and updatePointsForPlayer is
+    // additive (Firestore increment()) — so without this, every player
+    // who succeeded on the first attempt would receive the delta a second
+    // time. Players are tracked by position rather than by name so a
+    // repeated name in completedBy could never make one skip the other.
+    // A ref, not state: it is read and written inside a single async run
+    // and must never trigger a re-render.
+    const applyProgress = useRef({ taskWritten: false, appliedPlayerIndexes: new Set() });
+
+    const resetApplyProgress = () => {
+        applyProgress.current = { taskWritten: false, appliedPlayerIndexes: new Set() };
+    };
+
+    const buildUpdates = () => {
+        // The taskType Select is disabled once anyone has completed the
+        // mission, but a completion can land (another GM's view, a
+        // /mission done in chat) after the GM has already changed the
+        // dropdown — so the constraint is re-checked here at build time
+        // rather than trusted from what the UI happened to show.
+        const effectiveTaskType = hasCompletions ? task.taskType : taskType;
+        return {
+            title,
+            // Kept in step with `title` on every edit: it is the only
+            // field checkForTaskDupesForRoom queries, so letting it go
+            // stale would permanently desync the duplicate-title index
+            // from the visible title. Mirrors TaskCreation.js.
+            titleTrimmedLowerCase: title.replace(/\s/g, '').toLowerCase(),
+            description,
+            taskType: effectiveTaskType,
+            // Stored as the raw string from the Chakra NumberInput,
+            // matching TaskCreation.js's convention and what
+            // docs/data-model.md documents ("read back with parseInt") —
+            // coercing with Number() here would leave the same field
+            // holding a string on unedited missions and a number on
+            // edited ones. A Revival Mission is always worth 0: the input
+            // is disabled for that type, and this forces it regardless.
+            pointValue: effectiveTaskType === 'Revival Mission' ? '0' : pointValue,
+            maxCompletions: maxCompletions === '' ? null : Number(maxCompletions),
+        };
+    };
 
     // Sequential, not Promise.all — matches ResetTargetsButton.js's
     // UpdateDatabase, this repo's established convention for a
     // multi-player write loop.
     const applyUpdate = async (updates, adjustment) => {
         try {
-            await updateTaskForRoom(task.taskIndex, updates, roomID);
+            if (!applyProgress.current.taskWritten) {
+                await updateTaskForRoom(task.taskIndex, updates, roomID);
+                applyProgress.current.taskWritten = true;
+            }
             if (adjustment) {
-                for (const player of adjustment.players) {
-                    await updatePointsForPlayer(player, adjustment.delta, roomID);
+                for (let index = 0; index < adjustment.players.length; index += 1) {
+                    if (applyProgress.current.appliedPlayerIndexes.has(index)) continue;
+                    await updatePointsForPlayer(
+                        adjustment.players[index],
+                        adjustment.delta,
+                        roomID
+                    );
+                    applyProgress.current.appliedPlayerIndexes.add(index);
                 }
             }
             createAlert('success', 'Task Updated', 'Your mission has been updated', 1500);
@@ -88,16 +139,32 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
             // a real, accepted risk here, not a transaction — surfaced as
             // an error, not silently retried (see the design doc's Error
             // handling section). pendingAdjustment is intentionally left
-            // set on failure so a GM retrying via "Confirm" doesn't have
-            // to re-trigger the notice.
+            // set on failure so the GM can retry with "Confirm" without
+            // re-triggering the notice; that retry resumes where this
+            // attempt stopped, skipping the task write and the players
+            // recorded in applyProgress above, and so never awards the
+            // same player the delta twice.
             console.error('Error saving mission edit:', submitError);
             createAlert('error', 'Error saving mission', submitError.message, 1500);
         }
     };
 
+    // Field validity is enforced here, not only at creation time: the
+    // same three rules TaskCreation.js applies (non-blank title, no
+    // 0-point Task, a Revival Mission is worth 0) with the same copy, so
+    // an edit cannot produce a mission that creation would have rejected.
     const handleSave = () => {
         const updates = buildUpdates();
+        if (updates.title.trim() === '') {
+            return createAlert('error', 'Error', 'Task title cannot be blank', 1500);
+        }
+        if (updates.taskType === 'Task' && Number(updates.pointValue) === 0) {
+            return createAlert('error', 'Error', 'Task cannot have 0 points', 1500);
+        }
         const adjustment = planScoreAdjustment(task, updates);
+        // A fresh save attempt: nothing of it has been written yet, so
+        // none of the previous attempt's progress may be carried over.
+        resetApplyProgress();
         if (adjustment) {
             setPendingAdjustment({ updates, adjustment });
             return;
@@ -138,10 +205,21 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                         <FormLabel htmlFor="edit-point-value" color="#ffffff" mb={0}>
                             Point Value
                         </FormLabel>
+                        {/*
+                            A Revival Mission is worth no points, so the
+                            field is disabled for that type — matching
+                            TaskCreation.js's disableNumberInput — and
+                            shows the 0 that will actually be written
+                            rather than a leftover number the save would
+                            silently discard. Switching back to Task
+                            restores what was typed, since the state
+                            itself is left alone.
+                        */}
                         <NumberInput
                             id="edit-point-value"
-                            value={pointValue}
+                            value={taskType === 'Revival Mission' ? '0' : pointValue}
                             onChange={setPointValue}
+                            isDisabled={taskType === 'Revival Mission'}
                         >
                             <NumberInputField />
                             <NumberInputStepper>

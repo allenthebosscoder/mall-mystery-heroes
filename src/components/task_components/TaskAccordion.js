@@ -68,12 +68,22 @@ const TaskAccordion = (props) => {
                     Delete
                 </Button>
             </AccordionPanel>
-            <TaskEditModal
-                isOpen={isEditOpen}
-                onClose={() => setIsEditOpen(false)}
-                task={task}
-                roomID={roomID}
-            />
+            {/*
+                Mounted only while open. TaskEditModal seeds each form
+                field from the `task` prop in a useState initializer,
+                which runs once per mount — kept permanently mounted, a
+                GM who typed an edit and then clicked "Close" would find
+                that discarded text still in the form on reopen, and
+                saving would write it.
+            */}
+            {isEditOpen && (
+                <TaskEditModal
+                    isOpen={isEditOpen}
+                    onClose={() => setIsEditOpen(false)}
+                    task={task}
+                    roomID={roomID}
+                />
+            )}
             <AlertDialog
                 isOpen={isDeleteOpen}
                 leastDestructiveRef={cancelRef}

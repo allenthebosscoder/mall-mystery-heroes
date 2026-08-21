@@ -163,14 +163,23 @@ Not covered: `trimmedNameLowerCase` strips all whitespace, but `ChatInput`'s
 ## `rooms/{roomID}/tasks/{autoId}`
 
 Missions the GM sets for players. Created by `TaskCreation` via
-`dbCalls.addTaskForRoom`.
+`dbCalls.addTaskForRoom`, edited by `TaskEditModal` via
+`dbCalls.updateTaskForRoom`, and deleted by `TaskAccordion` via
+`dbCalls.deleteTaskForRoom` — the collection has all three write paths as of
+`docs/superpowers/specs/2026-08-20-mission-edit-delete-design.md`. Editing a
+mission's `pointValue` after players have completed it also writes each
+completing player's `score` (`rooms/{roomID}/players/{trimmedNameLowerCase}`
+above), via `dbCalls.updatePointsForPlayer` once per name in `completedBy` —
+the delta is decided by `src/game/missionEdit.js`'s `planScoreAdjustment` and
+applied only after the GM confirms it. Not a transaction: the mission write
+and the per-player increments are separate, sequential writes.
 
 | Field                   | Type                          | Notes                                                                                                                                                                                                                                                  |
 | ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `title`                 | `string`                      | Required, non-blank.                                                                                                                                                                                                                                   |
-| `titleTrimmedLowerCase` | `string`                      | Used by `checkForTaskDupesForRoom` to reject duplicates.                                                                                                                                                                                               |
+| `title`                 | `string`                      | Required, non-blank — enforced on both the create and the edit path.                                                                                                                                                                                   |
+| `titleTrimmedLowerCase` | `string`                      | `title` minus whitespace, lowercased. Used by `checkForTaskDupesForRoom` to reject duplicates. Recomputed by `TaskEditModal` whenever the title is edited, so the dupe index never drifts from the visible title.                                      |
 | `description`           | `string`                      | Defaults to `'No description provided'` if left blank.                                                                                                                                                                                                 |
-| `pointValue`            | `string \| number`            | Stored as a **string** from the Chakra `NumberInput`, except for revival missions where it is coerced to the number `0`. Read back with `parseInt`.                                                                                                    |
+| `pointValue`            | `string \| number`            | Stored as a **string** from the Chakra `NumberInput` on both the create and the edit path, except for revival missions, which are forced to zero — the number `0` by `TaskCreation`, the string `'0'` by `TaskEditModal`. Read back with `parseInt`.   |
 | `taskType`              | `'Task' \| 'Revival Mission'` | Drives what completion does — points, or resurrection.                                                                                                                                                                                                 |
 | `taskIndex`             | `number`                      | From `fetchTaskIndexThenIncrement`. The number GMs type in `/mission` commands.                                                                                                                                                                        |
 | `dateCreated`           | `string`                      | `"HH:MM"` local time. No date component.                                                                                                                                                                                                               |

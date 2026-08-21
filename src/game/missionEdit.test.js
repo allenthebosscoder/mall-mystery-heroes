@@ -11,6 +11,34 @@ describe('planScoreAdjustment', () => {
         });
     });
 
+    it('returns null when nobody has completed the mission, even if the point value changed', () => {
+        // Fixing a mistyped point value before anyone has played the
+        // mission is the common case — there are no scores to adjust, so
+        // the GM must not be asked to confirm an adjustment affecting
+        // zero players.
+        const oldTask = { taskType: 'Task', pointValue: 10, completedBy: [] };
+        const newTask = { taskType: 'Task', pointValue: 15 };
+
+        expect(planScoreAdjustment(oldTask, newTask)).toBeNull();
+    });
+
+    it('treats string point values numerically, matching how they are stored', () => {
+        // pointValue is stored as the raw string from the Chakra
+        // NumberInput on both the create and the edit path
+        // (docs/data-model.md), so the delta math has to hold for
+        // strings, not just numbers.
+        const oldTask = { taskType: 'Task', pointValue: '10', completedBy: ['alice'] };
+        const newTask = { taskType: 'Task', pointValue: '15' };
+
+        expect(planScoreAdjustment(oldTask, newTask)).toEqual({
+            delta: 5,
+            players: ['alice'],
+        });
+        expect(
+            planScoreAdjustment({ ...oldTask, pointValue: 10 }, { ...newTask, pointValue: '10' })
+        ).toBeNull();
+    });
+
     it('returns null when the point value is unchanged', () => {
         const oldTask = { taskType: 'Task', pointValue: 10, completedBy: ['alice'] };
         const newTask = { taskType: 'Task', pointValue: 10 };

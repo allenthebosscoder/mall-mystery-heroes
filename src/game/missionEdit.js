@@ -4,15 +4,24 @@
  * via dbCalls.updatePointsForPlayer, which is additive (Firestore
  * increment()), so `delta` is added directly, once per name in `players`.
  *
- * Returns null when no adjustment is needed: the mission isn't (or
- * didn't stay) a 'Task' — a Revival Mission's completion revives a
- * player rather than awarding points, so its pointValue is never
+ * Returns null when no adjustment is needed: nobody has completed the
+ * mission yet, so there are no scores to adjust — fixing a mistyped
+ * point value before anyone has played the mission is the common,
+ * consequence-free case and must not prompt the GM to confirm an
+ * adjustment affecting zero players — or the mission isn't (or didn't
+ * stay) a 'Task' — a Revival Mission's completion revives a player
+ * rather than awarding points, so its pointValue is never
  * score-relevant — or the pointValue didn't actually change.
+ *
+ * pointValue is compared with `-`, which coerces numerically, because
+ * the field is stored as a string from the Chakra NumberInput
+ * (docs/data-model.md) on both the create and the edit path.
  *
  * CommonJS require/exports, matching src/game/remapPlan.js and
  * targetGraph.js's convention in this directory.
  */
 const planScoreAdjustment = (oldTask, newTask) => {
+    if (oldTask.completedBy.length === 0) return null;
     if (newTask.taskType !== 'Task') return null;
     const delta = newTask.pointValue - oldTask.pointValue;
     if (delta === 0) return null;
