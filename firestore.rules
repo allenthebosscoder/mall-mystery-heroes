@@ -106,69 +106,40 @@ service cloud.firestore {
       match /photos/{photoId} {
         allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
-        // Lets a player submit a kill-photo claim without general write
-        // access to this collection — scoped narrowly so a player can't
-        // self-approve a kill (status must start pending), forge the
-        // pre-kill snapshot the Undo flow relies on (originalPlayerData
-        // must be null), or point the claim at anything other than a photo
-        // this room's own Storage upload actually produced
-        // (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md,
-        // docs/superpowers/specs/2026-08-18-kill-photo-url-validation-design.md).
-        //
-        // The url check pins BOTH ends of the string, not just a substring
-        // of it: the whole value must START with an allowed Storage origin
-        // — production `https://firebasestorage.googleapis.com`, or the
-        // `http://localhost:9199` emulator origin that getDownloadURL
-        // actually returns under `npm run test:emulator` — AND then carry
-        // this room's own `/v0/b/{bucket}/o/rooms%2F{roomId}%2Fphotos%2F`
-        // object path, with no `/` left in the trailing filename+query.
-        // Pinning the origin is the part that matters: the first version of
-        // this check was `.matches('.*/o/rooms%2F' + roomId + '%2Fphotos%2F.*')`,
-        // whose leading `.*` let ANY host qualify just by carrying that path
-        // segment somewhere in its own path or query string — so it denied
-        // nothing that mattered (docs/improvements.md item 60).
-        //
-        // The {bucket} segment is deliberately a wildcard, not this project's
-        // own bucket name: production and the emulator use different buckets
-        // (`mall-mystery-heroes.firebasestorage.app` vs
-        // `demo-mall-mystery-heroes.appspot.com`), and pinning the wrong one
-        // would silently deny every real upload. The residual that leaves is
-        // real, not just theoretical: anyone can create a free Firebase
-        // project and host a spoofed object at an identically-shaped path on
-        // the real Storage host — no special access needed, just the
-        // roomId, which an attacker reaching this check already has.
-        // Tracked in docs/improvements.md item 60.
-        //
-        // roomId is spliced raw into both a regex and a percent-encoded path
-        // comparison. That is safe today because room IDs are machine-generated
-        // by uniqueNamesGenerator in DashBoard.js (adjective + digits, no
-        // separator, never user-typed), so they contain no regex metacharacter
-        // and nothing Storage would percent-encode. If room-ID generation ever
-        // changes to allow such a character, this comparison has to encode
-        // roomId the same way Storage does, or legitimate uploads get silently
-        // denied.
-        allow create: if isPlayerOfRoom(roomId) &&
-          request.resource.data.status == 'pending' &&
-          request.resource.data.originalPlayerData == null &&
-          request.resource.data.url.matches(
-            '^(https://firebasestorage\\.googleapis\\.com|http://localhost:9199)' +
-            '/v0/b/[^/]+/o/rooms%2F' + roomId + '%2Fphotos%2F[^/]*$'
-          );
+        // Player-facing `allow create` removed — kill-photo submission now
+        // goes through functions/callableFunctions/submitKillPhoto.js (Admin
+        // SDK, bypasses rules entirely), which derives the submitter's
+        // identity from their own uid instead of trusting a client-supplied
+        // `assassin` field, and re-implements this clause's old url-origin
+        // validation itself (docs/superpowers/specs/
+        // 2026-08-22-identity-verified-player-writes-design.md).
       }
 
       // Interim scope, same reasoning as photos above — see file header.
       match /playerMessages/{messageId} {
         allow read: if isHostOrPlayerOfRoom(roomId);
         allow write: if isHostOfExistingRoom(roomId);
-        // Lets a player post a group-chat message without general write access
-        // to this collection — scoped narrowly to the 'chat' type with a null
-        // recipient so a player can't spoof a whisper/broadcast/leaderboard/
-        // mission message
-        // (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
-        allow create: if isPlayerOfRoom(roomId) &&
-          request.resource.data.type == 'chat' &&
-          request.resource.data.recipient == null;
+        // Player-facing `allow create` removed — player chat now goes through
+        // functions/callableFunctions/submitChatMessage.js (Admin SDK,
+        // bypasses rules entirely), same reasoning as photos above. GM
+        // broadcasts/whispers/leaderboard/mission messages still go through
+        // dbCalls.addPlayerMessageForRoom, authorized by `allow write` above —
+        // untouched, a fully independent path.
       }
+    }
+
+    // Collection-group list, for session recovery (Homepage.js) when
+    // localStorage has been cleared but the caller's Firebase Auth session
+    // survived — finds which room this uid already joined without needing
+    // the room ID from anywhere else. Deliberately independent of
+    // isPlayerOfRoom/isHostOfExistingRoom: the query itself is already
+    // scoped to the caller's own uid via `resource.data.uid ==
+    // request.auth.uid`, which Firestore can verify against the query's own
+    // where() filter the same way the rooms-list grant above does — no
+    // room lookup is needed or possible here (the wildcard path doesn't
+    // bind {roomId}).
+    match /{path=**}/players/{playerId} {
+      allow list: if request.auth != null && resource.data.uid == request.auth.uid;
     }
   }
 }

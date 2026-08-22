@@ -39,6 +39,7 @@ const {
     addDoc,
     query,
     where,
+    collectionGroup,
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-mall-mystery-heroes';
@@ -380,84 +381,11 @@ describe('rooms/{roomId}/photos/{photoId}', () => {
         );
     });
 
-    // A URL shaped like a real getDownloadURL result for this room's own
-    // Storage path — uploadKillPhoto (storageCalls.js) uploads to
-    // rooms/{roomID}/photos/{photoID}.jpg, and Firebase Storage encodes
-    // the path's slashes as %2F in the returned download URL. The bucket
-    // segment is this project's actual one (REACT_APP_STORAGEBUCKET in .env
-    // — `.firebasestorage.app`, not the `.appspot.com` an older version of
-    // this fixture assumed), so the rule is exercised against the shape
-    // production really produces.
-    const REALISTIC_ROOM_A_PHOTO_URL =
-        'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.firebasestorage.app/o/rooms%2Froom-a%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token';
-
-    // The same thing for the Storage emulator, copied verbatim (only the
-    // random photo id and token shortened) from what getDownloadURL actually
-    // returned when uploadKillPhoto ran against the emulator this repo's
-    // `npm run test:emulator` starts — `http://localhost`, port 9199,
-    // matching connectStorageEmulator in src/utils/firebase.js. Every
-    // emulator-backed kill-photo submission produces this shape, so the rule
-    // has to accept it as well as the production one.
-    const REALISTIC_EMULATOR_ROOM_A_PHOTO_URL =
-        'http://localhost:9199/v0/b/demo-mall-mystery-heroes.appspot.com/o/rooms%2Froom-a%2Fphotos%2F0b68bae5-b8ab-4dfc-b675-585fb9847a9f.jpg?alt=media&token=70af1544-8755-496b-a111-b020b62d7392';
-
-    it("allows a player to create a photo with pending status, no originalPlayerData, and a url under this room's own Storage path", async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertSucceeds(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
-
-    it("allows a player to create a photo whose url is a Storage emulator download URL for this room's own path", async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertSucceeds(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_EMULATOR_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
-
-    it('denies a player creating a photo with a non-pending status', async () => {
+    it('denies a player creating a photo directly (removed — submitKillPhoto is now the only path)', async () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
         await assertFails(
             addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'approved',
-                originalPlayerData: null,
-            })
-        );
-    });
-
-    it('denies a player creating a photo with a non-null originalPlayerData', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: REALISTIC_ROOM_A_PHOTO_URL,
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: { score: 10, targets: [], assassins: [] },
-            })
-        );
-    });
-
-    it('denies a player creating a photo whose url does not point at Firebase Storage at all', async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://evil.example.com/x.jpg',
+                url: 'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.firebasestorage.app/o/rooms%2Froom-a%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token',
                 assassin: 'bob',
                 target: 'alice',
                 status: 'pending',
@@ -465,56 +393,6 @@ describe('rooms/{roomId}/photos/{photoId}', () => {
             })
         );
     });
-
-    it("denies a player creating a photo whose url points at a different room's Storage path", async () => {
-        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                url: 'https://firebasestorage.googleapis.com/v0/b/mall-mystery-heroes.firebasestorage.app/o/rooms%2Fsome-other-room%2Fphotos%2Fabc123.jpg?alt=media&token=fake-token',
-                assassin: 'bob',
-                target: 'alice',
-                status: 'pending',
-                originalPlayerData: null,
-            })
-        );
-    });
-
-    // Regression cases for the origin-pinning bug (docs/improvements.md item
-    // 60). The first version of this rule matched
-    // `.*/o/rooms%2F{roomId}%2Fphotos%2F.*`, so every one of these was
-    // ACCEPTED: the required path segment only had to appear somewhere in the
-    // string, which an attacker controls entirely. Each names the specific
-    // way it smuggled that segment past the old check.
-    const BYPASS_URLS = {
-        'an external host carrying the room path segment in its own path':
-            'https://evil.example.com/o/rooms%2Froom-a%2Fphotos%2Fx.jpg',
-        'a lookalike host that merely starts with the real Storage host':
-            'https://firebasestorage.googleapis.com.evil.example.com/v0/b/b/o/rooms%2Froom-a%2Fphotos%2Fy.jpg',
-        'an external host carrying the path segment in its query string':
-            'https://evil.example.com/track.gif?z=/o/rooms%2Froom-a%2Fphotos%2F',
-        'a plain-http host on the local network':
-            'http://10.0.0.5:8080/o/rooms%2Froom-a%2Fphotos%2Fz.jpg',
-        // Not from the original bypass set: this one proves the `.` characters
-        // in the host alternative are regex-escaped rather than matching any
-        // character, which the four above cannot distinguish.
-        'a host differing from the real Storage host only in a dot position':
-            'https://firebasestorageXgoogleapis.com/v0/b/b/o/rooms%2Froom-a%2Fphotos%2Fw.jpg',
-    };
-
-    for (const [description, url] of Object.entries(BYPASS_URLS)) {
-        it(`denies a player creating a photo whose url is ${description}`, async () => {
-            const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-            await assertFails(
-                addDoc(collection(db, 'rooms', 'room-a', 'photos'), {
-                    url,
-                    assassin: 'bob',
-                    target: 'alice',
-                    status: 'pending',
-                    originalPlayerData: null,
-                })
-            );
-        });
-    }
 });
 
 describe('rooms/{roomId}/playerMessages/{messageId}', () => {
@@ -557,9 +435,9 @@ describe('rooms/{roomId}/playerMessages/{messageId}', () => {
         );
     });
 
-    it('allows a player to create a chat message with a null recipient', async () => {
+    it('denies a player creating a chat message directly (removed — submitChatMessage is now the only path)', async () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertSucceeds(
+        await assertFails(
             addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
                 type: 'chat',
                 recipient: null,
@@ -570,30 +448,25 @@ describe('rooms/{roomId}/playerMessages/{messageId}', () => {
             })
         );
     });
+});
 
-    it('denies a player creating a chat message with a non-null recipient', async () => {
+describe('players collection group (session recovery)', () => {
+    it('allows a query scoped to the callers own uid', async () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
-                type: 'chat',
-                recipient: 'alice',
-                text: 'psst',
-                standings: null,
-                mission: null,
-                sender: 'bob',
-            })
-        );
+        const playersQuery = query(collectionGroup(db, 'players'), where('uid', '==', PLAYER_UID));
+        const snapshot = await assertSucceeds(getDocs(playersQuery));
+        expect(snapshot.docs.map((d) => d.id)).toEqual(['bob']);
     });
 
-    it('denies a player creating a non-chat message, e.g. a fake broadcast', async () => {
+    it('denies a query scoped to a different uid than the caller', async () => {
         const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
-        await assertFails(
-            addDoc(collection(db, 'rooms', 'room-a', 'playerMessages'), {
-                type: 'broadcast',
-                recipient: null,
-                text: 'fake broadcast',
-                standings: null,
-            })
-        );
+        const playersQuery = query(collectionGroup(db, 'players'), where('uid', '==', HOST_UID));
+        await assertFails(getDocs(playersQuery));
+    });
+
+    it('denies an unauthenticated query entirely', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        const playersQuery = query(collectionGroup(db, 'players'), where('uid', '==', PLAYER_UID));
+        await assertFails(getDocs(playersQuery));
     });
 });
