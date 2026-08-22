@@ -146,9 +146,11 @@ export const createIndependentIdentity = async () => {
     );
     const identityAuth = getAuth(app);
     const identityDb = getFirestore(app);
+    const identityFunctions = getFunctions(app);
     connectAuthEmulator(identityAuth, 'http://localhost:9099');
     connectFirestoreEmulator(identityDb, 'localhost', 8081);
+    connectFunctionsEmulator(identityFunctions, 'localhost', 5001);
 
     const credential = await signInAnonymously(identityAuth);
-    return { uid: credential.user.uid, db: identityDb };
+    return { uid: credential.user.uid, db: identityDb, functions: identityFunctions };
 };

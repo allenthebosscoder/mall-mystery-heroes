@@ -17,5 +17,8 @@ exports.undoKillPlayer = undoKillPlayer
 const { joinRoom } = require("./callableFunctions/joinRoom")
 exports.joinRoom = joinRoom
 
+const { submitKillPhoto } = require("./callableFunctions/submitKillPhoto")
+exports.submitKillPhoto = submitKillPhoto
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms
