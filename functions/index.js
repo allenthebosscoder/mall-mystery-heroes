@@ -20,5 +20,8 @@ exports.joinRoom = joinRoom
 const { submitKillPhoto } = require("./callableFunctions/submitKillPhoto")
 exports.submitKillPhoto = submitKillPhoto
 
+const { submitChatMessage } = require("./callableFunctions/submitChatMessage")
+exports.submitChatMessage = submitChatMessage
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms
