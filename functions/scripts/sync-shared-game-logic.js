@@ -18,7 +18,7 @@ const SOURCE_DIR = path.join(__dirname, '..', '..', 'src', 'game');
 const DEST_DIR = path.join(__dirname, '..', 'vendor', 'game');
 // remapPlan.js itself requires ./targetGraph — its full dependency closure,
 // not just what killPlayer.js/joinRoom.js import directly.
-const FILES = ['remapPlan.js', 'playerNames.js', 'targetGraph.js'];
+const FILES = ['remapPlan.js', 'playerNames.js', 'targetGraph.js', 'rateLimit.js', 'killPhotoUrl.js'];
 
 fs.mkdirSync(DEST_DIR, { recursive: true });
 for (const file of FILES) {
