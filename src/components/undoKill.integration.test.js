@@ -7,16 +7,16 @@
  * exactly the way the real app does, then assert on what actually landed
  * in Firestore, rather than asserting against the function's internals
  * (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md). Each test
- * builds a real approved kill photo first (via the real `executeKill` +
- * `addPhotoForRoom` + `approvePhotoForRoom`), matching exactly what
- * `PhotosDisplay.js`'s Accept flow does, so the snapshot being undone is
- * genuine, not hand-constructed.
+ * builds a real approved kill photo first (via a raw pending-photo doc,
+ * seeded directly in the same shape the client's own kill-photo write path
+ * produces, then the real `executeKill` + `approvePhotoForRoom`), matching
+ * exactly what `PhotosDisplay.js`'s Accept flow does, so the snapshot being
+ * undone is genuine, not hand-constructed.
  */
-import { deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { undoKill } from './undoKill';
 import { executeKill } from './executeKill';
 import {
-    addPhotoForRoom,
     approvePhotoForRoom,
     fetchPhotosQueryByAscendingTimestampForRoom,
     fetchPlayerForRoom,
@@ -35,13 +35,31 @@ const latestPhotoId = async () => {
     return snapshot.docs[0].id;
 };
 
+// Seeds a raw pending photo doc directly in Firestore, matching the shape
+// the client's kill-photo submission path writes (Task 5 of
+// docs/superpowers/sdd/2026-08-22-identity-verified-player-writes moved
+// that write behind the identity-verified `submitKillPhoto` Cloud Function)
+// — undoKill only cares that an approved-then-undone photo doc exists with
+// this shape, not which code path wrote it.
+const seedPendingPhoto = async (assassin, target) => {
+    const photosRef = collection(db, 'rooms', ROOM, 'photos');
+    await addDoc(photosRef, {
+        url: 'https://example.com/photo.jpg',
+        assassin,
+        target,
+        timestamp: serverTimestamp(),
+        status: 'pending',
+        originalPlayerData: null,
+    });
+};
+
 describe('undoKill', () => {
     it('reverts a simple kill: killer and target both restored, photo back to pending', async () => {
         await seedRoom(ROOM, [
             { name: 'alice', targets: ['bob'], score: 10 },
             { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
@@ -70,7 +88,7 @@ describe('undoKill', () => {
             { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
             { name: 'carol', targets: [], assassins: [] },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
@@ -96,7 +114,7 @@ describe('undoKill', () => {
             { name: 'alice', targets: ['bob'], score: 10 },
             { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
         // Photo is still 'pending' — never approved.
 
@@ -115,7 +133,7 @@ describe('undoKill', () => {
             { name: 'alice', targets: [], assassins: [], score: 10 },
             { name: 'bob', score: 5, targets: [], assassins: [], openSeason: true },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
@@ -136,7 +154,7 @@ describe('undoKill', () => {
             { name: 'alice', targets: ['bob'], score: 10 },
             { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
@@ -166,7 +184,7 @@ describe('undoKill', () => {
             { name: 'alice', targets: ['bob'], score: 10 },
             { name: 'bob', score: 5, targets: [], assassins: ['alice'] },
         ]);
-        await addPhotoForRoom(ROOM, 'alice', 'bob', 'https://example.com/photo.jpg');
+        await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
         const killResult = await executeKill('bob', 'alice', ROOM);
         await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);

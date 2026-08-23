@@ -25,7 +25,7 @@ import userEvent from '@testing-library/user-event';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
 import { compressImage } from '../utils/compressImage';
 import { uploadKillPhoto } from '../components/firebase_calls/storageCalls';
-import { addPhotoForRoom } from '../components/firebase_calls/dbCalls';
+import { submitKillPhoto } from '../components/submitKillPhoto';
 
 jest.mock('../utils/compressImage', () => ({
     compressImage: jest.fn(),
@@ -33,9 +33,17 @@ jest.mock('../utils/compressImage', () => ({
 jest.mock('../components/firebase_calls/storageCalls', () => ({
     uploadKillPhoto: jest.fn(),
 }));
-jest.mock('../components/firebase_calls/dbCalls', () => ({
-    addChatMessageForRoom: jest.fn(),
-    addPhotoForRoom: jest.fn(),
+jest.mock('../components/submitKillPhoto', () => ({
+    submitKillPhoto: jest.fn(),
+}));
+// MessageComposer also imports submitChatMessage.js, which touches
+// utils/firebase.js (and, transitively, firebase/functions) at module load
+// time — not exercised by this file's target-arrival scenario, but it must
+// still be mocked so importing MessageComposer doesn't pull in a real
+// Firebase SDK call under jsdom, matching MessageComposer.test.jsx's own
+// mock set.
+jest.mock('../components/submitChatMessage', () => ({
+    submitChatMessage: jest.fn(),
 }));
 
 const fakeBlob = new Blob(['fake'], { type: 'image/jpeg' });
@@ -47,7 +55,7 @@ beforeEach(() => {
     global.URL.revokeObjectURL = jest.fn();
     compressImage.mockResolvedValue(fakeBlob);
     uploadKillPhoto.mockResolvedValue('https://example.com/photo.jpg');
-    addPhotoForRoom.mockResolvedValue(undefined);
+    submitKillPhoto.mockResolvedValue(undefined);
 });
 
 describe('MessageComposer + KillPhotoModal, targets arriving after mount', () => {
@@ -72,12 +80,11 @@ describe('MessageComposer + KillPhotoModal, targets arriving after mount', () =>
 
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
-        await waitFor(() => expect(addPhotoForRoom).toHaveBeenCalled());
-        expect(addPhotoForRoom).toHaveBeenCalledWith(
-            'room-a',
-            'Alice',
-            'Bob',
-            'https://example.com/photo.jpg'
-        );
+        await waitFor(() => expect(submitKillPhoto).toHaveBeenCalled());
+        expect(submitKillPhoto).toHaveBeenCalledWith({
+            roomId: 'room-a',
+            target: 'Bob',
+            url: 'https://example.com/photo.jpg',
+        });
     });
 });

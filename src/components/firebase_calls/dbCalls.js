@@ -100,25 +100,6 @@ export const fetchPlayerMessagesQueryForRoom = (roomID) => {
     return query(messagesRef, orderBy('timestamp', 'asc'), limitToLast(50));
 };
 
-// Player-authored group chat — a distinct, purpose-named write from
-// addPlayerMessageForRoom (which the GM's own commands use), matching
-// this file's convention of one function per logical write. sender is the
-// writing player's display name, client-trusted like every other
-// player-provided name in this file
-// (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md).
-export const addChatMessageForRoom = async (text, sender, roomID) => {
-    const messagesRef = collection(db, 'rooms', roomID, 'playerMessages');
-    await addDoc(messagesRef, {
-        type: 'chat',
-        recipient: null,
-        text,
-        standings: null,
-        mission: null,
-        sender,
-        timestamp: serverTimestamp(),
-    });
-};
-
 //fetches all tasks by completion from database
 export const fetchTasksByCompletionForRoom = async (isComplete, roomID) => {
     const taskCollectionRef = collection(db, 'rooms', roomID, 'tasks');
@@ -218,23 +199,6 @@ export const updatePhotoStatusForRoom = async (roomID, photoID, status) => {
 export const approvePhotoForRoom = async (roomID, photoID, originalPlayerData) => {
     const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
     await updateDoc(photoRef, { status: 'approved', originalPlayerData });
-};
-
-// Player-submitted kill-photo claim — a distinct write from
-// approvePhotoForRoom/updatePhotoStatusForRoom (which are GM-only status
-// transitions); always starts pending with no originalPlayerData, matching
-// what firestore.rules requires for a player-authored create
-// (docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-export const addPhotoForRoom = async (roomID, assassin, target, url) => {
-    const photosRef = collection(db, 'rooms', roomID, 'photos');
-    await addDoc(photosRef, {
-        url,
-        assassin,
-        target,
-        timestamp: serverTimestamp(),
-        status: 'pending',
-        originalPlayerData: null,
-    });
 };
 
 //returns a query of all tasks for room

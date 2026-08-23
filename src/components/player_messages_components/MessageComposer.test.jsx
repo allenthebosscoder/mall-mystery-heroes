@@ -11,11 +11,12 @@
  * docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md,
  * docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
  *
- * Explicit mock factory for dbCalls.js, not auto-mock — see
- * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe.
+ * Explicit mock factories for submitChatMessage.js and submitKillPhoto.js,
+ * not auto-mock — see ChatInput.test.jsx for why auto-mocking
+ * utils/firebase.js isn't safe.
  *
  * Interactions that trigger `handleSend` (async — it `await`s
- * `addChatMessageForRoom`) are followed by a `waitFor` on their resulting
+ * `submitChatMessage`) are followed by a `waitFor` on their resulting
  * assertion, not a manual `act(async () => { ... })` wrapper around the
  * `userEvent` call: `userEvent`'s methods already wrap themselves in `act`
  * internally, and wrapping them again is the exact anti-pattern
@@ -47,13 +48,16 @@ import { ChakraProvider } from '@chakra-ui/react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MessageComposer from './MessageComposer';
-import { addChatMessageForRoom, addPhotoForRoom } from '../firebase_calls/dbCalls';
+import { submitChatMessage } from '../submitChatMessage';
+import { submitKillPhoto } from '../submitKillPhoto';
 import { compressImage } from '../../utils/compressImage';
 import { uploadKillPhoto } from '../firebase_calls/storageCalls';
 
-jest.mock('../firebase_calls/dbCalls', () => ({
-    addChatMessageForRoom: jest.fn(),
-    addPhotoForRoom: jest.fn(),
+jest.mock('../submitChatMessage', () => ({
+    submitChatMessage: jest.fn(),
+}));
+jest.mock('../submitKillPhoto', () => ({
+    submitKillPhoto: jest.fn(),
 }));
 jest.mock('../../utils/compressImage', () => ({
     compressImage: jest.fn(),
@@ -75,12 +79,12 @@ const fakeFile2 = new File(['fake2'], 'photo2.jpg', { type: 'image/jpeg' });
 
 beforeEach(() => {
     jest.clearAllMocks();
-    addChatMessageForRoom.mockResolvedValue(undefined);
+    submitChatMessage.mockResolvedValue(undefined);
     global.URL.createObjectURL = jest.fn(() => 'blob:fake-preview');
     global.URL.revokeObjectURL = jest.fn();
     compressImage.mockResolvedValue(fakeBlob);
     uploadKillPhoto.mockResolvedValue('https://example.com/photo.jpg');
-    addPhotoForRoom.mockResolvedValue(undefined);
+    submitKillPhoto.mockResolvedValue(undefined);
 });
 
 describe('MessageComposer', () => {
@@ -116,11 +120,10 @@ describe('MessageComposer', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Send' }));
 
         await waitFor(() =>
-            expect(addChatMessageForRoom).toHaveBeenCalledWith(
-                'hey where are you',
-                'Alice',
-                'room-a'
-            )
+            expect(submitChatMessage).toHaveBeenCalledWith({
+                roomId: 'room-a',
+                text: 'hey where are you',
+            })
         );
     });
 
@@ -130,7 +133,7 @@ describe('MessageComposer', () => {
         await userEvent.type(screen.getByPlaceholderText('Type a message...'), 'hi{Enter}');
 
         await waitFor(() =>
-            expect(addChatMessageForRoom).toHaveBeenCalledWith('hi', 'Alice', 'room-a')
+            expect(submitChatMessage).toHaveBeenCalledWith({ roomId: 'room-a', text: 'hi' })
         );
     });
 
@@ -142,7 +145,7 @@ describe('MessageComposer', () => {
             'hi{Shift>}{Enter}{/Shift}'
         );
 
-        expect(addChatMessageForRoom).not.toHaveBeenCalled();
+        expect(submitChatMessage).not.toHaveBeenCalled();
     });
 
     it('clears the input after sending', async () => {
@@ -151,7 +154,7 @@ describe('MessageComposer', () => {
 
         await userEvent.type(input, 'hi{Enter}');
 
-        await waitFor(() => expect(addChatMessageForRoom).toHaveBeenCalled());
+        await waitFor(() => expect(submitChatMessage).toHaveBeenCalled());
         expect(input).toHaveValue('');
     });
 
@@ -160,11 +163,11 @@ describe('MessageComposer', () => {
 
         await userEvent.type(screen.getByPlaceholderText('Type a message...'), '   {Enter}');
 
-        expect(addChatMessageForRoom).not.toHaveBeenCalled();
+        expect(submitChatMessage).not.toHaveBeenCalled();
     });
 
     it('restores the typed text if the send fails, instead of losing it', async () => {
-        addChatMessageForRoom.mockRejectedValue(new Error('network error'));
+        submitChatMessage.mockRejectedValue(new Error('network error'));
         mountComposer();
         const input = screen.getByPlaceholderText('Type a message...');
 
@@ -206,7 +209,7 @@ describe('MessageComposer', () => {
         expect(screen.queryByAltText('Kill photo preview')).not.toBeInTheDocument();
     });
 
-    it('calls compressImage, uploadKillPhoto, then addPhotoForRoom in order, then closes the modal', async () => {
+    it('calls compressImage, uploadKillPhoto, then submitKillPhoto in order, then closes the modal', async () => {
         mountComposer();
 
         await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
@@ -219,12 +222,11 @@ describe('MessageComposer', () => {
             expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
         );
         expect(uploadKillPhoto).toHaveBeenCalledWith('room-a', fakeBlob);
-        expect(addPhotoForRoom).toHaveBeenCalledWith(
-            'room-a',
-            'Alice',
-            'bob',
-            'https://example.com/photo.jpg'
-        );
+        expect(submitKillPhoto).toHaveBeenCalledWith({
+            roomId: 'room-a',
+            target: 'bob',
+            url: 'https://example.com/photo.jpg',
+        });
         // The order genuinely matters: the photo must be uploaded (so
         // `url` is valid) before the Firestore doc referencing that url
         // is written.
@@ -232,7 +234,7 @@ describe('MessageComposer', () => {
             uploadKillPhoto.mock.invocationCallOrder[0]
         );
         expect(uploadKillPhoto.mock.invocationCallOrder[0]).toBeLessThan(
-            addPhotoForRoom.mock.invocationCallOrder[0]
+            submitKillPhoto.mock.invocationCallOrder[0]
         );
     });
 
@@ -245,12 +247,24 @@ describe('MessageComposer', () => {
         await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
-        expect(
-            await screen.findByText(
-                'Could not submit the photo. Check your connection and try again.'
-            )
-        ).toBeInTheDocument();
+        // uploadKillPhoto's rejection also carries a real `.message`, so it
+        // surfaces the same way a submitKillPhoto rejection would — the
+        // generic fallback text only shows when the thrown error has no
+        // `.message` at all.
+        expect(await screen.findByText('network error')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
+    });
+
+    it('shows the specific error message when submitKillPhoto rejects with one', async () => {
+        submitKillPhoto.mockRejectedValue(new Error('This game has ended.'));
+        mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
+        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+        expect(await screen.findByText('This game has ended.')).toBeInTheDocument();
     });
 
     it('resets the file input value after each selection, so the same photo can be selected again', async () => {

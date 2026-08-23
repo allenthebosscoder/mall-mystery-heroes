@@ -6,7 +6,7 @@
  * needs to render (previewUrl/error/isSubmitting) plus an onSubmit
  * callback
  * (docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
- * No compressImage/uploadKillPhoto/addPhotoForRoom mocking needed — this
+ * No compressImage/uploadKillPhoto/submitKillPhoto mocking needed — this
  * component no longer imports any of them.
  */
 import React from 'react';

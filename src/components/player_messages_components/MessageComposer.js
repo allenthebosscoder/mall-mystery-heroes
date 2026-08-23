@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Flex, Input, Button, VisuallyHidden } from '@chakra-ui/react';
-import { addChatMessageForRoom, addPhotoForRoom } from '../firebase_calls/dbCalls';
+import { submitChatMessage } from '../submitChatMessage';
+import { submitKillPhoto } from '../submitKillPhoto';
 import { compressImage } from '../../utils/compressImage';
 import { uploadKillPhoto } from '../firebase_calls/storageCalls';
 import KillPhotoModal from './KillPhotoModal';
@@ -38,7 +39,7 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
         if (!trimmed) return;
         setText('');
         try {
-            await addChatMessageForRoom(trimmed, playerName, roomID);
+            await submitChatMessage({ roomId: roomID, text: trimmed });
         } catch (error) {
             // Losing a single sent message isn't session-invalidating,
             // matching MessageFeed's own subscription-error handling — log
@@ -92,14 +93,17 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
         setPhotoError(null);
         try {
             const url = await uploadKillPhoto(roomID, compressedBlob);
-            await addPhotoForRoom(roomID, playerName, effectiveTarget, url);
+            await submitKillPhoto({ roomId: roomID, target: effectiveTarget, url });
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setCompressedBlob(null);
             setPreviewUrl(null);
             setIsPhotoModalOpen(false);
         } catch (submitError) {
             console.error('Error submitting kill photo:', submitError);
-            setPhotoError('Could not submit the photo. Check your connection and try again.');
+            setPhotoError(
+                submitError.message ||
+                    'Could not submit the photo. Check your connection and try again.'
+            );
         } finally {
             setIsSubmitting(false);
         }
