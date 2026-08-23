@@ -99,16 +99,26 @@ by-ID lookup, so such a player would not get a live player-doc
 subscription (everything that queries by `trimmedNameLowerCase` is
 unaffected).
 
-| Field                  | Type            | Initial                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------- | --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                 | `string`        | as typed                            | Display value only. Not queried anywhere — see `trimmedNameLowerCase`.                                                                                                                                                                                                                                                                                                                                                                                         |
-| `trimmedNameLowerCase` | `string`        | `name` minus whitespace, lowercased | The actual lookup key — every function in `dbCalls.js` that finds a player by name queries this field, via `normalizePlayerName()`. Also the document ID for players created by `joinRoom`, the current, sole creation path.                                                                                                                                                                                                                                   |
-| `isAlive`              | `boolean`       | `true`                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `score`                | `number`        | `10`                                | Reset to `0` on death. Read back with `parseInt` in places, implying it is sometimes a string.                                                                                                                                                                                                                                                                                                                                                                 |
-| `targets`              | `array<string>` | `[]`                                | Names this player is hunting.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `assassins`            | `array<string>` | `[]`                                | Names hunting this player.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `openSeason`           | `boolean`       | `false`                             | When true, _anyone_ may kill this player, and this player may kill anyone.                                                                                                                                                                                                                                                                                                                                                                                     |
-| `uid`                  | `string`        | absent                              | The Firebase Auth uid that self-registered as this player, written only by `joinRoom` (`functions/callableFunctions/joinRoom.js`). Historically absent on GM-added players, created via the now-deleted `dbCalls.addPlayerForRoom` before the 2026-08-14 simplified-lobby redesign removed the manual-add UI; every player doc today is created by `joinRoom` and carries a `uid` (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md). |
+| Field                  | Type                                                                                              | Initial                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                 | `string`                                                                                          | as typed                            | Display value only. Not queried anywhere — see `trimmedNameLowerCase`.                                                                                                                                                                                                                                                                                                                                                                                         |
+| `trimmedNameLowerCase` | `string`                                                                                          | `name` minus whitespace, lowercased | The actual lookup key — every function in `dbCalls.js` that finds a player by name queries this field, via `normalizePlayerName()`. Also the document ID for players created by `joinRoom`, the current, sole creation path.                                                                                                                                                                                                                                   |
+| `isAlive`              | `boolean`                                                                                         | `true`                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `score`                | `number`                                                                                          | `10`                                | Reset to `0` on death. Read back with `parseInt` in places, implying it is sometimes a string.                                                                                                                                                                                                                                                                                                                                                                 |
+| `targets`              | `array<string>`                                                                                   | `[]`                                | Names this player is hunting.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `assassins`            | `array<string>`                                                                                   | `[]`                                | Names hunting this player.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `openSeason`           | `boolean`                                                                                         | `false`                             | When true, _anyone_ may kill this player, and this player may kill anyone.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `rateLimits`           | `{photo: {windowStart: Timestamp, count: number}, chat: {windowStart: Timestamp, count: number}}` | absent                              | Written and read by `submitKillPhoto`/`submitChatMessage` (inside their own transactions) to enforce a rolling 60-second burst allowance per player — 10 kill photos, 20 chat messages. Each key is absent until that player's first submission of that kind, and the two keys are independent. Nothing else reads this field; it is never shown in the UI.                                                                                                    |
+| `uid`                  | `string`                                                                                          | absent                              | The Firebase Auth uid that self-registered as this player, written only by `joinRoom` (`functions/callableFunctions/joinRoom.js`). Historically absent on GM-added players, created via the now-deleted `dbCalls.addPlayerForRoom` before the 2026-08-14 simplified-lobby redesign removed the manual-add UI; every player doc today is created by `joinRoom` and carries a `uid` (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md). |
+
+**One `uid` is not guaranteed to own only one player doc in a room.**
+`joinRoom` checks that the _name_ is free, not that the joining `uid` is
+new to the room, so the same person joining twice under two names ends up
+with two player docs sharing a `uid` (docs/improvements.md item 66).
+`submitKillPhoto`/`submitChatMessage` reject such a caller outright rather
+than guessing which doc is "them"; `Homepage.js`'s session recovery, whose
+collection-group query legitimately spans rooms, prefers a candidate whose
+room is still `isGameActive`.
 
 ### The target graph
 
@@ -205,28 +215,47 @@ not a permanently-visible panel.
 ## `rooms/{roomID}/photos/{autoId}`
 
 Kill-proof photos, written by a player claiming a kill against one of
-their assigned targets — `dbCalls.addPhotoForRoom`, called from
-`MessageComposer.js` after the photo is uploaded to Storage via
-`storageCalls.uploadKillPhoto`
-(docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md).
-`firestore.rules` scopes a player's create to `status: 'pending'`,
-`originalPlayerData: null`, and a `url` that matches this room's own
-Firebase Storage download-URL shape — a player can submit a claim but
-cannot self-approve it, forge the pre-kill snapshot the Undo flow relies
-on, or point the claim at an image somewhere else. The `url` check is
-anchored at both ends: the whole string must begin with an allowed Storage
-origin (`https://firebasestorage.googleapis.com` in production, or
+their assigned targets — the `submitKillPhoto` Cloud Function
+(`functions/callableFunctions/submitKillPhoto.js`), called from
+`MessageComposer.js` through the thin `httpsCallable` wrapper
+`src/components/submitKillPhoto.js` after the photo is uploaded to Storage
+via `storageCalls.uploadKillPhoto`
+(docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md,
+docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+The client no longer writes here at all: `dbCalls.addPhotoForRoom` and
+`firestore.rules`' player-facing `photos` `allow create` clause are both
+deleted, and the function runs under the Admin SDK, which bypasses rules
+entirely — so the function _is_ the enforcement now.
+
+What it enforces, all server-side: the caller must be a player of this
+room (matched by their own `uid`, not by any name they send), the game
+must still be active, `status`/`originalPlayerData` are hardcoded rather
+than accepted from the client, and the `url` must be a legitimate download
+URL for this room's own Storage path. The `url` check moved out of
+`firestore.rules` and into `src/game/killPhotoUrl.js`'s
+`isValidKillPhotoUrl` (vendored into `functions/vendor/game/` by
+`functions/scripts/sync-shared-game-logic.js`), unchanged in substance: the
+whole string must begin with an allowed Storage origin
+(`https://firebasestorage.googleapis.com` in production, or
 `http://localhost:9199` — what `getDownloadURL` actually returns against
 the Storage emulator) and then carry
 `/v0/b/{bucket}/o/rooms%2F{roomID}%2Fphotos%2F`, this room's own
 percent-encoded object path. The bucket segment stays a wildcard because
 production and the emulator use different buckets
-(docs/improvements.md item 60).
+(docs/improvements.md item 60). Submissions are also rate-limited per
+player — see `rateLimits` in the `players` table above. A caller whose
+`uid` matches more than one player doc in the room is rejected outright
+rather than attributed to whichever doc sorts first (docs/improvements.md
+item 66).
+
+The host's own writes to this collection (approve/deny/undo, via
+`dbCalls`) are unaffected by any of the above — they still go through the
+client SDK under `firestore.rules`' `allow write: if isHostOfExistingRoom`.
 
 | Field                | Type                                                                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`                | `string`                                                                         | Download URL from `storageCalls.uploadKillPhoto`. Rendered directly into an `<Image src>`, which is why `firestore.rules` requires a player-submitted value to match an allowed Storage origin _and_ this room's own `rooms/{roomID}/photos/` object path (see above) rather than any host the client cares to name.                                                                                                                                                                |
-| `assassin`           | `string`                                                                         | Claiming player's name.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `url`                | `string`                                                                         | Download URL from `storageCalls.uploadKillPhoto`. Rendered directly into an `<Image src>`, which is why `submitKillPhoto` requires a player-submitted value to match an allowed Storage origin _and_ this room's own `rooms/{roomID}/photos/` object path (see above) rather than any host the client cares to name.                                                                                                                                                                |
+| `assassin`           | `string`                                                                         | The claiming player's name, derived server-side by `submitKillPhoto` from the caller's own `uid` (the `name` on their player doc). Never client-supplied — the callable takes no assassin argument at all.                                                                                                                                                                                                                                                                          |
 | `target`             | `string`                                                                         | Claimed victim's name.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `timestamp`          | `Timestamp`                                                                      | `serverTimestamp()`. The queue orders ascending by this field, so the GM judges oldest-first.                                                                                                                                                                                                                                                                                                                                                                                       |
 | `status`             | `'pending' \| 'approved' \| 'denied'`                                            | See below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -268,17 +297,38 @@ explicit `/broadcast` command.
 `'chat'` is the exception to "read by a mobile app, not this codebase" above,
 on both ends
 (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md):
-`MessageComposer.js` writes it directly from a player's browser session via
-`dbCalls.addChatMessageForRoom`, and `GMChatPanel.js` reads it back for the
-GM console, filtering client-side to `type: 'chat'` the same way
-`MessageFeed.js` filters to whisper/broadcast/leaderboard/mission.
-`firestore.rules` now grants players (not just the host) write access to
-this collection, but only for that path — scoped to `'chat'`-type,
-`recipient: null` documents; every other write to `playerMessages` is still
-host-only. The same change bounded `fetchPlayerMessagesQueryForRoom` to the
-newest 50 messages (`limitToLast(50)`), so a long-running game's chat
-traffic doesn't grow the read on every feed/panel subscription without
-bound.
+`MessageComposer.js` sends it from a player's browser session, and
+`GMChatPanel.js` reads it back for the GM console, filtering client-side to
+`type: 'chat'` the same way `MessageFeed.js` filters to
+whisper/broadcast/leaderboard/mission. That same change bounded
+`fetchPlayerMessagesQueryForRoom` to the newest 50 messages
+(`limitToLast(50)`), so a long-running game's chat traffic doesn't grow the
+read on every feed/panel subscription without bound.
+
+`'chat'` messages are written by the `submitChatMessage` Cloud Function
+(`functions/callableFunctions/submitChatMessage.js`), which
+`MessageComposer.js` calls through the thin `httpsCallable` wrapper
+`src/components/submitChatMessage.js`
+(docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+The client no longer writes here: `dbCalls.addChatMessageForRoom` and
+`firestore.rules`' player-facing `'chat'`-scoped `allow create` grant are
+both deleted, and the function runs under the Admin SDK, which bypasses
+rules entirely. It enforces that the caller is a player of this room
+(matched by their own `uid`), that the game is still active, that `text`
+is a string of 500 characters or fewer (the same cap
+`MessageComposer.js`'s `maxLength={500}` applies in the UI —
+docs/improvements.md item 57), and a per-player rate limit (see
+`rateLimits` in the `players` table above). It sets `type`, `recipient`,
+`standings`, `mission`, and `sender` itself; only `text` comes from the
+client. A caller whose `uid` matches more than one player doc in the room
+is rejected outright rather than attributed to whichever doc sorts first
+(docs/improvements.md item 66).
+
+**GM-originated messages are entirely unaffected by that.**
+`'broadcast'`/`'whisper'`/`'leaderboard'`/`'mission'` writes still go
+through `dbCalls.addPlayerMessageForRoom` from the GM console, authorized
+by `firestore.rules`' host-only `allow write: if isHostOfExistingRoom` —
+that path was never moved server-side and never wrote `type: 'chat'`.
 
 | Field       | Type                                                                 | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ----------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -287,7 +337,7 @@ bound.
 | `text`      | `string \| null`                                                     | Free-text body. Populated for `'whisper'`/`'broadcast'`/`'chat'`; `null` for `'leaderboard'`/`'mission'`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `standings` | `Array<{name, score, isAlive}> \| null`                              | Populated only for `'leaderboard'` — structured, not pre-rendered text, so a real client can render its own UI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `mission`   | `{title, description, taskType, pointValue, maxCompletions} \| null` | Populated only for `type: 'mission'` — a new mission's full detail card, sent when the GM creates one. Absent (or `null`) for every other `type`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `sender`    | `string \| null`                                                     | The display name of the player who sent a `'chat'` message. `null`/absent for every other `type`. Client-provided, not verified against the writer's real identity in `firestore.rules` — matches this app's existing trust level for player-provided names.                                                                                                                                                                                                                                                                                                                                                                                         |
+| `sender`    | `string \| null`                                                     | The display name of the player who sent a `'chat'` message. `null`/absent for every other `type`. Derived server-side by `submitChatMessage` from the caller's own `uid` (the `name` on their player doc), never client-supplied — the callable takes no sender argument at all.                                                                                                                                                                                                                                                                                                                                                                     |
 | `timestamp` | `Timestamp`                                                          | `serverTimestamp()`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ---

@@ -1836,7 +1836,7 @@ never silently bounced between two of them. 2 new tests, both emulator
 integration; an existing DashBoard component test was updated to assert
 the new `createdAt` field.
 
-### 57. No length caps on the chat message or join-name inputs ⚠️ Partially addressed
+### 57. No length caps on the chat message or join-name inputs ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -1850,11 +1850,26 @@ Storage/write-abuse concerns tracked separately.
 500 characters respectively), stopping accidental abuse from the normal
 UI. 2 new tests.
 
-**Not addressed:** server-side/`firestore.rules` enforcement — a modified
-client can still bypass a client-side `maxLength` entirely. Deliberately
-deferred to a later batch addressing kill-photo/chat identity binding and
-rate limiting together, where "can a client lie to the server" concerns
-belong.
+**Resolution, server-side half:** landed with the identity-verified
+player-writes feature — the batch this item deferred to
+(docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+Chat messages no longer reach Firestore through the client SDK at all;
+they go through the `submitChatMessage` Cloud Function, which rejects a
+`text` that is not a string, or is longer than 500 characters, with
+`invalid-argument` before any write happens. 500 is the same cap
+`MessageComposer.js`'s `maxLength={500}` applies in the UI, now enforced
+where a modified client cannot bypass it — the gap this item flagged.
+The non-string half matters on its own: `MessageBubble.js` renders
+`{message.text}` directly, so an array or object written there would throw
+while rendering and break the message feed for every player and the GM
+panel, not just the offending message. 3 new integration tests (over-500
+rejected, exactly-500 accepted, non-string rejected).
+
+The join-name input's server-side half is not covered here: `joinRoom`
+still accepts a name of any length. Lower risk — a player doc's name is
+written once by its own owner, is not a broadcast surface, and the join
+form's own `maxLength={40}` covers the accidental case — but it is the
+remaining piece if this is ever revisited.
 
 ### 58. `docs/game-flows.md` had rotted significantly out of sync with the code ✅ Resolved
 
@@ -1917,7 +1932,7 @@ the segment hidden in a query string, and a plain-`http` LAN address were
 all still accepted. Verified empirically against the Firestore emulator,
 not by reading the regex.
 
-**Resolution:** `allow create` now anchors both ends of the `url`. The
+**Resolution:** the check anchors both ends of the `url`. The
 whole string must start with an allowed Storage origin — production
 `https://firebasestorage.googleapis.com`, or `http://localhost:9199`,
 confirmed by probing what `getDownloadURL` actually returns against this
@@ -1931,12 +1946,25 @@ pinning the wrong one would silently deny every real upload. That leaves
 a real, easily-reachable residual — anyone can create a free Firebase
 project and host a spoofed object at an identically-shaped path on the
 real Storage host, no special access needed beyond the roomId an attacker
-reaching this check already has — which belongs with the parked
-kill-photo identity-binding work (who submitted this photo) rather than
-with origin validation. 6 new
-rules tests: an emulator-shaped legitimate URL, the four bypass URLs
-above, and a lookalike host that differs from the real one only in a dot
-position (proving the host's dots are regex-escaped).
+reaching this check already has — which is a different question from
+origin validation. The kill-photo identity-binding work has since shipped
+(docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md),
+and it does **not** close this residual: identity binding fixed _who_ may
+submit a claim, not _what_ a claimed URL may point at. A legitimate player
+of the room can still submit a spoofed object hosted in their own Firebase
+project. The residual stands unchanged.
+
+Originally landed as 6 new rules tests on the player-facing `photos`
+`allow create` clause: an emulator-shaped legitimate URL, the four bypass
+URLs above, and a lookalike host that differs from the real one only in a
+dot position (proving the host's dots are regex-escaped). That clause no
+longer exists — the identity-binding feature moved kill-photo submission
+into the `submitKillPhoto` Cloud Function, which the Admin SDK exempts
+from rules entirely — so the check itself moved to `src/game/killPhotoUrl.js`'s
+`isValidKillPhotoUrl`, which the function calls. **The six cases were
+migrated, not lost:** they live in `src/game/killPhotoUrl.test.js` now, as
+pure unit tests of the same URLs, and `submitKillPhoto.integration.test.js`
+covers the function actually rejecting a bad URL end to end.
 `docs/data-model.md`'s `photos` section carries the same correction.
 
 Not covered here: `npm run test:rules` is still not wired into CI, so
@@ -2038,6 +2066,43 @@ function itself.
 regression that broke fresh-attempt behavior, just not one that broke
 `resetApplyProgress()` in a way that happened not to affect that specific
 scenario. Worth a direct unit test next time this file is touched.
+
+### 66. `joinRoom` does not prevent one uid from owning multiple player docs in the same room
+
+**Impact: low · Effort: S**
+
+Found during the final whole-branch review of the identity-verified
+player-writes feature
+(docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+`joinRoom.js`'s transaction checks that the requested _name_ is not
+already taken in the room; it does not check whether the joining
+`context.auth.uid` already owns a player doc there. So a player who
+revisits `/join` — a cleared localStorage session, a shared link tapped
+again, plain curiosity — and joins under a second name ends up with two
+player docs in one room sharing one `uid`. That breaks an invariant
+several things quietly assume, since a uid-scoped player lookup then
+returns two documents with no principled way to pick between them.
+
+**Partially mitigated, not fixed:** `submitKillPhoto` and
+`submitChatMessage` now reject such a caller with a `failed-precondition`
+("Multiple player identities are linked to your account in this room —
+ask your GM for help") instead of silently taking `docs[0]`. Verified
+empirically first: with two such docs seeded, both functions previously
+resolved successfully, attributing every photo and message to whichever
+name sorted first, and permanently locking the second identity out of
+submitting as itself. Failing loudly is the right default while the root
+cause stands — the consequence is now visible to the player and fixable
+by the GM (delete the stray player doc) rather than a silent
+misattribution nobody would notice. `Homepage.js`'s session recovery
+handles its own, different multi-doc case (one uid legitimately across
+several _rooms_) by preferring a still-active room.
+
+**Not addressed:** the root cause. A `uid`-uniqueness check belongs in
+`joinRoom.js`'s transaction, but the useful behavior is probably not
+"reject" — it is "return the existing player doc and let them back into
+their original identity," which touches the join flow's UI and its
+session handling, not just the callable. That is a separate change, out
+of scope for a fix wave.
 
 ---
 

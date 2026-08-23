@@ -234,15 +234,18 @@ Gaps that remain, per [improvements.md](./improvements.md):
   field on their own room's documents, including `score` directly — the rules
   stop other people from editing a room, not a host from writing anything to
   their own (item 4, item 10 in [testing.md](./testing.md#layer-2--security-rules-)).
-- `photos` (Firestore) is scoped by the narrow `allow create` grant to
-  `status: 'pending'`, `originalPlayerData: null` docs from any player of
-  the room, not to a distinct per-photo-uploader identity — any player of
-  a room can claim any name as the `assassin` field on a new photo doc,
-  not just their own.
+- `photos` and `playerMessages` (Firestore) are host-only for writes in
+  `firestore.rules`. Their former player-facing `allow create` grants —
+  which let any player of a room claim any name as a photo's `assassin`
+  or a chat message's `sender`, since rules had no per-uploader identity
+  to check against — were deleted with the identity-verified
+  player-writes feature. Player submissions now go through
+  `submitKillPhoto`/`submitChatMessage` (see Cloud Functions below), which
+  derive the writer's identity from their own `uid` under the Admin SDK.
 
 ## Cloud Functions
 
-`functions/` contains four callables and one scheduled function:
+`functions/` contains six callables and one scheduled function:
 
 - `targetFunction` — a stub that checks `context.auth` and echoes its input
   back. Nothing in the game depends on it; its only caller, a debug button
@@ -281,6 +284,34 @@ Gaps that remain, per [improvements.md](./improvements.md):
   `src/components/joinRoom.js` is its thin `httpsCallable` wrapper, same
   shape as `executeKill.js`. Unlike `killPlayer`, there is no host-only
   check — any signed-in caller (Google or anonymous/guest) may call it.
+- `submitKillPhoto` (`functions/callableFunctions/submitKillPhoto.js`) —
+  writes a kill-photo claim on the caller's own behalf, deriving the
+  `assassin` field from `context.auth.uid` rather than trusting a
+  client-supplied name (the 2026-08-22 identity-verified-player-writes
+  feature,
+  `docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md`).
+  Replaces `dbCalls.addPhotoForRoom` and the player-facing `photos`
+  `allow create` grant in `firestore.rules`, both deleted — since the
+  Admin SDK bypasses rules, this function is now the sole enforcement of
+  everything that clause used to check, including the url-origin
+  validation, which moved to `src/game/killPhotoUrl.js`'s
+  `isValidKillPhotoUrl` (`improvements.md` item 60). It also hardcodes
+  `status`/`originalPlayerData`, requires the room to still be active, and
+  applies a rolling per-player rate limit (10 per 60s) recorded in the
+  player doc's `rateLimits` field. `src/components/submitKillPhoto.js` is
+  its thin `httpsCallable` wrapper, called from `MessageComposer.js` after
+  the Storage upload.
+- `submitChatMessage` (`functions/callableFunctions/submitChatMessage.js`)
+  — the same treatment for player group chat: derives `sender` from
+  `context.auth.uid`, replacing `dbCalls.addChatMessageForRoom` and the
+  player-facing `playerMessages` `allow create` grant, both deleted. Also
+  validates `text` is a string of at most 500 characters
+  (`improvements.md` item 57), requires the room to still be active, and
+  rate-limits to 20 messages per 60s. `src/components/submitChatMessage.js`
+  is its thin `httpsCallable` wrapper, called from `MessageComposer.js`.
+  GM-originated `playerMessages` writes (broadcast, whisper, leaderboard,
+  mission) are untouched — they still go through
+  `dbCalls.addPlayerMessageForRoom` under the host-only rule.
 - `cleanupEndedRooms` (`functions/scheduledFunctions/cleanupEndedRooms.js`)
   — runs once every 24 hours, deleting any room (and everything under it)
   whose `endedAt` is older than a retention window. The window is a
@@ -359,6 +390,19 @@ flow broken (the callable doesn't exist, or a joined player still can't read
 their own room). As of this writing, Hosting has been deployed several
 times but Functions never has, so this ordering is not yet a solved
 problem, only a documented one.
+
+The identity-verified player-writes feature adds a second, sharper
+instance of the same hazard, and this one has a wrong order rather than
+just a coupled one. `firestore.rules` no longer carries an `allow create`
+grant for `photos` or `playerMessages`, because those writes moved into
+`submitKillPhoto`/`submitChatMessage`. Deploying `firestore.rules` before
+`functions` therefore opens a window in which no player can submit a kill
+photo or send a chat message at all — the rule that used to permit the
+client write is gone, and the callable that replaces it does not exist
+yet. Deploy `functions` first, or both together; the reverse order is
+never right here. `hosting` has the same dependency for the same reason —
+the new bundle calls callables that must already exist — so `functions`
+goes first in both pairings.
 
 ## Build and test tooling
 
