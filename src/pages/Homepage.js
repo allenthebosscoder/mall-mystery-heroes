@@ -2,10 +2,42 @@ import React, { useEffect } from 'react';
 import { Button, Stack, Image, Flex, Heading } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collectionGroup, getDocs, query, where } from 'firebase/firestore';
+import { collectionGroup, getDoc, getDocs, query, where } from 'firebase/firestore';
 import logo from '../assets/mall-logo-white-2.png';
 import { readPlayerSession, writePlayerSession } from '../utils/playerSession';
 import { auth, db } from '../utils/firebase';
+
+/**
+ * Picks which of several player docs a returning uid should be recovered
+ * into. The recovery query is a collection-group query across every room,
+ * so one uid legitimately matches more than one doc as soon as that person
+ * has played more than one game — and the order Firestore returns them in
+ * has nothing to do with which game is the current one, so taking the
+ * first match could drop a player back into a room that ended weeks ago
+ * (final review, identity-verified-player-writes). Reads each candidate's
+ * parent room and prefers the first one still marked `isGameActive`.
+ *
+ * Falls back to the first candidate when nothing is active (the player's
+ * last game is over either way, and the ended-room view is still the
+ * closest thing to the right destination) and when a room read fails, so a
+ * denied or missing room doc degrades to today's behavior rather than
+ * blocking recovery entirely. Skips the reads altogether in the common
+ * single-candidate case — one player doc means there is nothing to choose
+ * between.
+ */
+const preferredRecoveryCandidate = async (playerDocs) => {
+    if (playerDocs.length === 1) return playerDocs[0];
+
+    for (const playerDoc of playerDocs) {
+        try {
+            const roomSnapshot = await getDoc(playerDoc.ref.parent.parent);
+            if (roomSnapshot.exists() && roomSnapshot.data().isGameActive) return playerDoc;
+        } catch (error) {
+            console.error('Error checking a recovery candidate room:', error);
+        }
+    }
+    return playerDocs[0];
+};
 
 const Homepage = () => {
     const navigate = useNavigate();
@@ -56,7 +88,7 @@ const Homepage = () => {
                     );
                     const snapshot = await getDocs(playersQuery);
                     if (!snapshot.empty) {
-                        const playerDoc = snapshot.docs[0];
+                        const playerDoc = await preferredRecoveryCandidate(snapshot.docs);
                         const roomID = playerDoc.ref.parent.parent.id;
                         writePlayerSession(roomID, playerDoc.data().name);
                         navigate(`/rooms/${roomID}/waiting`, { replace: true });

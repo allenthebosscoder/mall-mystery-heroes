@@ -85,6 +85,19 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         if (assassinSnapshot.empty) {
             throw new functions.https.HttpsError('not-found', 'You are not a player of this room.');
         }
+        // Nothing enforces one player doc per uid per room: joinRoom.js
+        // checks only that the *name* is not taken, so the same uid
+        // revisiting /join under a second name owns two player docs here
+        // (docs/improvements.md item 66). Taking docs[0] would silently
+        // attribute the claim to whichever name sorts first, and would
+        // permanently lock the other identity out of submitting as itself.
+        // Fail loudly instead — the GM can delete the stray player doc.
+        if (assassinSnapshot.size > 1) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'Multiple player identities are linked to your account in this room — ask your GM for help.'
+            );
+        }
         const assassinDoc = assassinSnapshot.docs[0];
         const assassinData = assassinDoc.data();
 

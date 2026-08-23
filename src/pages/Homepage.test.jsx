@@ -21,7 +21,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getDocs } from 'firebase/firestore';
+import { getDoc, getDocs } from 'firebase/firestore';
 import Homepage from './Homepage';
 import { readPlayerSession, writePlayerSession } from '../utils/playerSession';
 
@@ -32,6 +32,7 @@ jest.mock('firebase/firestore', () => ({
     collectionGroup: jest.fn(),
     query: jest.fn(),
     where: jest.fn(),
+    getDoc: jest.fn(),
     getDocs: jest.fn(),
 }));
 jest.mock('../utils/firebase', () => ({ auth: {}, db: {} }));
@@ -52,6 +53,8 @@ const renderHomepage = () =>
 
 beforeEach(() => {
     localStorage.clear();
+    getDoc.mockReset();
+    getDocs.mockReset();
     onAuthStateChanged.mockReset();
     onAuthStateChanged.mockImplementation((auth, callback) => {
         callback(null);
@@ -129,6 +132,84 @@ describe('Homepage', () => {
 
         expect(await screen.findByText('Waiting page')).toBeInTheDocument();
         expect(readPlayerSession()).toEqual({ roomID: 'Fluffy42317', playerName: 'Alice' });
+    });
+
+    it('recovers into the still-active room when the uid matches player docs in several rooms', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'recovered-uid' });
+            return () => {};
+        });
+        getDocs.mockResolvedValue({
+            empty: false,
+            docs: [
+                {
+                    data: () => ({ name: 'Alice', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'EndedRoom1' } } },
+                },
+                {
+                    data: () => ({ name: 'Alicia', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'ActiveRoom2' } } },
+                },
+            ],
+        });
+        // Keyed on the *room* ref Homepage passes to getDoc
+        // (playerDoc.ref.parent.parent), not the player doc's own ref.
+        getDoc.mockImplementation(async (roomRef) => ({
+            exists: () => true,
+            data: () => ({ isGameActive: roomRef.id === 'ActiveRoom2' }),
+        }));
+
+        renderHomepage();
+
+        expect(await screen.findByText('Waiting page')).toBeInTheDocument();
+        expect(readPlayerSession()).toEqual({ roomID: 'ActiveRoom2', playerName: 'Alicia' });
+    });
+
+    it('falls back to the first candidate when none of the matching rooms is still active', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'recovered-uid' });
+            return () => {};
+        });
+        getDocs.mockResolvedValue({
+            empty: false,
+            docs: [
+                {
+                    data: () => ({ name: 'Alice', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'EndedRoom1' } } },
+                },
+                {
+                    data: () => ({ name: 'Alicia', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'EndedRoom2' } } },
+                },
+            ],
+        });
+        getDoc.mockResolvedValue({ exists: () => true, data: () => ({ isGameActive: false }) });
+
+        renderHomepage();
+
+        expect(await screen.findByText('Waiting page')).toBeInTheDocument();
+        expect(readPlayerSession()).toEqual({ roomID: 'EndedRoom1', playerName: 'Alice' });
+    });
+
+    it('recovers without reading any room doc when only one candidate comes back', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'recovered-uid' });
+            return () => {};
+        });
+        getDocs.mockResolvedValue({
+            empty: false,
+            docs: [
+                {
+                    data: () => ({ name: 'Alice', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'Fluffy42317' } } },
+                },
+            ],
+        });
+
+        renderHomepage();
+
+        expect(await screen.findByText('Waiting page')).toBeInTheDocument();
+        expect(getDoc).not.toHaveBeenCalled();
     });
 
     it('shows the Host/Join buttons when no session is stored and no matching player doc is found', async () => {

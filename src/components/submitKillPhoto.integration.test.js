@@ -83,6 +83,32 @@ describe('submitKillPhoto', () => {
         );
     });
 
+    it('rejects a caller whose uid is linked to more than one player doc in the room', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            // Reachable today: joinRoom only enforces *name* uniqueness, so
+            // the same uid revisiting /join under a second name owns two
+            // player docs in one room (docs/improvements.md item 66). Both
+            // functions used to take docs[0] silently, attributing every
+            // claim to whichever name sorted first.
+            await seedRoom(ROOM, [
+                { name: 'alice', uid: alice.uid },
+                { name: 'alice2', uid: alice.uid },
+                { name: 'bob' },
+            ]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await expect(call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })).rejects.toThrow(
+                'Multiple player identities are linked to your account in this room'
+            );
+
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
     it('rejects once the game has ended', async () => {
         const alice = await createIndependentIdentity();
         try {

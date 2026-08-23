@@ -61,6 +61,74 @@ describe('submitChatMessage', () => {
         );
     });
 
+    it('rejects a caller whose uid is linked to more than one player doc in the room', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            // Reachable today: joinRoom only enforces *name* uniqueness, so
+            // the same uid revisiting /join under a second name owns two
+            // player docs in one room (docs/improvements.md item 66). Both
+            // functions used to take docs[0] silently, attributing every
+            // message to whichever name sorted first.
+            await seedRoom(ROOM, [
+                { name: 'alice', uid: alice.uid },
+                { name: 'alice2', uid: alice.uid },
+            ]);
+            const call = httpsCallable(alice.functions, 'submitChatMessage');
+
+            await expect(call({ roomId: ROOM, text: 'who am i' })).rejects.toThrow(
+                'Multiple player identities are linked to your account in this room'
+            );
+
+            const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a text longer than 500 characters', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }]);
+            const call = httpsCallable(alice.functions, 'submitChatMessage');
+
+            await expect(call({ roomId: ROOM, text: 'x'.repeat(501) })).rejects.toThrow(
+                'text must be a string of 500 characters or fewer.'
+            );
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('accepts a text of exactly 500 characters', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }]);
+            const call = httpsCallable(alice.functions, 'submitChatMessage');
+
+            await expect(call({ roomId: ROOM, text: 'x'.repeat(500) })).resolves.toBeDefined();
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a non-string text', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }]);
+            const call = httpsCallable(alice.functions, 'submitChatMessage');
+
+            await expect(call({ roomId: ROOM, text: ['not', 'a', 'string'] })).rejects.toThrow(
+                'text must be a string of 500 characters or fewer.'
+            );
+            await expect(call({ roomId: ROOM, text: { body: 'nope' } })).rejects.toThrow(
+                'text must be a string of 500 characters or fewer.'
+            );
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
     it('rejects once the game has ended', async () => {
         const alice = await createIndependentIdentity();
         try {

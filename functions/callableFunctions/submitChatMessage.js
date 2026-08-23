@@ -57,6 +57,19 @@ exports.submitChatMessage = functions.https.onCall(async (data, context) => {
             'roomId and text are both required.'
         );
     }
+    // MessageComposer.js's maxLength={500} is a UI affordance, not
+    // enforcement — a scripted client can post any `text` it likes
+    // (docs/improvements.md item 57). A non-string would also break every
+    // reader: MessageBubble.js renders `{message.text}` directly, so an
+    // array or object here throws while rendering and takes down the whole
+    // message feed and the GM panel, not just the offending message. Same
+    // 500 the composer caps at, now enforced where it cannot be bypassed.
+    if (typeof text !== 'string' || text.length > 500) {
+        throw new functions.https.HttpsError(
+            'invalid-argument',
+            'text must be a string of 500 characters or fewer.'
+        );
+    }
 
     return db.runTransaction(async (transaction) => {
         const roomRef = db.collection('rooms').doc(roomId);
@@ -74,6 +87,19 @@ exports.submitChatMessage = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError(
                 'not-found',
                 'You are not a player of this room.'
+            );
+        }
+        // Nothing enforces one player doc per uid per room: joinRoom.js
+        // checks only that the *name* is not taken, so the same uid
+        // revisiting /join under a second name owns two player docs here
+        // (docs/improvements.md item 66). Taking docs[0] would silently
+        // send every message under whichever name sorts first, and would
+        // permanently lock the other identity out of chatting as itself.
+        // Fail loudly instead — the GM can delete the stray player doc.
+        if (senderSnapshot.size > 1) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'Multiple player identities are linked to your account in this room — ask your GM for help.'
             );
         }
         const senderDoc = senderSnapshot.docs[0];
