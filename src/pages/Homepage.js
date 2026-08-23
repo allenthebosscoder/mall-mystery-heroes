@@ -2,9 +2,10 @@ import React, { useEffect } from 'react';
 import { Button, Stack, Image, Flex, Heading } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
+import { collectionGroup, getDocs, query, where } from 'firebase/firestore';
 import logo from '../assets/mall-logo-white-2.png';
-import { readPlayerSession } from '../utils/playerSession';
-import { auth } from '../utils/firebase';
+import { readPlayerSession, writePlayerSession } from '../utils/playerSession';
+import { auth, db } from '../utils/firebase';
 
 const Homepage = () => {
     const navigate = useNavigate();
@@ -27,10 +28,42 @@ const Homepage = () => {
     // page has a legitimate "nothing to show yet" state that IS the
     // buttons, so no loading spinner is needed here.
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             const session = readPlayerSession();
             if (session && user) {
                 navigate(`/rooms/${session.roomID}/waiting`, { replace: true });
+                return;
+            }
+            if (!session && user) {
+                // localStorage's room/name pair is gone (cleared, or never
+                // written) but the Firebase Auth session survived — find
+                // the room this uid already joined, if any, via a
+                // collection-group query scoped to the caller's own uid
+                // (firestore.rules' new players list rule), rather than
+                // treating a returning player as brand new. Restoring the
+                // session (not just navigating) matters: PlayerGame.js
+                // reads the player's *name* from readPlayerSession(), so a
+                // bare redirect would land on the right room with an
+                // empty playerName
+                // (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+                // Best-effort: any failure here just falls through to the
+                // normal Host/Join buttons, same as "no match" — never an
+                // error shown to what might just be a first-time visitor.
+                try {
+                    const playersQuery = query(
+                        collectionGroup(db, 'players'),
+                        where('uid', '==', user.uid)
+                    );
+                    const snapshot = await getDocs(playersQuery);
+                    if (!snapshot.empty) {
+                        const playerDoc = snapshot.docs[0];
+                        const roomID = playerDoc.ref.parent.parent.id;
+                        writePlayerSession(roomID, playerDoc.data().name);
+                        navigate(`/rooms/${roomID}/waiting`, { replace: true });
+                    }
+                } catch (error) {
+                    console.error('Error recovering player session:', error);
+                }
             }
         });
         return unsubscribe;

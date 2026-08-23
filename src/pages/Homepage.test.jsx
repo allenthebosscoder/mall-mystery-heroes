@@ -21,13 +21,20 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
+import { getDocs } from 'firebase/firestore';
 import Homepage from './Homepage';
-import { writePlayerSession } from '../utils/playerSession';
+import { readPlayerSession, writePlayerSession } from '../utils/playerSession';
 
 jest.mock('firebase/auth', () => ({
     onAuthStateChanged: jest.fn(),
 }));
-jest.mock('../utils/firebase', () => ({ auth: {} }));
+jest.mock('firebase/firestore', () => ({
+    collectionGroup: jest.fn(),
+    query: jest.fn(),
+    where: jest.fn(),
+    getDocs: jest.fn(),
+}));
+jest.mock('../utils/firebase', () => ({ auth: {}, db: {} }));
 
 const renderHomepage = () =>
     render(
@@ -101,5 +108,51 @@ describe('Homepage', () => {
         expect(screen.getByRole('button', { name: 'Host Game' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Join Game' })).toBeInTheDocument();
         expect(screen.queryByText('Waiting page')).not.toBeInTheDocument();
+    });
+
+    it('recovers and redirects when no session is stored but a matching player doc is found by uid', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'recovered-uid' });
+            return () => {};
+        });
+        getDocs.mockResolvedValue({
+            empty: false,
+            docs: [
+                {
+                    data: () => ({ name: 'Alice', uid: 'recovered-uid' }),
+                    ref: { parent: { parent: { id: 'Fluffy42317' } } },
+                },
+            ],
+        });
+
+        renderHomepage();
+
+        expect(await screen.findByText('Waiting page')).toBeInTheDocument();
+        expect(readPlayerSession()).toEqual({ roomID: 'Fluffy42317', playerName: 'Alice' });
+    });
+
+    it('shows the Host/Join buttons when no session is stored and no matching player doc is found', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'stranger-uid' });
+            return () => {};
+        });
+        getDocs.mockResolvedValue({ empty: true, docs: [] });
+
+        renderHomepage();
+
+        expect(await screen.findByRole('button', { name: 'Host Game' })).toBeInTheDocument();
+        expect(screen.queryByText('Waiting page')).not.toBeInTheDocument();
+    });
+
+    it('shows the Host/Join buttons, not an error, when the recovery query itself fails', async () => {
+        onAuthStateChanged.mockImplementation((auth, callback) => {
+            callback({ uid: 'stranger-uid' });
+            return () => {};
+        });
+        getDocs.mockRejectedValue(new Error('network error'));
+
+        renderHomepage();
+
+        expect(await screen.findByRole('button', { name: 'Host Game' })).toBeInTheDocument();
     });
 });
