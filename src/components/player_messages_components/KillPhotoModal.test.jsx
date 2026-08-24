@@ -3,11 +3,13 @@
  *
  * KillPhotoModal is presentational: MessageComposer.js owns capturing,
  * compressing, and submitting the photo, and hands this modal whatever it
- * needs to render (previewUrl/error/isSubmitting) plus an onSubmit
- * callback
+ * needs to render (previewUrl/error) plus an onSubmit callback
  * (docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
  * No compressImage/uploadKillPhoto/submitKillPhoto mocking needed — this
- * component no longer imports any of them.
+ * component no longer imports any of them. There is no isSubmitting prop
+ * (or any other in-flight state) anymore — MessageComposer.js now closes
+ * this modal immediately on Submit rather than waiting on the upload/save,
+ * so there is no "submitting" state left for this modal to represent.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
@@ -27,7 +29,6 @@ const mountModal = (props = {}) =>
                 targets={['bob']}
                 previewUrl={null}
                 error={null}
-                isSubmitting={false}
                 onSubmit={onSubmit}
                 {...props}
             />
@@ -79,12 +80,6 @@ describe('KillPhotoModal', () => {
         mountModal({ previewUrl: null });
 
         expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
-    });
-
-    it('disables Submit while isSubmitting', () => {
-        mountModal({ previewUrl: 'blob:fake-preview', isSubmitting: true });
-
-        expect(screen.getByRole('button', { name: /Submit/ })).toBeDisabled();
     });
 
     it('enables Submit once there is a preview and a target', () => {

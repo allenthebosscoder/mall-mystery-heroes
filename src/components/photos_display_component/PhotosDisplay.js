@@ -20,6 +20,13 @@ import CreateAlert from '../CreateAlert';
 const PhotosDisplay = () => {
     const [unjudgedPhotos, setUnjudgedPhotos] = useState([]);
     const [judgedPhotos, setJudgedPhotos] = useState([]);
+    // Photo IDs the GM has clicked Approve/Deny on but Firestore hasn't
+    // confirmed yet — executeKill/updatePhotoStatusForRoom can take
+    // several real seconds against a cold Cloud Function, and this app
+    // never displays a "judged" history list to reconcile against (only
+    // the current unjudged photo), so suppressing these IDs from
+    // unjudgedPhotos is enough to make the queue advance instantly.
+    const [optimisticallyJudgedIds, setOptimisticallyJudgedIds] = useState([]);
     const { roomID } = useContext(gameContext);
     const {
         addLog,
@@ -46,6 +53,13 @@ const PhotosDisplay = () => {
                 const { unjudged, judged } = splitPhotosByStatus(allPhotos);
                 setUnjudgedPhotos(unjudged);
                 setJudgedPhotos(judged);
+                // Once Firestore's own data no longer lists a photo as
+                // pending, any optimistic suppression of it is redundant —
+                // drop it, so this list never grows past what's actually
+                // still in flight.
+                setOptimisticallyJudgedIds((previous) =>
+                    previous.filter((id) => unjudged.some((photo) => photo.id === id))
+                );
             },
             (error) => {
                 console.error('Error fetching photos: ', error);
@@ -54,6 +68,10 @@ const PhotosDisplay = () => {
 
         return () => unsubscribe();
     }, [roomID]);
+
+    const visibleUnjudgedPhotos = unjudgedPhotos.filter(
+        (photo) => !optimisticallyJudgedIds.includes(photo.id)
+    );
 
     // Approving a photo used to kill the target unconditionally — no check
     // that the assassin was actually hunting them, and no remap of the
@@ -65,8 +83,13 @@ const PhotosDisplay = () => {
     // player's pre-kill data that undoKillPlayer needs to fully reverse a
     // kill (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md).
     const handlePass = async () => {
-        if (unjudgedPhotos.length === 0) return;
-        const [currentPhoto] = unjudgedPhotos;
+        if (visibleUnjudgedPhotos.length === 0) return;
+        const [currentPhoto] = visibleUnjudgedPhotos;
+        // Suppress this photo from the queue immediately — executeKill can
+        // take several real seconds against a cold Cloud Function, and
+        // there's no reason to make the GM stare at the same photo while
+        // it runs. Rolled back in the catch block if it ultimately fails.
+        setOptimisticallyJudgedIds((previous) => [...previous, currentPhoto.id]);
 
         try {
             const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } = await executeKill(
@@ -93,13 +116,17 @@ const PhotosDisplay = () => {
             handleSetShowMessageToTrue();
         } catch (error) {
             console.error('Error approving photo: ', error);
+            setOptimisticallyJudgedIds((previous) =>
+                previous.filter((id) => id !== currentPhoto.id)
+            );
             createAlert('error', 'Error approving photo', error.message, 1500);
         }
     };
 
     const handleDeny = async () => {
-        if (unjudgedPhotos.length === 0) return;
-        const [currentPhoto] = unjudgedPhotos;
+        if (visibleUnjudgedPhotos.length === 0) return;
+        const [currentPhoto] = visibleUnjudgedPhotos;
+        setOptimisticallyJudgedIds((previous) => [...previous, currentPhoto.id]);
 
         try {
             await updatePhotoStatusForRoom(roomID, currentPhoto.id, 'denied');
@@ -109,6 +136,9 @@ const PhotosDisplay = () => {
             );
         } catch (error) {
             console.error('Error denying photo: ', error);
+            setOptimisticallyJudgedIds((previous) =>
+                previous.filter((id) => id !== currentPhoto.id)
+            );
             createAlert('error', 'Error denying photo', error.message, 1500);
         }
     };
@@ -156,10 +186,13 @@ const PhotosDisplay = () => {
         <>
             <Box sx={styles.photosContainer}>
                 <Heading size="lg" m="4px">
-                    Photos{unjudgedPhotos.length > 0 ? ` (${unjudgedPhotos.length} pending)` : ''}
+                    Photos
+                    {visibleUnjudgedPhotos.length > 0
+                        ? ` (${visibleUnjudgedPhotos.length} pending)`
+                        : ''}
                 </Heading>
                 <Box sx={styles.photosBox}>
-                    <GamePhotos photo={unjudgedPhotos[0]} />
+                    <GamePhotos photo={visibleUnjudgedPhotos[0]} />
                 </Box>
                 <Box sx={styles.buttonsBox}>
                     <Image src={deny} alt="Deny" sx={styles.buttonImage} onClick={handleDeny} />

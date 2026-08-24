@@ -4,6 +4,7 @@ import { submitChatMessage } from '../submitChatMessage';
 import { submitKillPhoto } from '../submitKillPhoto';
 import { compressImage } from '../../utils/compressImage';
 import { uploadKillPhoto } from '../firebase_calls/storageCalls';
+import CreateAlert from '../CreateAlert';
 import KillPhotoModal from './KillPhotoModal';
 
 // Sends player-authored group-chat messages and captures/submits a
@@ -27,8 +28,8 @@ const MessageComposer = ({
     const [compressedBlob, setCompressedBlob] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [photoError, setPhotoError] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef(null);
+    const createAlert = CreateAlert();
 
     // Revokes any outstanding preview URL if the composer unmounts before
     // the player submits or dismisses their capture — otherwise the
@@ -114,24 +115,34 @@ const MessageComposer = ({
         }
     };
 
+    // Closes the modal immediately, before uploadKillPhoto/submitKillPhoto
+    // have even started, rather than waiting on them the way this used to
+    // (they could take several real seconds, especially against a cold
+    // Cloud Function). This assumes success — a kill-photo claim almost
+    // always succeeds — and the actual upload/write keep running in the
+    // background regardless of whether the modal is still open. A failure
+    // surfaces via a toast instead of the modal's own inline error banner,
+    // since the modal (and that banner) are already gone by the time a
+    // failure could happen.
     const handlePhotoSubmit = async (effectiveTarget) => {
-        setIsSubmitting(true);
+        const blobToSubmit = compressedBlob;
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setCompressedBlob(null);
+        setPreviewUrl(null);
         setPhotoError(null);
+        setIsPhotoModalOpen(false);
         try {
-            const url = await uploadKillPhoto(roomID, compressedBlob);
+            const url = await uploadKillPhoto(roomID, blobToSubmit);
             await submitKillPhoto({ roomId: roomID, target: effectiveTarget, url });
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
-            setCompressedBlob(null);
-            setPreviewUrl(null);
-            setIsPhotoModalOpen(false);
         } catch (submitError) {
             console.error('Error submitting kill photo:', submitError);
-            setPhotoError(
+            createAlert(
+                'error',
+                'Error submitting kill photo',
                 submitError.message ||
-                    'Could not submit the photo. Check your connection and try again.'
+                    'Could not submit the photo. Check your connection and try again.',
+                1500
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -180,7 +191,6 @@ const MessageComposer = ({
                 targets={targets}
                 previewUrl={previewUrl}
                 error={photoError}
-                isSubmitting={isSubmitting}
                 onSubmit={handlePhotoSubmit}
             />
         </Flex>

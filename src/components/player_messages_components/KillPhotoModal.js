@@ -28,15 +28,7 @@ import {
 // whatever MessageComposer hands it and reports back which target the
 // user picked
 // (docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
-const KillPhotoModal = ({
-    isOpen,
-    onClose,
-    targets = [],
-    previewUrl,
-    error,
-    isSubmitting,
-    onSubmit,
-}) => {
+const KillPhotoModal = ({ isOpen, onClose, targets = [], previewUrl, error, onSubmit }) => {
     const [selectedTarget, setSelectedTarget] = useState(targets[0] ?? '');
     // Derived, not state: `targets` can arrive asynchronously after mount
     // (PlayerGame.js renders MessageComposer before playerData has loaded),
@@ -88,8 +80,7 @@ const KillPhotoModal = ({
                     <Button
                         colorScheme="teal"
                         onClick={() => onSubmit(effectiveTarget)}
-                        isDisabled={!previewUrl || isSubmitting || !effectiveTarget}
-                        isLoading={isSubmitting}
+                        isDisabled={!previewUrl || !effectiveTarget}
                     >
                         Submit
                     </Button>

@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { onSnapshot } from 'firebase/firestore';
 import PhotosDisplay from './PhotosDisplay';
@@ -44,9 +44,16 @@ const executionHandlers = {
     handleSetShowMessageToTrue: jest.fn(),
 };
 
-/** Simulates the given photo docs as what onSnapshot reports immediately on mount. */
+/**
+ * Simulates the given photo docs as what onSnapshot reports immediately on
+ * mount. Returns a function that delivers a later snapshot update (photo IDs
+ * are reassigned by array index each call, so keeping a photo at the same
+ * index across calls keeps its ID stable).
+ */
 const mountWithSnapshot = (photoDocs) => {
+    let deliverUpdate;
     onSnapshot.mockImplementation((query, onNext) => {
+        deliverUpdate = onNext;
         onNext({
             docs: photoDocs.map((data, i) => ({ id: `photo-${i}`, data: () => data })),
         });
@@ -62,6 +69,13 @@ const mountWithSnapshot = (photoDocs) => {
             </gameContext.Provider>
         </ChakraProvider>
     );
+
+    return (nextPhotoDocs) =>
+        act(async () => {
+            deliverUpdate({
+                docs: nextPhotoDocs.map((data, i) => ({ id: `photo-${i}`, data: () => data })),
+            });
+        });
 };
 
 beforeEach(() => {
@@ -225,5 +239,198 @@ describe('GM pending-photo count in heading', () => {
 
         expect(screen.getByText('Photos')).toBeInTheDocument();
         expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+    });
+});
+
+describe('optimistic queue advance while a judgment is in flight (making Approve/Deny feel instant)', () => {
+    it('advances to the next pending photo immediately when Approve is clicked, without waiting for executeKill', async () => {
+        let resolveKill;
+        executeKill.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveKill = resolve;
+                })
+        );
+        mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+            {
+                assassin: 'carol',
+                target: 'dave',
+                status: 'pending',
+                url: 'https://example.com/2.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        expect(screen.getByText('Photos (1 pending)')).toBeInTheDocument();
+        expect(screen.getByAltText('Unjudged photo')).toHaveAttribute(
+            'src',
+            'https://example.com/2.jpg'
+        );
+
+        resolveKill({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        await waitFor(() => expect(dbCalls.approvePhotoForRoom).toHaveBeenCalled());
+    });
+
+    it('advances to the next pending photo immediately when Deny is clicked, without waiting for the write', async () => {
+        let resolveDeny;
+        dbCalls.updatePhotoStatusForRoom.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveDeny = resolve;
+                })
+        );
+        mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+            {
+                assassin: 'carol',
+                target: 'dave',
+                status: 'pending',
+                url: 'https://example.com/2.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Deny'));
+
+        expect(screen.getByText('Photos (1 pending)')).toBeInTheDocument();
+        expect(screen.getByAltText('Unjudged photo')).toHaveAttribute(
+            'src',
+            'https://example.com/2.jpg'
+        );
+
+        resolveDeny();
+        await waitFor(() => expect(executionHandlers.addLog).toHaveBeenCalled());
+    });
+
+    it('shows "no photos" immediately when the only pending photo is approved, before executeKill resolves', async () => {
+        let resolveKill;
+        executeKill.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveKill = resolve;
+                })
+        );
+        mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        expect(screen.getByText('No photos have been uploaded!')).toBeInTheDocument();
+        expect(screen.getByText('Photos')).toBeInTheDocument();
+        expect(screen.queryByText(/pending/)).not.toBeInTheDocument();
+
+        resolveKill({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        await waitFor(() => expect(dbCalls.approvePhotoForRoom).toHaveBeenCalled());
+    });
+
+    it('puts the photo back in the queue if the approval ultimately fails', async () => {
+        executeKill.mockRejectedValue(new Error('alice is not a valid target for bob'));
+        mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        expect(await screen.findByText(/alice is not a valid target for bob/i)).toBeInTheDocument();
+        expect(await screen.findByText('Photos (1 pending)')).toBeInTheDocument();
+        expect(screen.getByAltText('Unjudged photo')).toHaveAttribute(
+            'src',
+            'https://example.com/1.jpg'
+        );
+    });
+
+    it('puts the photo back in the queue if the denial ultimately fails', async () => {
+        dbCalls.updatePhotoStatusForRoom.mockRejectedValue(new Error('network error'));
+        mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Deny'));
+
+        expect(await screen.findByText(/network error/i)).toBeInTheDocument();
+        expect(await screen.findByText('Photos (1 pending)')).toBeInTheDocument();
+    });
+
+    it('drops the optimistic suppression once Firestore confirms the photo is no longer pending', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        const deliverUpdate = mountWithSnapshot([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'pending',
+                url: 'https://example.com/1.jpg',
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+        await waitFor(() => expect(dbCalls.approvePhotoForRoom).toHaveBeenCalled());
+
+        // The real update: this photo is no longer pending, and a new one
+        // has arrived.
+        await deliverUpdate([
+            {
+                assassin: 'alice',
+                target: 'bob',
+                status: 'approved',
+                url: 'https://example.com/1.jpg',
+            },
+            {
+                assassin: 'eve',
+                target: 'frank',
+                status: 'pending',
+                url: 'https://example.com/3.jpg',
+            },
+        ]);
+
+        expect(screen.getByText('Photos (1 pending)')).toBeInTheDocument();
+        expect(screen.getByAltText('Unjudged photo')).toHaveAttribute(
+            'src',
+            'https://example.com/3.jpg'
+        );
     });
 });

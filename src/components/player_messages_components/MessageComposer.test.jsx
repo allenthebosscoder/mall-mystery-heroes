@@ -268,7 +268,14 @@ describe('MessageComposer', () => {
         expect(screen.queryByAltText('Kill photo preview')).not.toBeInTheDocument();
     });
 
-    it('calls compressImage, uploadKillPhoto, then submitKillPhoto in order, then closes the modal', async () => {
+    it('closes the modal immediately when Submit is clicked, before uploadKillPhoto or submitKillPhoto resolve', async () => {
+        let resolveUpload;
+        uploadKillPhoto.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveUpload = resolve;
+                })
+        );
         mountComposer();
 
         await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
@@ -277,18 +284,25 @@ describe('MessageComposer', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
+        // Gone already — uploadKillPhoto has not even resolved yet.
         await waitFor(() =>
             expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
         );
         expect(uploadKillPhoto).toHaveBeenCalledWith('room-a', fakeBlob);
-        expect(submitKillPhoto).toHaveBeenCalledWith({
-            roomId: 'room-a',
-            target: 'bob',
-            url: 'https://example.com/photo.jpg',
-        });
-        // The order genuinely matters: the photo must be uploaded (so
-        // `url` is valid) before the Firestore doc referencing that url
-        // is written.
+        expect(submitKillPhoto).not.toHaveBeenCalled();
+
+        resolveUpload('https://example.com/photo.jpg');
+
+        await waitFor(() =>
+            expect(submitKillPhoto).toHaveBeenCalledWith({
+                roomId: 'room-a',
+                target: 'bob',
+                url: 'https://example.com/photo.jpg',
+            })
+        );
+        // The order still genuinely matters: the photo must be uploaded (so
+        // `url` is valid) before the Firestore doc referencing that url is
+        // written — the modal closing early doesn't change that ordering.
         expect(compressImage.mock.invocationCallOrder[0]).toBeLessThan(
             uploadKillPhoto.mock.invocationCallOrder[0]
         );
@@ -297,7 +311,7 @@ describe('MessageComposer', () => {
         );
     });
 
-    it('keeps the modal open and shows an error when the upload fails, with Submit still clickable', async () => {
+    it('shows a toast with the failure reason when the upload fails, after the modal has already closed', async () => {
         uploadKillPhoto.mockRejectedValue(new Error('network error'));
         mountComposer();
 
@@ -306,15 +320,17 @@ describe('MessageComposer', () => {
         await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
+        await waitFor(() =>
+            expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument()
+        );
         // uploadKillPhoto's rejection also carries a real `.message`, so it
         // surfaces the same way a submitKillPhoto rejection would — the
         // generic fallback text only shows when the thrown error has no
         // `.message` at all.
         expect(await screen.findByText('network error')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
     });
 
-    it('shows the specific error message when submitKillPhoto rejects with one', async () => {
+    it('shows the specific error message in the toast when submitKillPhoto rejects with one', async () => {
         submitKillPhoto.mockRejectedValue(new Error('This game has ended.'));
         mountComposer();
 
