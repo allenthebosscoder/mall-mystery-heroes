@@ -17,7 +17,16 @@ import MessageBubble from './MessageBubble';
 // object reference — what lets MessageBubble's React.memo skip
 // re-rendering messages that haven't changed
 // (docs/superpowers/specs/2026-08-12-message-feed-render-perf-design.md).
-const MessageFeed = ({ roomID, playerName }) => {
+//
+// pendingMessages/onPendingMessageConfirmed are the sender's own
+// not-yet-confirmed sends (owned by PlayerGame.js, added by
+// MessageComposer.js) — appended to the rendered list immediately, since
+// this player's own writes now go through a Cloud Function
+// (submitChatMessage) instead of a direct client write, so there's no
+// local Firestore echo of their own send anymore. Confirmed (removed from
+// the pending list) the moment the real, server-written message for this
+// player shows up here.
+const MessageFeed = ({ roomID, playerName, pendingMessages = [], onPendingMessageConfirmed }) => {
     const [allMessages, setAllMessages] = useState([]);
     const feedBoxRef = useRef(null);
 
@@ -29,6 +38,22 @@ const MessageFeed = ({ roomID, playerName }) => {
             messagesQuery,
             (snapshot) => {
                 setAllMessages((previous) => applyMessageChanges(previous, snapshot.docChanges()));
+                // A pending message this player just sent (PlayerGame.js
+                // owns the list, MessageComposer.js adds to it) is
+                // "confirmed" the moment its real, server-written
+                // counterpart shows up here — consumed oldest-first, one
+                // real arrival per pending entry, so the optimistic bubble
+                // hands off to the real one with no gap or duplicate.
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type !== 'added') return;
+                    const data = change.doc.data();
+                    if (
+                        data.type === 'chat' &&
+                        normalizePlayerName(data.sender) === normalizePlayerName(playerName)
+                    ) {
+                        onPendingMessageConfirmed?.();
+                    }
+                });
             },
             (error) => {
                 // Losing the chat feed doesn't mean this player's session is
@@ -39,7 +64,7 @@ const MessageFeed = ({ roomID, playerName }) => {
             }
         );
         return () => unsubscribe();
-    }, [roomID, playerName]);
+    }, [roomID, playerName, onPendingMessageConfirmed]);
 
     const normalizedPlayerName = normalizePlayerName(playerName);
     // allMessages stays unfiltered — applyMessageChanges' newIndex is a
@@ -47,13 +72,19 @@ const MessageFeed = ({ roomID, playerName }) => {
     // would corrupt future merges. messages (below) is the filtered,
     // rendered view.
     const messages = useMemo(
-        () =>
-            allMessages.filter(
+        () => [
+            ...allMessages.filter(
                 (message) =>
                     !message.recipient ||
                     normalizePlayerName(message.recipient) === normalizedPlayerName
             ),
-        [allMessages, normalizedPlayerName]
+            // Always mine, always visible only to me (they never leave this
+            // browser's React state), so no recipient-style filtering
+            // applies — always appended last, since they're always the
+            // newest thing this player has done.
+            ...pendingMessages,
+        ],
+        [allMessages, normalizedPlayerName, pendingMessages]
     );
 
     // Keeps the feed pinned to the newest message as it grows, matching the

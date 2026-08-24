@@ -47,13 +47,34 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
 // ChatInput.
 jest.mock('../components/player_messages_components/MessageFeed', () => (props) => (
     <div>
-        message-feed-stub roomID={props.roomID} playerName={props.playerName}
+        <div>
+            message-feed-stub roomID={props.roomID} playerName={props.playerName}
+        </div>
+        <div data-testid="pending-messages">{JSON.stringify(props.pendingMessages)}</div>
+        <button onClick={() => props.onPendingMessageConfirmed()}>confirm-pending</button>
     </div>
 ));
 jest.mock('../components/player_messages_components/MessageComposer', () => (props) => (
     <div>
-        message-composer-stub roomID={props.roomID} playerName={props.playerName} targets=
-        {JSON.stringify(props.targets)}
+        <div>
+            message-composer-stub roomID={props.roomID} playerName={props.playerName} targets=
+            {JSON.stringify(props.targets)}
+        </div>
+        <button
+            onClick={() =>
+                props.onOptimisticSend({
+                    id: 'test-pending-id',
+                    type: 'chat',
+                    sender: props.playerName,
+                    text: 'hello',
+                })
+            }
+        >
+            trigger-optimistic-send
+        </button>
+        <button onClick={() => props.onOptimisticSendFailed('test-pending-id')}>
+            trigger-optimistic-fail
+        </button>
     </div>
 ));
 
@@ -214,6 +235,49 @@ describe('PlayerGame', () => {
                 'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=["Bob"]'
             )
         ).toBeInTheDocument();
+    });
+
+    it('lifts an optimistic message from MessageComposer into MessageFeed pendingMessages, then clears it on confirmation', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({}) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.getByTestId('pending-messages')).toHaveTextContent('[]');
+
+        await userEvent.click(screen.getByRole('button', { name: 'trigger-optimistic-send' }));
+
+        expect(screen.getByTestId('pending-messages')).toHaveTextContent(
+            JSON.stringify([
+                { id: 'test-pending-id', type: 'chat', sender: 'Alice', text: 'hello' },
+            ])
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: 'confirm-pending' }));
+
+        expect(screen.getByTestId('pending-messages')).toHaveTextContent('[]');
+    });
+
+    it('removes a failed optimistic message from pendingMessages', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({}) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        await userEvent.click(screen.getByRole('button', { name: 'trigger-optimistic-send' }));
+        await userEvent.click(screen.getByRole('button', { name: 'trigger-optimistic-fail' }));
+
+        expect(screen.getByTestId('pending-messages')).toHaveTextContent('[]');
     });
 
     it('does not subscribe to the player doc while still waiting for the host', () => {

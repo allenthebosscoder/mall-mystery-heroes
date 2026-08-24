@@ -66,10 +66,15 @@ jest.mock('../firebase_calls/storageCalls', () => ({
     uploadKillPhoto: jest.fn(),
 }));
 
-const mountComposer = (playerName = 'Alice', targets = ['bob']) =>
+const mountComposer = (playerName = 'Alice', targets = ['bob'], extraProps = {}) =>
     render(
         <ChakraProvider>
-            <MessageComposer roomID="room-a" playerName={playerName} targets={targets} />
+            <MessageComposer
+                roomID="room-a"
+                playerName={playerName}
+                targets={targets}
+                {...extraProps}
+            />
         </ChakraProvider>
     );
 
@@ -174,6 +179,60 @@ describe('MessageComposer', () => {
         await userEvent.type(input, 'hi{Enter}');
 
         await waitFor(() => expect(input).toHaveValue('hi'));
+    });
+
+    it('reports the message via onOptimisticSend immediately, before submitChatMessage resolves', async () => {
+        let resolveSend;
+        submitChatMessage.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveSend = resolve;
+                })
+        );
+        const onOptimisticSend = jest.fn();
+        mountComposer('Alice', ['bob'], { onOptimisticSend });
+
+        await userEvent.type(screen.getByPlaceholderText('Type a message...'), 'hi{Enter}');
+
+        expect(onOptimisticSend).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'chat',
+                recipient: null,
+                text: 'hi',
+                standings: null,
+                mission: null,
+                sender: 'Alice',
+                timestamp: null,
+            })
+        );
+        // A real Firestore doc ID can never be known client-side ahead of
+        // the write — this is just a React key / correlation handle for
+        // onOptimisticSendFailed below, not something a real message ID
+        // is ever matched against.
+        expect(typeof onOptimisticSend.mock.calls[0][0].id).toBe('string');
+        resolveSend();
+    });
+
+    it('calls onOptimisticSendFailed with the same id it reported to onOptimisticSend when the send fails', async () => {
+        submitChatMessage.mockRejectedValue(new Error('network error'));
+        const onOptimisticSend = jest.fn();
+        const onOptimisticSendFailed = jest.fn();
+        mountComposer('Alice', ['bob'], { onOptimisticSend, onOptimisticSendFailed });
+
+        await userEvent.type(screen.getByPlaceholderText('Type a message...'), 'hi{Enter}');
+
+        await waitFor(() => expect(onOptimisticSendFailed).toHaveBeenCalled());
+        const reportedId = onOptimisticSend.mock.calls[0][0].id;
+        expect(onOptimisticSendFailed).toHaveBeenCalledWith(reportedId);
+    });
+
+    it('does not call onOptimisticSend for a blank or whitespace-only message', async () => {
+        const onOptimisticSend = jest.fn();
+        mountComposer('Alice', ['bob'], { onOptimisticSend });
+
+        await userEvent.type(screen.getByPlaceholderText('Type a message...'), '   {Enter}');
+
+        expect(onOptimisticSend).not.toHaveBeenCalled();
     });
 
     it('disables the input and Send button when playerName is empty', () => {

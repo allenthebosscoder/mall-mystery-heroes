@@ -15,7 +15,13 @@ import KillPhotoModal from './KillPhotoModal';
 // (docs/superpowers/specs/2026-08-12-chat-send-and-efficiency-design.md,
 // docs/superpowers/specs/2026-08-13-kill-photo-submission-design.md,
 // docs/superpowers/specs/2026-08-15-one-tap-kill-photo-capture-design.md).
-const MessageComposer = ({ roomID, playerName, targets = [] }) => {
+const MessageComposer = ({
+    roomID,
+    playerName,
+    targets = [],
+    onOptimisticSend,
+    onOptimisticSendFailed,
+}) => {
     const [text, setText] = useState('');
     const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
     const [compressedBlob, setCompressedBlob] = useState(null);
@@ -38,6 +44,25 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
         const trimmed = text.trim();
         if (!trimmed) return;
         setText('');
+        // submitChatMessage writes server-side (Admin SDK) now, so this
+        // browser's own onSnapshot listener has no local echo of its own
+        // write anymore — it has to wait for the same real round trip any
+        // other player's message would take. onOptimisticSend shows the
+        // message immediately instead, standing in until the real,
+        // server-confirmed copy arrives and MessageFeed swaps it out
+        // (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md
+        // regressed this; see PlayerGame.js for where the pending list lives).
+        const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        onOptimisticSend?.({
+            id: pendingId,
+            type: 'chat',
+            recipient: null,
+            text: trimmed,
+            standings: null,
+            mission: null,
+            sender: playerName,
+            timestamp: null,
+        });
         try {
             await submitChatMessage({ roomId: roomID, text: trimmed });
         } catch (error) {
@@ -48,6 +73,7 @@ const MessageComposer = ({ roomID, playerName, targets = [] }) => {
             // doesn't lose the player's words with no way to retry.
             console.error('Error sending chat message:', error);
             setText(trimmed);
+            onOptimisticSendFailed?.(pendingId);
         }
     };
 

@@ -22,8 +22,35 @@ const PlayerGame = () => {
     const [isGameActive, setIsGameActive] = useState(true);
     const [playerData, setPlayerData] = useState(null);
     const [players, setPlayers] = useState([]);
+    // This player's own chat sends that MessageComposer has fired off but
+    // Firestore hasn't confirmed yet — submitChatMessage writes server-side
+    // now, so this browser no longer gets an automatic local echo of its
+    // own write the way a direct client write used to give it. Lifted here
+    // since MessageFeed (which renders them) and MessageComposer (which
+    // adds them) are siblings with no other shared state.
+    const [pendingMessages, setPendingMessages] = useState([]);
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
+
+    useEffect(() => {
+        setPendingMessages([]);
+    }, [roomID]);
+
+    const handleOptimisticSend = useCallback((message) => {
+        setPendingMessages((previous) => [...previous, message]);
+    }, []);
+
+    const handleOptimisticSendFailed = useCallback((id) => {
+        setPendingMessages((previous) => previous.filter((message) => message.id !== id));
+    }, []);
+
+    // MessageFeed calls this once per real, server-confirmed chat message
+    // it sees from this player — oldest pending entry first, so the
+    // hand-off from "my local preview" to "the real thing" never needs to
+    // match on content, just consume in the order they were sent.
+    const handlePendingMessageConfirmed = useCallback(() => {
+        setPendingMessages((previous) => previous.slice(1));
+    }, []);
 
     // Shared by every subscription below: a permission error or the
     // watched doc disappearing both mean this session no longer belongs
@@ -143,11 +170,18 @@ const PlayerGame = () => {
                             </Text>
                         </>
                     )}
-                    <MessageFeed roomID={roomID} playerName={playerName} />
+                    <MessageFeed
+                        roomID={roomID}
+                        playerName={playerName}
+                        pendingMessages={pendingMessages}
+                        onPendingMessageConfirmed={handlePendingMessageConfirmed}
+                    />
                     <MessageComposer
                         roomID={roomID}
                         playerName={playerName}
                         targets={playerData?.targets ?? []}
+                        onOptimisticSend={handleOptimisticSend}
+                        onOptimisticSendFailed={handleOptimisticSendFailed}
                     />
                 </>
             )}

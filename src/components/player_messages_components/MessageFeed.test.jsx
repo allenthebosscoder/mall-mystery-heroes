@@ -256,6 +256,187 @@ describe('MessageFeed', () => {
         expect(formatMessageTime).toHaveBeenCalledTimes(2);
     });
 
+    it('renders a pending message appended after the real ones', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docChanges: () =>
+                    asDocChanges([
+                        { type: 'broadcast', recipient: null, text: 'Real one', standings: null },
+                    ]),
+            });
+            return () => {};
+        });
+
+        render(
+            <ChakraProvider>
+                <MessageFeed
+                    roomID="room-a"
+                    playerName="Alice"
+                    pendingMessages={[
+                        {
+                            id: 'pending-1',
+                            type: 'chat',
+                            recipient: null,
+                            text: 'not yet confirmed',
+                            standings: null,
+                            mission: null,
+                            sender: 'Alice',
+                            timestamp: null,
+                        },
+                    ]}
+                />
+            </ChakraProvider>
+        );
+
+        const rendered = screen.getAllByRole('listitem').map((el) => el.textContent);
+        expect(rendered).toEqual(['Real one', 'not yet confirmed']);
+    });
+
+    it('calls onPendingMessageConfirmed once when a real chat message from this player arrives', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({ docChanges: () => [] });
+            return () => {};
+        });
+        const onPendingMessageConfirmed = jest.fn();
+
+        render(
+            <ChakraProvider>
+                <MessageFeed
+                    roomID="room-a"
+                    playerName="Alice"
+                    onPendingMessageConfirmed={onPendingMessageConfirmed}
+                />
+            </ChakraProvider>
+        );
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'chat',
+                            recipient: null,
+                            text: 'hi',
+                            standings: null,
+                            mission: null,
+                            sender: 'Alice',
+                        },
+                    ]),
+            });
+        });
+
+        expect(onPendingMessageConfirmed).toHaveBeenCalledTimes(1);
+    });
+
+    it('matches the sender case/whitespace-insensitively when confirming a pending message', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({ docChanges: () => [] });
+            return () => {};
+        });
+        const onPendingMessageConfirmed = jest.fn();
+
+        render(
+            <ChakraProvider>
+                <MessageFeed
+                    roomID="room-a"
+                    playerName="Alice Smith"
+                    onPendingMessageConfirmed={onPendingMessageConfirmed}
+                />
+            </ChakraProvider>
+        );
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'chat',
+                            recipient: null,
+                            text: 'hi',
+                            standings: null,
+                            mission: null,
+                            sender: 'alice smith',
+                        },
+                    ]),
+            });
+        });
+
+        expect(onPendingMessageConfirmed).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call onPendingMessageConfirmed for a chat message from a different player', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({ docChanges: () => [] });
+            return () => {};
+        });
+        const onPendingMessageConfirmed = jest.fn();
+
+        render(
+            <ChakraProvider>
+                <MessageFeed
+                    roomID="room-a"
+                    playerName="Alice"
+                    onPendingMessageConfirmed={onPendingMessageConfirmed}
+                />
+            </ChakraProvider>
+        );
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'chat',
+                            recipient: null,
+                            text: 'hi',
+                            standings: null,
+                            mission: null,
+                            sender: 'Bob',
+                        },
+                    ]),
+            });
+        });
+
+        expect(onPendingMessageConfirmed).not.toHaveBeenCalled();
+    });
+
+    it('does not call onPendingMessageConfirmed for a non-chat message, even one shaped with this player as sender', async () => {
+        let deliverSnapshot;
+        onSnapshot.mockImplementation((query, onNext) => {
+            deliverSnapshot = onNext;
+            onNext({ docChanges: () => [] });
+            return () => {};
+        });
+        const onPendingMessageConfirmed = jest.fn();
+
+        render(
+            <ChakraProvider>
+                <MessageFeed
+                    roomID="room-a"
+                    playerName="Alice"
+                    onPendingMessageConfirmed={onPendingMessageConfirmed}
+                />
+            </ChakraProvider>
+        );
+
+        await act(async () => {
+            deliverSnapshot({
+                docChanges: () =>
+                    asDocChanges([
+                        { type: 'broadcast', recipient: null, text: 'hi', standings: null },
+                    ]),
+            });
+        });
+
+        expect(onPendingMessageConfirmed).not.toHaveBeenCalled();
+    });
+
     it('inserts a later message at the correct position even when an earlier message is filtered out', async () => {
         let deliverSnapshot;
         onSnapshot.mockImplementation((query, onNext) => {
