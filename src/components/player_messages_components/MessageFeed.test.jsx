@@ -404,6 +404,7 @@ describe('MessageFeed', () => {
         });
 
         expect(onPendingMessageConfirmed).not.toHaveBeenCalled();
+        expect(screen.getByText('hi')).toBeInTheDocument();
     });
 
     it('does not call onPendingMessageConfirmed for a non-chat message, even one shaped with this player as sender', async () => {
