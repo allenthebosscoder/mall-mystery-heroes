@@ -2,6 +2,7 @@ import { Box, Heading, Image } from '@chakra-ui/react';
 import { useContext, useEffect, useState } from 'react';
 import { gameContext } from '../Contexts';
 import {
+    addPlayerMessageForRoom,
     approvePhotoForRoom,
     fetchPhotosQueryByAscendingTimestampForRoom,
     updatePhotoStatusForRoom,
@@ -107,6 +108,20 @@ const PhotosDisplay = () => {
                 `${currentPhoto.target} was killed by ${currentPhoto.assassin}`,
                 'red.400'
             );
+            await addPlayerMessageForRoom(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: `${currentPhoto.target} was killed by ${currentPhoto.assassin}`,
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: currentPhoto.assassin,
+                    target: currentPhoto.target,
+                    outcome: 'approved',
+                },
+                roomID
+            );
 
             for (const log of remapLogs) {
                 await handleRemapping(log);
@@ -133,6 +148,20 @@ const PhotosDisplay = () => {
             await addLog(
                 `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
                 'gray'
+            );
+            await addPlayerMessageForRoom(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: currentPhoto.assassin,
+                    target: currentPhoto.target,
+                    outcome: 'denied',
+                },
+                roomID
             );
         } catch (error) {
             console.error('Error denying photo: ', error);

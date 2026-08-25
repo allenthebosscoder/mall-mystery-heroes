@@ -29,6 +29,7 @@ jest.mock('firebase/firestore', () => ({
 
 // Explicit factory, not auto-mock — see ChatInput.test.jsx for why.
 jest.mock('../firebase_calls/dbCalls', () => ({
+    addPlayerMessageForRoom: jest.fn(),
     approvePhotoForRoom: jest.fn(),
     fetchPhotosQueryByAscendingTimestampForRoom: jest.fn(() => 'photos-query'),
     updatePhotoStatusForRoom: jest.fn(),
@@ -81,6 +82,7 @@ const mountWithSnapshot = (photoDocs) => {
 beforeEach(() => {
     jest.clearAllMocks();
     dbCalls.updatePhotoStatusForRoom.mockResolvedValue(undefined);
+    dbCalls.addPlayerMessageForRoom.mockResolvedValue(undefined);
     undoKill.mockResolvedValue(undefined);
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
@@ -206,6 +208,61 @@ describe('approving a photo persists the undo snapshot (improvements item 6)', (
         expect(executionHandlers.handleAddNewAssassins).toHaveBeenCalledWith({
             carol: ['bob'],
         });
+    });
+});
+
+describe('kill outcomes are announced in the room chat', () => {
+    it('posts a killResult chat message when a photo is approved', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot([{ status: 'pending', target: 'alice', assassin: 'bob' }]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: 'alice was killed by bob',
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: 'bob',
+                    target: 'alice',
+                    outcome: 'approved',
+                },
+                'room-a'
+            )
+        );
+    });
+
+    it('posts a killResult chat message when a photo is denied', async () => {
+        mountWithSnapshot([{ status: 'pending', target: 'alice', assassin: 'bob' }]);
+
+        await userEvent.click(screen.getByAltText('Deny'));
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: "bob's attempt to kill alice was denied",
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: 'bob',
+                    target: 'alice',
+                    outcome: 'denied',
+                },
+                'room-a'
+            )
+        );
     });
 });
 

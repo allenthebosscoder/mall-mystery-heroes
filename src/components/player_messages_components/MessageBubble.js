@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Flex, List, ListItem, Text } from '@chakra-ui/react';
+import { Box, Flex, Image, List, ListItem, Text } from '@chakra-ui/react';
 import { normalizePlayerName } from '../../game/playerNames';
 import { formatMessageTime } from '../../utils/formatMessageTime';
 
@@ -56,6 +56,23 @@ const MessageBubble = ({ message, playerName }) => {
                     </Text>
                     {time && (
                         <Text fontSize="xs" color="gray.400">
+                            {time}
+                        </Text>
+                    )}
+                </Box>
+            ) : message.type === 'killPhoto' ? (
+                <Box bg="gray.700" borderRadius="md" p={2}>
+                    <Text fontWeight="bold" mb={1}>
+                        {message.assassin} is going for {message.target}!
+                    </Text>
+                    <Image
+                        src={message.photoUrl}
+                        alt="Kill photo submission"
+                        borderRadius="md"
+                        maxH="200px"
+                    />
+                    {time && (
+                        <Text fontSize="xs" color="gray.400" mt={1}>
                             {time}
                         </Text>
                     )}

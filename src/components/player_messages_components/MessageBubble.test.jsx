@@ -193,6 +193,94 @@ describe('MessageBubble', () => {
         expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
     });
 
+    it('renders a killPhoto message as a submitted photo with the assassin and target named', () => {
+        mountBubble({
+            type: 'killPhoto',
+            recipient: null,
+            text: null,
+            standings: null,
+            mission: null,
+            sender: null,
+            photoUrl: 'https://example.com/photo.jpg',
+            assassin: 'Alice',
+            target: 'Bob',
+        });
+
+        expect(screen.getByText('Alice is going for Bob!')).toBeInTheDocument();
+        expect(screen.getByAltText('Kill photo submission')).toHaveAttribute(
+            'src',
+            'https://example.com/photo.jpg'
+        );
+    });
+
+    it('shows a formatted time on a killPhoto message', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
+        mountBubble({
+            type: 'killPhoto',
+            recipient: null,
+            text: null,
+            standings: null,
+            mission: null,
+            sender: null,
+            photoUrl: 'https://example.com/photo.jpg',
+            assassin: 'Alice',
+            target: 'Bob',
+            timestamp,
+        });
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+    });
+
+    it('renders an approved killResult message with its announcement text', () => {
+        mountBubble({
+            type: 'killResult',
+            recipient: null,
+            text: 'Bob was killed by Alice',
+            standings: null,
+            mission: null,
+            sender: null,
+            assassin: 'Alice',
+            target: 'Bob',
+            outcome: 'approved',
+        });
+
+        expect(screen.getByText('Bob was killed by Alice')).toBeInTheDocument();
+    });
+
+    it('renders a denied killResult message with its announcement text', () => {
+        mountBubble({
+            type: 'killResult',
+            recipient: null,
+            text: "Alice's attempt to kill Bob was denied",
+            standings: null,
+            mission: null,
+            sender: null,
+            assassin: 'Alice',
+            target: 'Bob',
+            outcome: 'denied',
+        });
+
+        expect(screen.getByText("Alice's attempt to kill Bob was denied")).toBeInTheDocument();
+    });
+
+    it('shows a formatted time on a killResult message', () => {
+        const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
+        mountBubble({
+            type: 'killResult',
+            recipient: null,
+            text: 'Bob was killed by Alice',
+            standings: null,
+            mission: null,
+            sender: null,
+            assassin: 'Alice',
+            target: 'Bob',
+            outcome: 'approved',
+            timestamp,
+        });
+
+        expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
+    });
+
     it('shows a formatted time on a broadcast message', () => {
         const timestamp = { toDate: () => new Date(2024, 0, 1, 9, 5) };
         mountBubble({

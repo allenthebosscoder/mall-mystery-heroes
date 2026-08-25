@@ -13,7 +13,10 @@
  */
 import { httpsCallable } from 'firebase/functions';
 import { terminate, getDocs, Timestamp } from 'firebase/firestore';
-import { fetchPhotosQueryByAscendingTimestampForRoom } from './firebase_calls/dbCalls';
+import {
+    fetchPhotosQueryByAscendingTimestampForRoom,
+    fetchPlayerMessagesQueryForRoom,
+} from './firebase_calls/dbCalls';
 import {
     callableAsNonHost,
     clearFirestore,
@@ -54,6 +57,32 @@ describe('submitKillPhoto', () => {
                 url: REALISTIC_URL,
                 status: 'pending',
                 originalPlayerData: null,
+            });
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it("also posts the photo into the room's chat, so submitting is visible without a separate confirmation", async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL });
+
+            const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(1);
+            expect(snapshot.docs[0].data()).toMatchObject({
+                type: 'killPhoto',
+                recipient: null,
+                text: null,
+                standings: null,
+                mission: null,
+                sender: null,
+                photoUrl: REALISTIC_URL,
+                assassin: 'alice',
+                target: 'bob',
             });
         } finally {
             await terminate(alice.db);

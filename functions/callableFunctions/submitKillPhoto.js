@@ -45,6 +45,11 @@ const PHOTO_RATE_LIMIT = { max: 10, windowMs: 60000 };
  * firestore.rules's `photos` `allow write: if isHostOfExistingRoom`
  * clause for GM approve/deny/undo actions is untouched and unaffected by
  * this function.
+ *
+ * Also writes a `killPhoto` playerMessages doc in the same transaction, so
+ * the submission shows up in every player's chat the moment it lands —
+ * see MessageBubble.js for how it's rendered and PhotosDisplay.js for the
+ * matching `killResult` message a moderator's decision posts later.
  */
 exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -146,6 +151,23 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
             timestamp: FieldValue.serverTimestamp(),
             status: 'pending',
             originalPlayerData: null,
+        });
+
+        // Posts the photo into the room's own chat immediately, so every
+        // player sees the attempt as it happens — the submission itself is
+        // the confirmation the assassin gets that it went through, no
+        // separate private notice needed.
+        transaction.create(roomRef.collection('playerMessages').doc(), {
+            type: 'killPhoto',
+            recipient: null,
+            text: null,
+            standings: null,
+            mission: null,
+            sender: null,
+            photoUrl: url,
+            assassin: assassinData.name,
+            target,
+            timestamp: FieldValue.serverTimestamp(),
         });
     });
 });
