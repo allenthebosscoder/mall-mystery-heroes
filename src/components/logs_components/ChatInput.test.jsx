@@ -38,7 +38,7 @@ import { executeKill } from '../executeKill';
 jest.mock('../firebase_calls/dbCalls', () => ({
     addPlayerMessageForRoom: jest.fn(),
     addPlayerToCompletedByForTask: jest.fn(),
-    fetchAlivePlayerNamesForRoom: jest.fn(),
+    fetchAliveRosterForRoom: jest.fn(),
     fetchPlayersByStatusForRoom: jest.fn(),
     fetchReferenceByIndexForTask: jest.fn(),
     fetchTaskByIndexForRoom: jest.fn(),
@@ -93,7 +93,6 @@ const typeAndSubmit = (input, text) => userEvent.type(input, `${text}{enter}`);
 
 beforeEach(() => {
     jest.clearAllMocks();
-    dbCalls.fetchAlivePlayerNamesForRoom.mockResolvedValue(['Bob']);
     dbCalls.updatePointsForPlayer.mockResolvedValue(undefined);
     dbCalls.fetchTasksByCompletionForRoom.mockResolvedValue({ docs: [] });
     executeKill.mockResolvedValue({
@@ -349,6 +348,11 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
             dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...revivalTask });
             dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Bob']);
             dbCalls.updateIsAliveForPlayer.mockResolvedValue(undefined);
+            dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
+                { name: 'Bob', targets: [], assassins: [] },
+                { name: 'Carol', targets: ['Dave'], assassins: ['Dave'] },
+                { name: 'Dave', targets: ['Carol'], assassins: ['Carol'] },
+            ]);
         });
 
         it('announces the mission completion before the revival, not after', async () => {
@@ -372,9 +376,41 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
             // straight through as playersNeedingTarget/playersNeedingAssassins,
             // instead of the player's actual stored-case name — planRemap's
             // roster is keyed by that stored casing, so a lowercase 'bob'
-            // silently never matches 'Bob' and gets skipped.
+            // silently never matches 'Bob' and gets skipped. Carol and Dave
+            // are already mutually paired (3 alive -> cap of 1), so only
+            // Bob is actually short here.
             await waitFor(() =>
-                expect(mockRegenerate).toHaveBeenCalledWith(['Bob'], ['Bob'], ['Bob'], 'room-a')
+                expect(mockRegenerate).toHaveBeenCalledWith(
+                    ['Bob'],
+                    ['Bob'],
+                    ['Bob', 'Carol', 'Dave'],
+                    'room-a'
+                )
+            );
+        });
+
+        it("also rebalances whoever else is short of the room's cap, not just the revived player", async () => {
+            // Bug report: after a revival, the revived player only ever
+            // gets bolted onto whichever one or two candidates happen to
+            // have room, leaving them lopsided while the rest of the
+            // roster is untouched. Dave is already one short here (mirrors
+            // what an unrelated earlier kill could easily leave behind).
+            dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
+                { name: 'Bob', targets: [], assassins: [] },
+                { name: 'Carol', targets: ['Dave'], assassins: ['Dave'] },
+                { name: 'Dave', targets: [], assassins: ['Carol'] },
+            ]);
+
+            const commandInput = mountChatInput();
+            typeAndSubmit(commandInput, '/mission done bob 1');
+
+            await waitFor(() =>
+                expect(mockRegenerate).toHaveBeenCalledWith(
+                    ['Bob', 'Dave'],
+                    ['Bob'],
+                    ['Bob', 'Carol', 'Dave'],
+                    'room-a'
+                )
             );
         });
     });
@@ -558,6 +594,9 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
 
     it('a successful /revive passes the actual casing to handlePlayerRevive', async () => {
         dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Alice']);
+        dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
+            { name: 'Alice', targets: [], assassins: [] },
+        ]);
         const commandInput = mountChatInput([{ name: 'Alice', isAlive: false }]);
         typeAndSubmit(commandInput, '/revive alice');
 
@@ -567,6 +606,28 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
         expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
             'Alice',
             expect.any(Function)
+        );
+    });
+
+    it("/revive rebalances whoever else is also short of the room's cap, using their real stored casing", async () => {
+        dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Alice']);
+        dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
+            { name: 'Alice', targets: [], assassins: [] },
+            { name: 'Bob', targets: ['Carol'], assassins: ['Carol'] },
+            { name: 'Carol', targets: ['Bob'], assassins: ['Bob'] },
+        ]);
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: false }]);
+        typeAndSubmit(commandInput, '/revive alice');
+
+        // 3 alive -> maxTargetsFor gives 1. Bob and Carol already have
+        // theirs (mutually), so only Alice is actually short.
+        await waitFor(() =>
+            expect(mockRegenerate).toHaveBeenCalledWith(
+                ['Alice'],
+                ['Alice'],
+                ['Alice', 'Bob', 'Carol'],
+                'room-a'
+            )
         );
     });
 });

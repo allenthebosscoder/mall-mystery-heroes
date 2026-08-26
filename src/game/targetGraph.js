@@ -81,4 +81,28 @@ const buildTargetGraph = (players, { rng = Math.random } = {}) => {
     return { targets, assassins };
 };
 
-module.exports = { maxTargetsFor, shuffle, buildTargetGraph };
+/**
+ * Every alive player currently short of the room's normal per-player
+ * target/assassin count for its current size — not just a single named
+ * player. Used to spread a revival's new connections across whoever
+ * actually needs one, rather than asking planRemap to fill only the
+ * returning player's own gap, which lets it pile every new link onto
+ * whichever one or two candidates happen to have room, leaving the rest
+ * of the roster untouched and those candidates over their normal cap.
+ *
+ * @param roster alive players: [{ name, targets: string[], assassins: string[] }]
+ * @returns {{needTargets: string[], needAssassins: string[]}}
+ */
+const playersNeedingConnections = (roster) => {
+    const maxTargets = maxTargetsFor(roster.length);
+    return {
+        needTargets: roster
+            .filter((player) => player.targets.length < maxTargets)
+            .map((player) => player.name),
+        needAssassins: roster
+            .filter((player) => player.assassins.length < maxTargets)
+            .map((player) => player.name),
+    };
+};
+
+module.exports = { maxTargetsFor, shuffle, buildTargetGraph, playersNeedingConnections };

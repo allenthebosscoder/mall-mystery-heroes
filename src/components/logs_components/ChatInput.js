@@ -6,7 +6,7 @@ import { executionContext, gameContext } from '../Contexts';
 import {
     addPlayerMessageForRoom,
     addPlayerToCompletedByForTask,
-    fetchAlivePlayerNamesForRoom,
+    fetchAliveRosterForRoom,
     fetchPlayersByStatusForRoom,
     fetchReferenceByIndexForTask,
     fetchTaskByIndexForRoom,
@@ -22,6 +22,7 @@ import { executeKill } from '../executeKill';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
 import { buildLeaderboardStandings } from '../../game/leaderboard';
 import { normalizePlayerName, resolvePlayerDisplayName } from '../../game/playerNames';
+import { playersNeedingConnections } from '../../game/targetGraph';
 import CreateAlert from '../CreateAlert';
 
 // handling for command execution
@@ -92,7 +93,6 @@ const handleCommandExecution = async (
     try {
         const arrayOfPlayerNames = players.map((player) => normalizePlayerName(player.name));
         const handleTargetRegeneration = RemapPlayers(handleRemapping, createAlert); // initial remapping of players function
-        let arrayOfAlivePlayers;
         let arrayOfDeadPlayers;
         let playerName;
         let arg;
@@ -230,21 +230,30 @@ const handleCommandExecution = async (
                                     if (arrayOfDeadPlayers.includes(playerName)) {
                                         await updateIsAliveForPlayer(playerName, true, roomID);
                                         handlePlayerRevive(displayName);
-                                        arrayOfAlivePlayers =
-                                            await fetchAlivePlayerNamesForRoom(roomID);
-                                        // planRemap's roster (fetched inside
-                                        // handleTargetRegeneration) is keyed
-                                        // by each player's real stored
-                                        // casing, e.g. "Bob" — passing the
+                                        // Rebalances whoever else is short of
+                                        // the room's own per-player cap too,
+                                        // not just the revived player —
+                                        // otherwise planRemap does the
+                                        // minimum to satisfy only the one
+                                        // name it's given, bolting every new
+                                        // link onto whichever candidates
+                                        // happen to have room and leaving
+                                        // the rest of the roster untouched
+                                        // (src/game/targetGraph.js). Uses
+                                        // each player's real stored casing,
+                                        // e.g. "Bob" — planRemap's roster is
+                                        // keyed by that casing, so the
                                         // normalized `playerName` ("bob")
-                                        // here meant `state.has(player)`
-                                        // never matched, so the revived
-                                        // player was silently skipped and
-                                        // never got new targets/assassins.
+                                        // used here previously never matched
+                                        // and silently skipped the revived
+                                        // player entirely.
+                                        const roster = await fetchAliveRosterForRoom(roomID);
+                                        const { needTargets, needAssassins } =
+                                            playersNeedingConnections(roster);
                                         const [targets, assassins] = await handleTargetRegeneration(
-                                            [displayName],
-                                            [displayName],
-                                            arrayOfAlivePlayers,
+                                            needTargets,
+                                            needAssassins,
+                                            roster.map((player) => player.name),
                                             roomID
                                         );
                                         handleAddNewAssassins(assassins);
@@ -396,11 +405,18 @@ const handleCommandExecution = async (
                 // sanity check if player exists as dead player
                 if (arrayOfDeadPlayers.includes(playerName)) {
                     await updateIsAliveForPlayer(playerName, true, roomID);
-                    const activePlayers = await fetchAlivePlayerNamesForRoom(roomID);
+                    // Rebalances whoever else is short of the room's own
+                    // per-player cap too, not just the revived player, and
+                    // uses each player's real stored casing — see the
+                    // matching comment in the Revival Mission branch above
+                    // for why (docs/improvements.md, bug report: revival
+                    // never reassigned targets).
+                    const roster = await fetchAliveRosterForRoom(roomID);
+                    const { needTargets, needAssassins } = playersNeedingConnections(roster);
                     const [target, assassin] = await handleTargetRegeneration(
-                        [playerName],
-                        [playerName],
-                        activePlayers,
+                        needTargets,
+                        needAssassins,
+                        roster.map((player) => player.name),
                         roomID
                     );
                     handleAddNewAssassins(assassin);
