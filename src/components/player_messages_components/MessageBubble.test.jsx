@@ -294,4 +294,44 @@ describe('MessageBubble', () => {
 
         expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
     });
+
+    it('labels a broadcast message as clearly from the GM', () => {
+        mountBubble({
+            type: 'broadcast',
+            recipient: null,
+            text: 'Game starts soon!',
+            standings: null,
+        });
+
+        expect(screen.getByText('GM:')).toBeInTheDocument();
+        expect(screen.getByText('Game starts soon!')).toBeInTheDocument();
+    });
+
+    it('labels a whisper message as clearly from the GM', () => {
+        mountBubble({
+            type: 'whisper',
+            recipient: 'Alice',
+            text: 'psst, watch your back',
+            standings: null,
+        });
+
+        expect(screen.getByText('GM:')).toBeInTheDocument();
+        expect(screen.getByText('psst, watch your back')).toBeInTheDocument();
+    });
+
+    it('does not label a killResult message as from the GM', () => {
+        mountBubble({
+            type: 'killResult',
+            recipient: null,
+            text: 'Bob was killed by Alice',
+            standings: null,
+            mission: null,
+            sender: null,
+            assassin: 'Alice',
+            target: 'Bob',
+            outcome: 'approved',
+        });
+
+        expect(screen.queryByText('GM:')).not.toBeInTheDocument();
+    });
 });

@@ -49,7 +49,12 @@ jest.mock('../firebase_calls/dbCalls', () => ({
     updatePointsForPlayer: jest.fn(),
 }));
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
-jest.mock('../RemapPlayers', () => () => async () => [[], []]);
+// An inspectable double, not a bare arrow function — some tests need to
+// assert on exactly what ChatInput passes as playersNeedingTarget/
+// playersNeedingAssassins (see the revival case-casing regression test
+// below).
+const mockRegenerate = jest.fn();
+jest.mock('../RemapPlayers', () => jest.fn(() => mockRegenerate));
 
 const executionHandlers = {
     handleKillPlayer: jest.fn(),
@@ -97,6 +102,7 @@ beforeEach(() => {
         addedAssassins: {},
         remapLogs: [],
     });
+    mockRegenerate.mockResolvedValue([{}, {}]);
 });
 
 describe('/kill (improvements item 4: executeKill is now a Cloud Function call)', () => {
@@ -298,15 +304,19 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         await waitFor(() =>
             expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).toHaveBeenCalledWith(1, 'room-a')
         );
+        // The GM's own log keeps the mechanical detail ("auto-ended...
+        // completion cap") — that phrasing is for the GM, not players.
         expect(executionHandlers.addLog).toHaveBeenCalledWith(
             'Mission "Find the clue" auto-ended — reached its 1-completion cap',
             'purple.400'
         );
+        // The player-facing broadcast gets a plain completion announcement
+        // instead — a player doesn't need to know why it closed.
         expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
             {
                 type: 'broadcast',
                 recipient: null,
-                text: 'Mission "Find the clue" auto-ended — reached its 1-completion cap',
+                text: 'Mission Find the clue has been completed!',
                 standings: null,
             },
             'room-a'
@@ -326,6 +336,47 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
             )
         );
         expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
+    });
+
+    describe('Revival Mission', () => {
+        const revivalTask = {
+            ...baseTask,
+            taskType: 'Revival Mission',
+            pointValue: 0,
+        };
+
+        beforeEach(() => {
+            dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...revivalTask });
+            dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Bob']);
+            dbCalls.updateIsAliveForPlayer.mockResolvedValue(undefined);
+        });
+
+        it('announces the mission completion before the revival, not after', async () => {
+            const commandInput = mountChatInput();
+            typeAndSubmit(commandInput, '/mission done bob 1');
+
+            await waitFor(() => expect(executionHandlers.handlePlayerRevive).toHaveBeenCalled());
+
+            const completedCallOrder = executionHandlers.addLog.mock.invocationCallOrder[0];
+            const revivedCallOrder =
+                executionHandlers.handlePlayerRevive.mock.invocationCallOrder[0];
+            expect(completedCallOrder).toBeLessThan(revivedCallOrder);
+        });
+
+        it("regenerates targets using the player's real stored casing, not the normalized lookup key", async () => {
+            const commandInput = mountChatInput();
+            typeAndSubmit(commandInput, '/mission done bob 1');
+
+            // Bug report: revival never reassigned targets. Root cause was
+            // the normalized (lowercase) command argument being passed
+            // straight through as playersNeedingTarget/playersNeedingAssassins,
+            // instead of the player's actual stored-case name — planRemap's
+            // roster is keyed by that stored casing, so a lowercase 'bob'
+            // silently never matches 'Bob' and gets skipped.
+            await waitFor(() =>
+                expect(mockRegenerate).toHaveBeenCalledWith(['Bob'], ['Bob'], ['Bob'], 'room-a')
+            );
+        });
     });
 });
 

@@ -193,6 +193,28 @@ const handleCommandExecution = async (
 
                             // check if player has completed task
                             if (!task.completedBy.includes(playerName)) {
+                                const displayName = resolvePlayerDisplayName(playerName, players);
+
+                                // Announced before any type-specific
+                                // consequence (scoring, revival) — a
+                                // revival's own "was revived" message
+                                // (below) should read as following this
+                                // one, not preceding it.
+                                await addPlayerToCompletedByForTask(taskDocRef, playerName);
+                                await addLog(
+                                    `${displayName} completed mission: ${task.title}`,
+                                    'green.400'
+                                );
+                                await addPlayerMessageForRoom(
+                                    {
+                                        type: 'broadcast',
+                                        recipient: null,
+                                        text: `${displayName} completed mission: ${task.title}`,
+                                        standings: null,
+                                    },
+                                    roomID
+                                );
+
                                 //updates player scores for task types
                                 if (task.taskType === 'Task') {
                                     const points = parseInt(task.pointValue);
@@ -207,14 +229,21 @@ const handleCommandExecution = async (
                                     ).map((name) => normalizePlayerName(name));
                                     if (arrayOfDeadPlayers.includes(playerName)) {
                                         await updateIsAliveForPlayer(playerName, true, roomID);
-                                        handlePlayerRevive(
-                                            resolvePlayerDisplayName(playerName, players)
-                                        );
+                                        handlePlayerRevive(displayName);
                                         arrayOfAlivePlayers =
                                             await fetchAlivePlayerNamesForRoom(roomID);
+                                        // planRemap's roster (fetched inside
+                                        // handleTargetRegeneration) is keyed
+                                        // by each player's real stored
+                                        // casing, e.g. "Bob" — passing the
+                                        // normalized `playerName` ("bob")
+                                        // here meant `state.has(player)`
+                                        // never matched, so the revived
+                                        // player was silently skipped and
+                                        // never got new targets/assassins.
                                         const [targets, assassins] = await handleTargetRegeneration(
-                                            [playerName],
-                                            [playerName],
+                                            [displayName],
+                                            [displayName],
                                             arrayOfAlivePlayers,
                                             roomID
                                         );
@@ -231,20 +260,6 @@ const handleCommandExecution = async (
                                         console.error(`Player ${args[1]} is not dead`);
                                     }
                                 }
-                                await addPlayerToCompletedByForTask(taskDocRef, playerName);
-                                await addLog(
-                                    `${resolvePlayerDisplayName(playerName, players)} completed mission: ${task.title}`,
-                                    'green.400'
-                                );
-                                await addPlayerMessageForRoom(
-                                    {
-                                        type: 'broadcast',
-                                        recipient: null,
-                                        text: `${resolvePlayerDisplayName(playerName, players)} completed mission: ${task.title}`,
-                                        standings: null,
-                                    },
-                                    roomID
-                                );
 
                                 // Optional per-mission completion cap — unset
                                 // or 0 means unlimited, matching every
@@ -255,6 +270,8 @@ const handleCommandExecution = async (
                                         missionIndex,
                                         roomID
                                     );
+                                    // The GM's own log keeps the mechanical
+                                    // detail; players just see it ended.
                                     await addLog(
                                         `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
                                         'purple.400'
@@ -263,7 +280,7 @@ const handleCommandExecution = async (
                                         {
                                             type: 'broadcast',
                                             recipient: null,
-                                            text: `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
+                                            text: `Mission ${task.title} has been completed!`,
                                             standings: null,
                                         },
                                         roomID

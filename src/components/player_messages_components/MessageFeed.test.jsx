@@ -289,7 +289,7 @@ describe('MessageFeed', () => {
         );
 
         const rendered = screen.getAllByRole('listitem').map((el) => el.textContent);
-        expect(rendered).toEqual(['Real one', 'not yet confirmed']);
+        expect(rendered).toEqual(['GM: Real one', 'not yet confirmed']);
     });
 
     it('calls onPendingMessageConfirmed once when a real chat message from this player arrives', async () => {
@@ -500,7 +500,7 @@ describe('MessageFeed', () => {
         const renderedOrder = screen
             .getAllByRole('listitem')
             .map((el) => el.textContent)
-            .filter((text) => text === 'B1' || text === 'B2');
+            .filter((text) => text === 'GM: B1' || text === 'GM: B2');
 
         // The unfiltered result set after both snapshots is
         // [whisper(Bob), B2, B1] — B2's newIndex of 1 places it between the
@@ -511,6 +511,6 @@ describe('MessageFeed', () => {
         // applyMessageChanges, so B2's newIndex of 1 landed past the end of
         // that 1-element array — splice's out-of-range clamping silently
         // appended it, producing the wrong order, ['B1', 'B2'].
-        expect(renderedOrder).toEqual(['B2', 'B1']);
+        expect(renderedOrder).toEqual(['GM: B2', 'GM: B1']);
     });
 });

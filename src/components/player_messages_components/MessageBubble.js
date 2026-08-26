@@ -77,6 +77,25 @@ const MessageBubble = ({ message, playerName }) => {
                         </Text>
                     )}
                 </Box>
+            ) : message.type === 'whisper' || message.type === 'broadcast' ? (
+                <Box
+                    bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'purple.900'}
+                    border={message.type === 'whisper' ? '1px dashed' : '1px solid'}
+                    borderColor={message.type === 'whisper' ? 'gray.400' : 'purple.400'}
+                    borderRadius="md"
+                    p={2}
+                    display="inline-block"
+                >
+                    <Text as="span" fontWeight="bold" color="yellow.300">
+                        GM:
+                    </Text>{' '}
+                    <Text as="span">{message.text}</Text>
+                    {time && (
+                        <Text as="span" fontSize="xs" color="gray.400" ml={2}>
+                            {time}
+                        </Text>
+                    )}
+                </Box>
             ) : message.type === 'chat' ? (
                 <Flex
                     justifyContent={isMine ? 'flex-end' : 'flex-start'}
@@ -104,14 +123,9 @@ const MessageBubble = ({ message, playerName }) => {
                     </Box>
                 </Flex>
             ) : (
-                <Text
-                    bg={message.type === 'whisper' ? 'whiteAlpha.100' : 'gray.700'}
-                    border={message.type === 'whisper' ? '1px dashed' : undefined}
-                    borderColor={message.type === 'whisper' ? 'gray.400' : undefined}
-                    borderRadius="md"
-                    p={2}
-                    display="inline-block"
-                >
+                // Reached only by 'killResult' now — 'whisper'/'broadcast'
+                // have their own GM-labeled branch above.
+                <Text bg="gray.700" borderRadius="md" p={2} display="inline-block">
                     <Text as="span">{message.text}</Text>
                     {time && (
                         // Inline, not block like the other branches' timestamp
