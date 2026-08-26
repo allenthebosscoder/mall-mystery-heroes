@@ -195,10 +195,13 @@ export const updatePhotoStatusForRoom = async (roomID, photoID, status) => {
 // Approves a photo and persists the pre-kill player snapshot onto the photo
 // document itself (docs/improvements.md item 6) — judgedPhotos used to live
 // only in React state, so reloading the console lost the data an undo needs,
-// even though the photo's approved/denied status was already durable.
-export const approvePhotoForRoom = async (roomID, photoID, originalPlayerData) => {
+// even though the photo's approved/denied status was already durable. Also
+// persists `target`, resolved by the moderator in PhotosDisplay.js — a
+// submitted photo never names one (a player no longer picks who they
+// killed), so this is the point a kill's target is first recorded.
+export const approvePhotoForRoom = async (roomID, photoID, target, originalPlayerData) => {
     const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
-    await updateDoc(photoRef, { status: 'approved', originalPlayerData });
+    await updateDoc(photoRef, { status: 'approved', target, originalPlayerData });
 };
 
 //returns a query of all tasks for room

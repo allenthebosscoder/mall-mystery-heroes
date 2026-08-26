@@ -193,7 +193,7 @@ describe('MessageBubble', () => {
         expect(screen.getByText(formatMessageTime(timestamp))).toBeInTheDocument();
     });
 
-    it('renders a killPhoto message as a submitted photo with the assassin and target named', () => {
+    it('renders a killPhoto message as a plain chat-style photo post from the assassin, with no target named', () => {
         mountBubble({
             type: 'killPhoto',
             recipient: null,
@@ -203,10 +203,11 @@ describe('MessageBubble', () => {
             sender: null,
             photoUrl: 'https://example.com/photo.jpg',
             assassin: 'Alice',
-            target: 'Bob',
+            target: null,
         });
 
-        expect(screen.getByText('Alice is going for Bob!')).toBeInTheDocument();
+        expect(screen.getByText('Alice')).toBeInTheDocument();
+        expect(screen.queryByText(/going for/i)).not.toBeInTheDocument();
         expect(screen.getByAltText('Kill photo submission')).toHaveAttribute(
             'src',
             'https://example.com/photo.jpg'
@@ -224,7 +225,7 @@ describe('MessageBubble', () => {
             sender: null,
             photoUrl: 'https://example.com/photo.jpg',
             assassin: 'Alice',
-            target: 'Bob',
+            target: null,
             timestamp,
         });
 

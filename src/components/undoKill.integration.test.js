@@ -63,7 +63,7 @@ describe('undoKill', () => {
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+        await approvePhotoForRoom(ROOM, photoId, 'bob', killResult.preKillSnapshot);
 
         await undoKill(ROOM, photoId);
 
@@ -92,7 +92,7 @@ describe('undoKill', () => {
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+        await approvePhotoForRoom(ROOM, photoId, 'bob', killResult.preKillSnapshot);
 
         // Confirm the remap actually touched carol before undoing, so this
         // test is proven non-vacuous.
@@ -137,7 +137,7 @@ describe('undoKill', () => {
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+        await approvePhotoForRoom(ROOM, photoId, 'bob', killResult.preKillSnapshot);
 
         // The kill itself clears openSeason on the target.
         expect((await fetchPlayerForRoom('bob', ROOM)).data().openSeason).toBe(false);
@@ -158,7 +158,7 @@ describe('undoKill', () => {
         const photoId = await latestPhotoId();
 
         const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+        await approvePhotoForRoom(ROOM, photoId, 'bob', killResult.preKillSnapshot);
 
         // Simulates the room's player list changing in some unexpected way
         // between the kill and the undo — delete the killer's own doc
@@ -187,7 +187,7 @@ describe('undoKill', () => {
         await seedPendingPhoto('alice', 'bob');
         const photoId = await latestPhotoId();
         const killResult = await executeKill('bob', 'alice', ROOM);
-        await approvePhotoForRoom(ROOM, photoId, killResult.preKillSnapshot);
+        await approvePhotoForRoom(ROOM, photoId, 'bob', killResult.preKillSnapshot);
 
         const undoAsNonHost = callableAsNonHost('undoKillPlayer');
         await expect(undoAsNonHost({ roomId: ROOM, photoId })).rejects.toThrow(

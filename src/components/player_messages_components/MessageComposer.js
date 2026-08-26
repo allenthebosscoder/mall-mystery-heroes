@@ -124,7 +124,7 @@ const MessageComposer = ({
     // surfaces via a toast instead of the modal's own inline error banner,
     // since the modal (and that banner) are already gone by the time a
     // failure could happen.
-    const handlePhotoSubmit = async (effectiveTarget) => {
+    const handlePhotoSubmit = async () => {
         const blobToSubmit = compressedBlob;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setCompressedBlob(null);
@@ -133,7 +133,7 @@ const MessageComposer = ({
         setIsPhotoModalOpen(false);
         try {
             const url = await uploadKillPhoto(roomID, blobToSubmit);
-            await submitKillPhoto({ roomId: roomID, target: effectiveTarget, url });
+            await submitKillPhoto({ roomId: roomID, url });
         } catch (submitError) {
             console.error('Error submitting kill photo:', submitError);
             createAlert(
@@ -188,7 +188,6 @@ const MessageComposer = ({
             <KillPhotoModal
                 isOpen={isPhotoModalOpen}
                 onClose={() => setIsPhotoModalOpen(false)}
-                targets={targets}
                 previewUrl={previewUrl}
                 error={photoError}
                 onSubmit={handlePhotoSubmit}

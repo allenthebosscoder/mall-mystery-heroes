@@ -1,22 +1,17 @@
 /**
  * Layer 3 — component test, jsdom + Testing Library.
  *
- * Pins a real bug found in final review (kill-photo-submission): at the
- * time, every other test stubbed either MessageComposer or KillPhotoModal,
- * so nothing exercised the actual seam between them — specifically, that
- * KillPhotoModal's target selection must stay correct when its `targets`
- * prop arrives asynchronously after mount (exactly what happens in
- * PlayerGame.js, which renders MessageComposer before playerData has
- * loaded). This test renders both components for real, replaying that
- * exact sequence.
- *
- * MessageComposer.test.jsx also renders the real KillPhotoModal now (since
- * the 2026-08-15 one-tap-kill-photo-capture redesign made KillPhotoModal
- * presentational, with no Firebase imports of its own left to stub), so
- * this file is no longer the only place both render un-stubbed together.
- * What's still unique here is the async-arrival rerender sequence itself
- * — mounting with `targets={[]}` and then re-rendering with
- * `targets={['Bob']}` — which MessageComposer.test.jsx does not cover.
+ * Originally pinned a real bug found in final review (kill-photo-submission):
+ * KillPhotoModal's target picker held stale selection state when its
+ * `targets` prop arrived asynchronously after mount (exactly what happens
+ * in PlayerGame.js, which renders MessageComposer before playerData has
+ * loaded). The picker no longer exists — a player no longer names who they
+ * killed, a moderator resolves it later in PhotosDisplay.js — so that
+ * specific bug class can't recur. What's still real and worth protecting:
+ * MessageComposer's photo button is disabled while `targets` is empty
+ * (`disabled || targets.length === 0`), and must correctly become enabled
+ * once a late-arriving `targets` prop lands, the same async-arrival timing
+ * that caused the original bug.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
@@ -59,12 +54,14 @@ beforeEach(() => {
 });
 
 describe('MessageComposer + KillPhotoModal, targets arriving after mount', () => {
-    it('submits the real target once it loads, not the empty initial value', async () => {
+    it('enables the photo button once targets load, and submits with no target named', async () => {
         const { rerender } = render(
             <ChakraProvider>
                 <MessageComposer roomID="room-a" playerName="Alice" targets={[]} />
             </ChakraProvider>
         );
+
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
 
         // Simulates PlayerGame.js's player-doc subscription delivering
         // real targets after the initial empty-state render.
@@ -73,6 +70,8 @@ describe('MessageComposer + KillPhotoModal, targets arriving after mount', () =>
                 <MessageComposer roomID="room-a" playerName="Alice" targets={['Bob']} />
             </ChakraProvider>
         );
+
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeEnabled();
 
         await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
         await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
@@ -83,7 +82,6 @@ describe('MessageComposer + KillPhotoModal, targets arriving after mount', () =>
         await waitFor(() => expect(submitKillPhoto).toHaveBeenCalled());
         expect(submitKillPhoto).toHaveBeenCalledWith({
             roomId: 'room-a',
-            target: 'Bob',
             url: 'https://example.com/photo.jpg',
         });
     });

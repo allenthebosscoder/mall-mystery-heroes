@@ -10,6 +10,11 @@
  * asserts on what actually landed in Firestore, matching
  * executeKill.integration.test.js's approach
  * (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+ *
+ * A player no longer names who they killed — the target field is resolved
+ * later, by a moderator reviewing the photo in PhotosDisplay.js — so
+ * `target` is not sent by any of these calls, and every write lands with
+ * `target: null`.
  */
 import { httpsCallable } from 'firebase/functions';
 import { terminate, getDocs, Timestamp } from 'firebase/firestore';
@@ -33,7 +38,7 @@ beforeEach(clearFirestore);
 afterAll(shutdown);
 
 describe('submitKillPhoto', () => {
-    it("writes the photo with the caller's own real name as assassin, never a client-supplied one", async () => {
+    it("writes the photo with the caller's own real name as assassin, never a client-supplied one, and no target yet", async () => {
         const alice = await createIndependentIdentity();
         try {
             // Seeded via the default (host) db, not alice.db: alice is a
@@ -47,13 +52,13 @@ describe('submitKillPhoto', () => {
             await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL });
+            await call({ roomId: ROOM, url: REALISTIC_URL });
 
             const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
             expect(snapshot.docs).toHaveLength(1);
             expect(snapshot.docs[0].data()).toMatchObject({
                 assassin: 'alice',
-                target: 'bob',
+                target: null,
                 url: REALISTIC_URL,
                 status: 'pending',
                 originalPlayerData: null,
@@ -69,7 +74,7 @@ describe('submitKillPhoto', () => {
             await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL });
+            await call({ roomId: ROOM, url: REALISTIC_URL });
 
             const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
             expect(snapshot.docs).toHaveLength(1);
@@ -82,7 +87,7 @@ describe('submitKillPhoto', () => {
                 sender: null,
                 photoUrl: REALISTIC_URL,
                 assassin: 'alice',
-                target: 'bob',
+                target: null,
             });
         } finally {
             await terminate(alice.db);
@@ -96,7 +101,7 @@ describe('submitKillPhoto', () => {
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
             await expect(
-                call({ roomId: ROOM, target: 'bob', url: 'https://evil.example.com/x.jpg' })
+                call({ roomId: ROOM, url: 'https://evil.example.com/x.jpg' })
             ).rejects.toThrow("url does not point at this room's own Storage path.");
         } finally {
             await terminate(alice.db);
@@ -107,7 +112,7 @@ describe('submitKillPhoto', () => {
         await seedRoom(ROOM, [{ name: 'bob' }]);
         const call = callableAsNonHost('submitKillPhoto');
 
-        await expect(call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })).rejects.toThrow(
+        await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
             'You are not a player of this room.'
         );
     });
@@ -127,7 +132,7 @@ describe('submitKillPhoto', () => {
             ]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
                 'Multiple player identities are linked to your account in this room'
             );
 
@@ -146,7 +151,7 @@ describe('submitKillPhoto', () => {
             });
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
                 'This game has ended.'
             );
         } finally {
@@ -154,15 +159,18 @@ describe('submitKillPhoto', () => {
         }
     });
 
-    it('rejects an unknown target', async () => {
+    it('rejects a submission missing roomId or url', async () => {
         const alice = await createIndependentIdentity();
         try {
-            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }]);
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(
-                call({ roomId: ROOM, target: 'nobody', url: REALISTIC_URL })
-            ).rejects.toThrow('Player not found: nobody');
+            await expect(call({ url: REALISTIC_URL })).rejects.toThrow(
+                'roomId and url are both required.'
+            );
+            await expect(call({ roomId: ROOM })).rejects.toThrow(
+                'roomId and url are both required.'
+            );
         } finally {
             await terminate(alice.db);
         }
@@ -175,12 +183,10 @@ describe('submitKillPhoto', () => {
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
             for (let i = 0; i < 10; i += 1) {
-                await expect(
-                    call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })
-                ).resolves.toBeDefined();
+                await expect(call({ roomId: ROOM, url: REALISTIC_URL })).resolves.toBeDefined();
             }
 
-            await expect(call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
                 'Too many submissions'
             );
         } finally {
@@ -206,9 +212,7 @@ describe('submitKillPhoto', () => {
             ]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(
-                call({ roomId: ROOM, target: 'bob', url: REALISTIC_URL })
-            ).resolves.toBeDefined();
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).resolves.toBeDefined();
         } finally {
             await terminate(alice.db);
         }

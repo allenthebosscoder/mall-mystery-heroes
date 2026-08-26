@@ -278,7 +278,7 @@ const GameMasterView = () => {
                     <executionContext.Provider value={executionContextProviderValues}>
                         <VStack sx={styles.rightHandStack}>
                             <Box sx={styles.photosBox}>
-                                <PhotosDisplay />
+                                <PhotosDisplay players={players} />
                             </Box>
                             <Box sx={styles.chatPanelWrapper}>
                                 <Heading sx={styles.chatHeaderText}>Player Chat</Heading>

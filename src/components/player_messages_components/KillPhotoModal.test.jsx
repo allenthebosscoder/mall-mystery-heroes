@@ -10,6 +10,10 @@
  * (or any other in-flight state) anymore — MessageComposer.js now closes
  * this modal immediately on Submit rather than waiting on the upload/save,
  * so there is no "submitting" state left for this modal to represent.
+ *
+ * No target picker either — a player no longer names who they killed;
+ * the moderator resolves that later in PhotosDisplay.js. This modal is
+ * just: preview the photo, show an error if capture failed, Submit.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
@@ -26,7 +30,6 @@ const mountModal = (props = {}) =>
             <KillPhotoModal
                 isOpen
                 onClose={onClose}
-                targets={['bob']}
                 previewUrl={null}
                 error={null}
                 onSubmit={onSubmit}
@@ -40,19 +43,6 @@ beforeEach(() => {
 });
 
 describe('KillPhotoModal', () => {
-    it('auto-selects the only target and shows no picker when there is exactly one', () => {
-        mountModal({ targets: ['bob'] });
-
-        expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    });
-
-    it('shows a picker when there is more than one target', () => {
-        mountModal({ targets: ['bob', 'carol'] });
-
-        expect(screen.getByRole('radio', { name: 'bob' })).toBeInTheDocument();
-        expect(screen.getByRole('radio', { name: 'carol' })).toBeInTheDocument();
-    });
-
     it('shows the preview image when previewUrl is set', () => {
         mountModal({ previewUrl: 'blob:fake-preview' });
 
@@ -82,19 +72,18 @@ describe('KillPhotoModal', () => {
         expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
     });
 
-    it('enables Submit once there is a preview and a target', () => {
-        mountModal({ previewUrl: 'blob:fake-preview', targets: ['bob'] });
+    it('enables Submit once there is a preview', () => {
+        mountModal({ previewUrl: 'blob:fake-preview' });
 
         expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
     });
 
-    it('calls onSubmit with the effective target when Submit is clicked', async () => {
-        mountModal({ previewUrl: 'blob:fake-preview', targets: ['bob', 'carol'] });
+    it('calls onSubmit with no arguments when Submit is clicked', async () => {
+        mountModal({ previewUrl: 'blob:fake-preview' });
 
-        await userEvent.click(screen.getByRole('radio', { name: 'carol' }));
         await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
-        expect(onSubmit).toHaveBeenCalledWith('carol');
+        expect(onSubmit).toHaveBeenCalledWith();
     });
 
     it('calls onClose when Close is clicked', async () => {

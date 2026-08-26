@@ -16,7 +16,6 @@ const { Timestamp, FieldValue } = require('firebase-admin/firestore');
 // works locally and under the emulator. Kept in sync by
 // functions/scripts/sync-shared-game-logic.js (predeploy hook + local test
 // setup) — src/game/ remains the single source of truth.
-const { normalizePlayerName } = require('../vendor/game/playerNames');
 const { nextRateLimitWindow } = require('../vendor/game/rateLimit');
 const { isValidKillPhotoUrl } = require('../vendor/game/killPhotoUrl');
 
@@ -50,6 +49,13 @@ const PHOTO_RATE_LIMIT = { max: 10, windowMs: 60000 };
  * the submission shows up in every player's chat the moment it lands —
  * see MessageBubble.js for how it's rendered and PhotosDisplay.js for the
  * matching `killResult` message a moderator's decision posts later.
+ *
+ * Does not take a `target`: a player no longer names who they killed —
+ * everyone in the game knows each other, and an ambiguous photo is
+ * already an automatic fail per the game's own rules, so a moderator
+ * reviewing the photo resolves the target later, in PhotosDisplay.js.
+ * Both the photo doc and the killPhoto chat message land with
+ * `target: null` here.
  */
 exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -59,11 +65,11 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         );
     }
 
-    const { roomId, target, url } = data;
-    if (!roomId || !target || !url) {
+    const { roomId, url } = data;
+    if (!roomId || !url) {
         throw new functions.https.HttpsError(
             'invalid-argument',
-            'roomId, target, and url are all required.'
+            'roomId and url are both required.'
         );
     }
     if (!isValidKillPhotoUrl(url, roomId)) {
@@ -110,13 +116,6 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError('failed-precondition', 'This game has ended.');
         }
 
-        const targetSnapshot = await transaction.get(
-            playersRef.where('trimmedNameLowerCase', '==', normalizePlayerName(target))
-        );
-        if (targetSnapshot.empty) {
-            throw new functions.https.HttpsError('not-found', `Player not found: ${target}`);
-        }
-
         const rateLimits = assassinData.rateLimits || {};
         const currentWindow = rateLimits.photo
             ? {
@@ -147,7 +146,7 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         transaction.create(roomRef.collection('photos').doc(), {
             url,
             assassin: assassinData.name,
-            target,
+            target: null,
             timestamp: FieldValue.serverTimestamp(),
             status: 'pending',
             originalPlayerData: null,
@@ -166,7 +165,7 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
             sender: null,
             photoUrl: url,
             assassin: assassinData.name,
-            target,
+            target: null,
             timestamp: FieldValue.serverTimestamp(),
         });
     });

@@ -1,4 +1,4 @@
-import { Box, Heading, Image } from '@chakra-ui/react';
+import { Box, Heading, Image, Select, Text } from '@chakra-ui/react';
 import { useContext, useEffect, useState } from 'react';
 import { gameContext } from '../Contexts';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../firebase_calls/dbCalls';
 import { onSnapshot } from 'firebase/firestore';
 import { splitPhotosByStatus } from '../../game/photoJudgments';
+import { normalizePlayerName } from '../../game/playerNames';
 import { executeKill } from '../executeKill';
 import { undoKill } from '../undoKill';
 import confirm from '../../assets/enter-green.png';
@@ -18,7 +19,12 @@ import GamePhotos from './GamePhotos';
 import { executionContext } from '../Contexts';
 import CreateAlert from '../CreateAlert';
 
-const PhotosDisplay = () => {
+// A player no longer names who they killed when submitting a photo —
+// everyone in the game knows each other, and an ambiguous photo is
+// already an automatic fail per the game's own rules, so the moderator
+// resolves the target here instead, while reviewing the photo. `players`
+// is the same live roster GameMasterView.js already subscribes to.
+const PhotosDisplay = ({ players = [] }) => {
     const [unjudgedPhotos, setUnjudgedPhotos] = useState([]);
     const [judgedPhotos, setJudgedPhotos] = useState([]);
     // Photo IDs the GM has clicked Approve/Deny on but Firestore hasn't
@@ -28,6 +34,12 @@ const PhotosDisplay = () => {
     // the current unjudged photo), so suppressing these IDs from
     // unjudgedPhotos is enough to make the queue advance instantly.
     const [optimisticallyJudgedIds, setOptimisticallyJudgedIds] = useState([]);
+    // The moderator's in-progress target pick for the current photo —
+    // only meaningful when the assassin has more than one live target
+    // (see effectiveTarget below). Reset whenever the queue advances to a
+    // different photo, so a pick made for one photo never leaks into the
+    // next one's default.
+    const [selectedTarget, setSelectedTarget] = useState('');
     const { roomID } = useContext(gameContext);
     const {
         addLog,
@@ -73,6 +85,31 @@ const PhotosDisplay = () => {
     const visibleUnjudgedPhotos = unjudgedPhotos.filter(
         (photo) => !optimisticallyJudgedIds.includes(photo.id)
     );
+    const currentPhoto = visibleUnjudgedPhotos[0];
+
+    const currentAssassinTargets = currentPhoto
+        ? (players.find(
+              (player) =>
+                  normalizePlayerName(player.name) === normalizePlayerName(currentPhoto.assassin)
+          )?.targets ?? [])
+        : [];
+    // Derived, not state. Auto-resolves only when there's exactly one
+    // option (nothing to actually choose) — with two or more, this stays
+    // unresolved (blocking Approve) until `selectedTarget` genuinely
+    // matches one of the assassin's targets, i.e. the moderator has
+    // explicitly picked one from the dropdown.
+    const effectiveTarget =
+        currentAssassinTargets.length === 1
+            ? currentAssassinTargets[0]
+            : currentAssassinTargets.includes(selectedTarget)
+              ? selectedTarget
+              : '';
+
+    // A pick made for one photo must never leak into the next one's
+    // default once the queue advances.
+    useEffect(() => {
+        setSelectedTarget('');
+    }, [currentPhoto?.id]);
 
     // Approving a photo used to kill the target unconditionally — no check
     // that the assassin was actually hunting them, and no remap of the
@@ -85,39 +122,42 @@ const PhotosDisplay = () => {
     // kill (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md).
     const handlePass = async () => {
         if (visibleUnjudgedPhotos.length === 0) return;
-        const [currentPhoto] = visibleUnjudgedPhotos;
+        // The moderator hasn't resolved a target yet (the assassin has more
+        // than one live target, and none has been picked) — nothing to
+        // approve against.
+        if (!effectiveTarget) return;
+        const target = effectiveTarget;
+        const [approvingPhoto] = visibleUnjudgedPhotos;
         // Suppress this photo from the queue immediately — executeKill can
         // take several real seconds against a cold Cloud Function, and
         // there's no reason to make the GM stare at the same photo while
         // it runs. Rolled back in the catch block if it ultimately fails.
-        setOptimisticallyJudgedIds((previous) => [...previous, currentPhoto.id]);
+        setOptimisticallyJudgedIds((previous) => [...previous, approvingPhoto.id]);
 
         try {
             const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } = await executeKill(
-                currentPhoto.target,
-                currentPhoto.assassin,
+                target,
+                approvingPhoto.assassin,
                 roomID
             );
 
-            // Persists preKillSnapshot onto the photo doc so undo survives a
-            // reload (docs/improvements.md item 6) — the onSnapshot listener
-            // above picks up the resulting status change and recomputes
-            // judgedPhotos, so no local state update is needed here.
-            await approvePhotoForRoom(roomID, currentPhoto.id, preKillSnapshot);
-            await addLog(
-                `${currentPhoto.target} was killed by ${currentPhoto.assassin}`,
-                'red.400'
-            );
+            // Persists preKillSnapshot (and the now-resolved target) onto
+            // the photo doc so undo survives a reload (docs/improvements.md
+            // item 6) — the onSnapshot listener above picks up the
+            // resulting status change and recomputes judgedPhotos, so no
+            // local state update is needed here.
+            await approvePhotoForRoom(roomID, approvingPhoto.id, target, preKillSnapshot);
+            await addLog(`${target} was killed by ${approvingPhoto.assassin}`, 'red.400');
             await addPlayerMessageForRoom(
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: `${currentPhoto.target} was killed by ${currentPhoto.assassin}`,
+                    text: `${target} was killed by ${approvingPhoto.assassin}`,
                     standings: null,
                     mission: null,
                     sender: null,
-                    assassin: currentPhoto.assassin,
-                    target: currentPhoto.target,
+                    assassin: approvingPhoto.assassin,
+                    target,
                     outcome: 'approved',
                 },
                 roomID
@@ -132,33 +172,33 @@ const PhotosDisplay = () => {
         } catch (error) {
             console.error('Error approving photo: ', error);
             setOptimisticallyJudgedIds((previous) =>
-                previous.filter((id) => id !== currentPhoto.id)
+                previous.filter((id) => id !== approvingPhoto.id)
             );
             createAlert('error', 'Error approving photo', error.message, 1500);
         }
     };
 
+    // Denying never needs a resolved target — an ambiguous or otherwise
+    // invalid photo can be rejected without anyone ever deciding who it
+    // was supposedly of.
     const handleDeny = async () => {
         if (visibleUnjudgedPhotos.length === 0) return;
-        const [currentPhoto] = visibleUnjudgedPhotos;
-        setOptimisticallyJudgedIds((previous) => [...previous, currentPhoto.id]);
+        const [denyingPhoto] = visibleUnjudgedPhotos;
+        setOptimisticallyJudgedIds((previous) => [...previous, denyingPhoto.id]);
 
         try {
-            await updatePhotoStatusForRoom(roomID, currentPhoto.id, 'denied');
-            await addLog(
-                `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
-                'gray'
-            );
+            await updatePhotoStatusForRoom(roomID, denyingPhoto.id, 'denied');
+            await addLog(`${denyingPhoto.assassin}'s kill attempt was denied`, 'gray');
             await addPlayerMessageForRoom(
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: `${currentPhoto.assassin}'s attempt to kill ${currentPhoto.target} was denied`,
+                    text: `${denyingPhoto.assassin}'s kill attempt was denied`,
                     standings: null,
                     mission: null,
                     sender: null,
-                    assassin: currentPhoto.assassin,
-                    target: currentPhoto.target,
+                    assassin: denyingPhoto.assassin,
+                    target: null,
                     outcome: 'denied',
                 },
                 roomID
@@ -166,7 +206,7 @@ const PhotosDisplay = () => {
         } catch (error) {
             console.error('Error denying photo: ', error);
             setOptimisticallyJudgedIds((previous) =>
-                previous.filter((id) => id !== currentPhoto.id)
+                previous.filter((id) => id !== denyingPhoto.id)
             );
             createAlert('error', 'Error denying photo', error.message, 1500);
         }
@@ -213,19 +253,19 @@ const PhotosDisplay = () => {
             if (action === 'deny') {
                 await updatePhotoStatusForRoom(roomID, photo.id, 'pending');
                 await addLog(
-                    `Undo: denial of ${photo.assassin}'s claim on ${photo.target} was reverted.`,
+                    `Undo: denial of ${photo.assassin}'s kill attempt was reverted.`,
                     'blue.200'
                 );
                 await addPlayerMessageForRoom(
                     {
                         type: 'killResult',
                         recipient: null,
-                        text: `Undo: denial of ${photo.assassin}'s claim on ${photo.target} was reverted.`,
+                        text: `Undo: denial of ${photo.assassin}'s kill attempt was reverted.`,
                         standings: null,
                         mission: null,
                         sender: null,
                         assassin: photo.assassin,
-                        target: photo.target,
+                        target: null,
                         outcome: 'undoneDenial',
                     },
                     roomID
@@ -249,8 +289,27 @@ const PhotosDisplay = () => {
                         : ''}
                 </Heading>
                 <Box sx={styles.photosBox}>
-                    <GamePhotos photo={visibleUnjudgedPhotos[0]} />
+                    <GamePhotos photo={currentPhoto} />
                 </Box>
+                {currentPhoto && (
+                    <Box sx={styles.targetPickerBox}>
+                        <Text mb={1}>Submitted by {currentPhoto.assassin}</Text>
+                        {currentAssassinTargets.length > 1 && (
+                            <Select
+                                aria-label="Select target"
+                                placeholder="Choose target"
+                                value={effectiveTarget}
+                                onChange={(event) => setSelectedTarget(event.target.value)}
+                            >
+                                {currentAssassinTargets.map((target) => (
+                                    <option key={target} value={target}>
+                                        {target}
+                                    </option>
+                                ))}
+                            </Select>
+                        )}
+                    </Box>
+                )}
                 <Box sx={styles.buttonsBox}>
                     <Image src={deny} alt="Deny" sx={styles.buttonImage} onClick={handleDeny} />
                     <Image src={undo} alt="Undo" sx={styles.buttonImage} onClick={handleUndo} />
@@ -258,6 +317,8 @@ const PhotosDisplay = () => {
                         src={confirm}
                         alt="Approve"
                         sx={styles.buttonImage}
+                        opacity={effectiveTarget ? 1 : 0.3}
+                        cursor={effectiveTarget ? 'pointer' : 'not-allowed'}
                         onClick={handlePass}
                     />
                 </Box>
@@ -287,6 +348,11 @@ const styles = {
         alignItems: 'center',
         marginX: '2px',
         borderWidth: 1,
+    },
+    targetPickerBox: {
+        w: '94%',
+        textAlign: 'center',
+        marginX: '2px',
     },
     buttonsBox: {
         display: 'flex',

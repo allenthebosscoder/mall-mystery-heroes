@@ -63,7 +63,7 @@ const MessageBubble = ({ message, playerName }) => {
             ) : message.type === 'killPhoto' ? (
                 <Box bg="gray.700" borderRadius="md" p={2}>
                     <Text fontWeight="bold" mb={1}>
-                        {message.assassin} is going for {message.target}!
+                        {message.assassin}
                     </Text>
                     <Image
                         src={message.photoUrl}

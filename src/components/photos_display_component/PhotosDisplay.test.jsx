@@ -45,13 +45,25 @@ const executionHandlers = {
     handleSetShowMessageToTrue: jest.fn(),
 };
 
+// Every assassin used across this file's photo docs has exactly one
+// target here, so PhotosDisplay's target dropdown auto-resolves without
+// any test needing to interact with it — only the dedicated "moderator
+// target picker" describe block below overrides this with a
+// multi-target roster to exercise the dropdown itself.
+const defaultPlayers = [
+    { name: 'alice', targets: ['bob'] },
+    { name: 'bob', targets: ['alice'] },
+    { name: 'carol', targets: ['dave'] },
+    { name: 'dave', targets: [] },
+];
+
 /**
  * Simulates the given photo docs as what onSnapshot reports immediately on
  * mount. Returns a function that delivers a later snapshot update (photo IDs
  * are reassigned by array index each call, so keeping a photo at the same
  * index across calls keeps its ID stable).
  */
-const mountWithSnapshot = (photoDocs) => {
+const mountWithSnapshot = (photoDocs, players = defaultPlayers) => {
     let deliverUpdate;
     onSnapshot.mockImplementation((query, onNext) => {
         deliverUpdate = onNext;
@@ -65,7 +77,7 @@ const mountWithSnapshot = (photoDocs) => {
         <ChakraProvider>
             <gameContext.Provider value={{ roomID: 'room-a' }}>
                 <executionContext.Provider value={executionHandlers}>
-                    <PhotosDisplay />
+                    <PhotosDisplay players={players} />
                 </executionContext.Provider>
             </gameContext.Provider>
         </ChakraProvider>
@@ -140,7 +152,7 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
 
     it('reverts a denied judgment by resetting status to pending, without calling undoKill', async () => {
         mountWithSnapshot([
-            { status: 'denied', target: 'alice', assassin: 'bob', originalPlayerData: null },
+            { status: 'denied', target: null, assassin: 'bob', originalPlayerData: null },
         ]);
 
         await userEvent.click(screen.getByAltText('Undo'));
@@ -153,7 +165,7 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
             )
         );
         expect(executionHandlers.addLog).toHaveBeenCalledWith(
-            "Undo: denial of bob's claim on alice was reverted.",
+            "Undo: denial of bob's kill attempt was reverted.",
             'blue.200'
         );
         expect(undoKill).not.toHaveBeenCalled();
@@ -193,7 +205,7 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
 
     it('posts a chat message when undoing a denial', async () => {
         mountWithSnapshot([
-            { status: 'denied', target: 'alice', assassin: 'bob', originalPlayerData: null },
+            { status: 'denied', target: null, assassin: 'bob', originalPlayerData: null },
         ]);
 
         await userEvent.click(screen.getByAltText('Undo'));
@@ -203,12 +215,12 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: "Undo: denial of bob's claim on alice was reverted.",
+                    text: "Undo: denial of bob's kill attempt was reverted.",
                     standings: null,
                     mission: null,
                     sender: null,
                     assassin: 'bob',
-                    target: 'alice',
+                    target: null,
                     outcome: 'undoneDenial',
                 },
                 'room-a'
@@ -239,7 +251,7 @@ describe('approving a photo persists the undo snapshot (improvements item 6)', (
         await userEvent.click(screen.getByAltText('Approve'));
 
         await waitFor(() => expect(executeKill).toHaveBeenCalledWith('alice', 'bob', 'room-a'));
-        expect(dbCalls.approvePhotoForRoom).toHaveBeenCalledWith('room-a', 'photo-0', {
+        expect(dbCalls.approvePhotoForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 'alice', {
             bob: { score: 12, targets: ['x'], assassins: ['y'], isAlive: true, openSeason: false },
         });
     });
@@ -300,7 +312,7 @@ describe('kill outcomes are announced in the room chat', () => {
     });
 
     it('posts a killResult chat message when a photo is denied', async () => {
-        mountWithSnapshot([{ status: 'pending', target: 'alice', assassin: 'bob' }]);
+        mountWithSnapshot([{ status: 'pending', target: null, assassin: 'bob' }]);
 
         await userEvent.click(screen.getByAltText('Deny'));
 
@@ -309,12 +321,12 @@ describe('kill outcomes are announced in the room chat', () => {
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: "bob's attempt to kill alice was denied",
+                    text: "bob's kill attempt was denied",
                     standings: null,
                     mission: null,
                     sender: null,
                     assassin: 'bob',
-                    target: 'alice',
+                    target: null,
                     outcome: 'denied',
                 },
                 'room-a'
@@ -546,5 +558,121 @@ describe('optimistic queue advance while a judgment is in flight (making Approve
             'src',
             'https://example.com/3.jpg'
         );
+    });
+});
+
+describe('moderator resolves the target (players no longer pick who they killed)', () => {
+    it('shows no dropdown and lets Approve proceed when the assassin has exactly one target', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice'] }]
+        );
+
+        expect(screen.queryByLabelText('Select target')).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('alice', 'bob', 'room-a'));
+    });
+
+    it('shows a dropdown listing the assassin’s targets when there is more than one', async () => {
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice', 'carol'] }]
+        );
+
+        expect(screen.getByLabelText('Select target')).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'alice' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
+    });
+
+    it('uses the picked target for executeKill, approvePhotoForRoom, and the chat announcement', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice', 'carol'] }]
+        );
+
+        await userEvent.selectOptions(screen.getByLabelText('Select target'), 'carol');
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('carol', 'bob', 'room-a'));
+        expect(dbCalls.approvePhotoForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 'carol', {});
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            expect.objectContaining({ text: 'carol was killed by bob', target: 'carol' }),
+            'room-a'
+        );
+    });
+
+    it('does nothing when Approve is clicked while the target is still unresolved', async () => {
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice', 'carol'] }]
+        );
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        expect(executeKill).not.toHaveBeenCalled();
+        expect(dbCalls.approvePhotoForRoom).not.toHaveBeenCalled();
+    });
+
+    it('resets the picked target when the queue advances to a new photo', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot(
+            [
+                { status: 'pending', target: null, assassin: 'bob' },
+                { status: 'pending', target: null, assassin: 'carol' },
+            ],
+            [
+                { name: 'bob', targets: ['alice', 'dave'] },
+                { name: 'carol', targets: ['eve'] },
+            ]
+        );
+
+        await userEvent.selectOptions(screen.getByLabelText('Select target'), 'dave');
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        // carol (the next photo's assassin) has exactly one target, so no
+        // dropdown should reappear, and it should already be resolved —
+        // not left over from bob's pick (which would incorrectly try to
+        // approve carol's photo against 'dave', a name that isn't even one
+        // of carol's own targets).
+        await waitFor(() =>
+            expect(screen.queryByLabelText('Select target')).not.toBeInTheDocument()
+        );
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('eve', 'carol', 'room-a'));
+    });
+
+    it('Deny does not require a target to be picked, even when the assassin has more than one', async () => {
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice', 'carol'] }]
+        );
+
+        await userEvent.click(screen.getByAltText('Deny'));
+
+        await waitFor(() => expect(dbCalls.updatePhotoStatusForRoom).toHaveBeenCalled());
     });
 });

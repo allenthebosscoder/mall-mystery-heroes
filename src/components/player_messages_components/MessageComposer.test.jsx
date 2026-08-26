@@ -296,7 +296,6 @@ describe('MessageComposer', () => {
         await waitFor(() =>
             expect(submitKillPhoto).toHaveBeenCalledWith({
                 roomId: 'room-a',
-                target: 'bob',
                 url: 'https://example.com/photo.jpg',
             })
         );
