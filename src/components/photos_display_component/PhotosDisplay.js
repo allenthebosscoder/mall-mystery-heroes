@@ -194,6 +194,20 @@ const PhotosDisplay = () => {
                     `Undo: ${photo.target}'s death by ${photo.assassin} was reverted`,
                     'blue.200'
                 );
+                await addPlayerMessageForRoom(
+                    {
+                        type: 'killResult',
+                        recipient: null,
+                        text: `Undo: ${photo.target}'s death by ${photo.assassin} was reverted`,
+                        standings: null,
+                        mission: null,
+                        sender: null,
+                        assassin: photo.assassin,
+                        target: photo.target,
+                        outcome: 'undoneApproval',
+                    },
+                    roomID
+                );
             }
 
             if (action === 'deny') {
@@ -201,6 +215,20 @@ const PhotosDisplay = () => {
                 await addLog(
                     `Undo: denial of ${photo.assassin}'s claim on ${photo.target} was reverted.`,
                     'blue.200'
+                );
+                await addPlayerMessageForRoom(
+                    {
+                        type: 'killResult',
+                        recipient: null,
+                        text: `Undo: denial of ${photo.assassin}'s claim on ${photo.target} was reverted.`,
+                        standings: null,
+                        mission: null,
+                        sender: null,
+                        assassin: photo.assassin,
+                        target: photo.target,
+                        outcome: 'undoneDenial',
+                    },
+                    roomID
                 );
             }
             // unjudgedPhotos/judgedPhotos update via the onSnapshot listener

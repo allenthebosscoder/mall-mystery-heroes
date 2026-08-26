@@ -158,6 +158,63 @@ describe('reconstructing judged photos from Firestore (improvements item 6)', ()
         );
         expect(undoKill).not.toHaveBeenCalled();
     });
+
+    it('posts a chat message when undoing an approved kill', async () => {
+        mountWithSnapshot([
+            {
+                status: 'approved',
+                target: 'alice',
+                assassin: 'bob',
+                originalPlayerData: {
+                    alice: { score: 7, targets: ['carol'], assassins: ['dave'], isAlive: true },
+                },
+            },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Undo'));
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: "Undo: alice's death by bob was reverted",
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: 'bob',
+                    target: 'alice',
+                    outcome: 'undoneApproval',
+                },
+                'room-a'
+            )
+        );
+    });
+
+    it('posts a chat message when undoing a denial', async () => {
+        mountWithSnapshot([
+            { status: 'denied', target: 'alice', assassin: 'bob', originalPlayerData: null },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Undo'));
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'killResult',
+                    recipient: null,
+                    text: "Undo: denial of bob's claim on alice was reverted.",
+                    standings: null,
+                    mission: null,
+                    sender: null,
+                    assassin: 'bob',
+                    target: 'alice',
+                    outcome: 'undoneDenial',
+                },
+                'room-a'
+            )
+        );
+    });
 });
 
 describe('approving a photo persists the undo snapshot (improvements item 6)', () => {
