@@ -133,6 +133,14 @@ const PhotosDisplay = ({ players = [] }) => {
         // there's no reason to make the GM stare at the same photo while
         // it runs. Rolled back in the catch block if it ultimately fails.
         setOptimisticallyJudgedIds((previous) => [...previous, approvingPhoto.id]);
+        // Reset synchronously, in the same batch as the queue advance
+        // above — not just via the currentPhoto?.id effect below, which
+        // only runs after this render commits. Without this, the very next
+        // render briefly computes effectiveTarget for the *new* current
+        // photo using this pick, which resolves to a value the moderator
+        // never chose for it if that assassin's targets happen to include
+        // the same name.
+        setSelectedTarget('');
 
         try {
             const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } = await executeKill(
@@ -185,6 +193,9 @@ const PhotosDisplay = ({ players = [] }) => {
         if (visibleUnjudgedPhotos.length === 0) return;
         const [denyingPhoto] = visibleUnjudgedPhotos;
         setOptimisticallyJudgedIds((previous) => [...previous, denyingPhoto.id]);
+        // Same reasoning as handlePass — reset synchronously with the queue
+        // advance, not just via the effect below.
+        setSelectedTarget('');
 
         try {
             await updatePhotoStatusForRoom(roomID, denyingPhoto.id, 'denied');
@@ -294,7 +305,7 @@ const PhotosDisplay = ({ players = [] }) => {
                 {currentPhoto && (
                     <Box sx={styles.targetPickerBox}>
                         <Text mb={1}>Submitted by {currentPhoto.assassin}</Text>
-                        {currentAssassinTargets.length > 1 && (
+                        {currentAssassinTargets.length > 1 ? (
                             <Select
                                 aria-label="Select target"
                                 placeholder="Choose target"
@@ -307,6 +318,13 @@ const PhotosDisplay = ({ players = [] }) => {
                                     </option>
                                 ))}
                             </Select>
+                        ) : (
+                            // Auto-resolved from the assassin's one live
+                            // target — still shown, not just used silently,
+                            // so the moderator can catch a target that
+                            // drifted (via an unrelated kill's remap)
+                            // between when this photo was submitted and now.
+                            effectiveTarget && <Text>Target: {effectiveTarget}</Text>
                         )}
                     </Box>
                 )}

@@ -576,6 +576,11 @@ describe('moderator resolves the target (players no longer pick who they killed)
         );
 
         expect(screen.queryByLabelText('Select target')).not.toBeInTheDocument();
+        // The auto-resolved target must still be visible, even with no
+        // dropdown — otherwise the moderator has no way to catch a target
+        // that drifted (via a remap from an unrelated kill) between when
+        // this photo was submitted and when it's being reviewed now.
+        expect(screen.getByText('Target: alice')).toBeInTheDocument();
 
         await userEvent.click(screen.getByAltText('Approve'));
 
