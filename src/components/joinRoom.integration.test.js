@@ -65,6 +65,30 @@ describe('joinRoom', () => {
         await expect(joinRoom(ROOM, '  alice  ')).rejects.toThrow(/already taken/);
     });
 
+    it('rejects a second join from the same uid under a different name in the same room (docs/improvements.md item 66)', async () => {
+        await seedRoom(ROOM, []);
+        await joinRoom(ROOM, 'Alice');
+
+        await expect(joinRoom(ROOM, 'Bob')).rejects.toThrow(
+            'You have already joined this room as Alice.'
+        );
+
+        await expect(fetchPlayerForRoom('bob', ROOM)).rejects.toThrow('Player not found');
+    });
+
+    it('still allows the same uid to join a different room under a new name', async () => {
+        await seedRoom(ROOM, []);
+        await seedRoom('some-other-room', []);
+        await joinRoom(ROOM, 'Alice');
+
+        // joinRoom resolves to undefined on success — the assertion here
+        // is that this does not reject, not on the resolved value itself.
+        await joinRoom('some-other-room', 'Alice');
+
+        const player = await fetchPlayerForRoom('alice', 'some-other-room');
+        expect(player.data()).toMatchObject({ name: 'Alice' });
+    });
+
     it('rejects a roomId containing "/" rather than silently resolving to an unintended document', async () => {
         await seedRoom('some-other-room', []);
 

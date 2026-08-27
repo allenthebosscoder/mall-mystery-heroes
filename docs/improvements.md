@@ -74,6 +74,7 @@ plus the auth and add-player work below:
 | 63 — `/mission done` on a deleted mission leaked a raw lookup error          | `fetchReferenceByIndexForTask` is now only called after the `if (!task)` guard, so a deleted mission's index never reaches the throwing call. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 64 — `TaskEditModal.js` did not apply the blank-description default          | `buildUpdates` now applies the same `'No description provided'` default as `TaskCreation.js` when the field is blank. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 65 — `TaskEditModal.js`'s retry-progress reset had no direct test            | The reset state is now a pure factory, `createApplyProgress()` in `src/game/missionEdit.js`, with its own direct unit tests. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 66 — `joinRoom` did not prevent one uid from owning multiple player docs     | The transaction now checks the room's `joinedUids` for the caller's uid before the name-taken check, and rejects with the existing player's name if found. 2 new emulator tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ### ⚠️ Partially addressed
 
@@ -2071,7 +2072,7 @@ appliedPlayerIndexes: new Set() }` — is now a pure factory,
 unit tests; `resetApplyProgress()` and the `useRef` initializer both call
 it instead of duplicating the object literal. 2 new tests.
 
-### 66. `joinRoom` does not prevent one uid from owning multiple player docs in the same room
+### 66. `joinRoom` does not prevent one uid from owning multiple player docs in the same room ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -2087,26 +2088,21 @@ player docs in one room sharing one `uid`. That breaks an invariant
 several things quietly assume, since a uid-scoped player lookup then
 returns two documents with no principled way to pick between them.
 
-**Partially mitigated, not fixed:** `submitKillPhoto` and
-`submitChatMessage` now reject such a caller with a `failed-precondition`
-("Multiple player identities are linked to your account in this room —
-ask your GM for help") instead of silently taking `docs[0]`. Verified
-empirically first: with two such docs seeded, both functions previously
-resolved successfully, attributing every photo and message to whichever
-name sorted first, and permanently locking the second identity out of
-submitting as itself. Failing loudly is the right default while the root
-cause stands — the consequence is now visible to the player and fixable
-by the GM (delete the stray player doc) rather than a silent
-misattribution nobody would notice. `Homepage.js`'s session recovery
-handles its own, different multi-doc case (one uid legitimately across
-several _rooms_) by preferring a still-active room.
+`submitKillPhoto` and `submitChatMessage` already reject such a caller
+with a `failed-precondition` ("Multiple player identities are linked to
+your account in this room — ask your GM for help") instead of silently
+taking `docs[0]`, a mitigation that stays in place as defense in depth.
 
-**Not addressed:** the root cause. A `uid`-uniqueness check belongs in
-`joinRoom.js`'s transaction, but the useful behavior is probably not
-"reject" — it is "return the existing player doc and let them back into
-their original identity," which touches the join flow's UI and its
-session handling, not just the callable. That is a separate change, out
-of scope for a fix wave.
+**Resolution:** `joinRoom.js`'s transaction now checks the room's
+`joinedUids` array for `context.auth.uid` before the name-taken check, and
+rejects with `You have already joined this room as {existing name}.` if
+found — reading `joinedUids` (already written on every successful join,
+previously only ever read by a test) avoids an extra query in the common,
+non-duplicate case. A rejected caller must ask their GM for help
+recovering their original identity, rather than the join silently
+creating a second one; letting them transparently rejoin as their
+existing player was considered but deferred — it touches the join flow's
+UI and session handling, not just this callable. 2 new emulator tests.
 
 ---
 

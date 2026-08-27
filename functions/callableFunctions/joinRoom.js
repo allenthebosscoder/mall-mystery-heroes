@@ -78,6 +78,27 @@ exports.joinRoom = functions.https.onCall(async (data, context) => {
             );
         }
 
+        // Checked before the name-taken check below: a stale
+        // localStorage session, a shared link tapped again, or plain
+        // curiosity could otherwise let one uid end up owning two player
+        // docs in this room, which several things quietly assume can't
+        // happen (docs/improvements.md item 66). joinedUids is already
+        // maintained purely for this check — reading it first avoids the
+        // extra player-lookup query below in the common, non-duplicate
+        // case.
+        if ((roomSnapshot.data().joinedUids || []).includes(context.auth.uid)) {
+            const playerCollectionRef = roomRef.collection('players');
+            const existingPlayerQuery = playerCollectionRef.where('uid', '==', context.auth.uid);
+            const existingPlayerSnapshot = await transaction.get(existingPlayerQuery);
+            const existingName = existingPlayerSnapshot.empty
+                ? 'another name'
+                : existingPlayerSnapshot.docs[0].data().name;
+            throw new functions.https.HttpsError(
+                'already-exists',
+                `You have already joined this room as ${existingName}.`
+            );
+        }
+
         const existing = await transaction.get(playerRef);
         if (existing.exists) {
             throw new functions.https.HttpsError(
