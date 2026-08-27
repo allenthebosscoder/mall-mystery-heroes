@@ -14,14 +14,15 @@ import {
     useDisclosure,
 } from '@chakra-ui/react';
 import React, { useContext, useRef, useState } from 'react';
-import { gameContext } from '../Contexts';
-import { deleteTaskForRoom } from '../firebase_calls/dbCalls';
+import { gameContext, executionContext } from '../Contexts';
+import { deleteTaskForRoom, addPlayerMessageForRoom } from '../firebase_calls/dbCalls';
 import CreateAlert from '../CreateAlert';
 import TaskEditModal from './TaskEditModal';
 
 const TaskAccordion = (props) => {
     const task = props.task;
     const { roomID } = useContext(gameContext);
+    const { addLog } = useContext(executionContext);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
     const cancelRef = useRef();
@@ -30,6 +31,16 @@ const TaskAccordion = (props) => {
     const handleConfirmDelete = async () => {
         try {
             await deleteTaskForRoom(task.taskIndex, roomID);
+            await addLog(`Mission "${task.title}" was deleted`, 'red.400');
+            await addPlayerMessageForRoom(
+                {
+                    type: 'broadcast',
+                    recipient: null,
+                    text: `Mission ${task.title} was deleted`,
+                    standings: null,
+                },
+                roomID
+            );
         } catch (error) {
             console.error('Error deleting mission:', error);
             createAlert('error', 'Error deleting mission', error.message, 1500);
@@ -82,6 +93,7 @@ const TaskAccordion = (props) => {
                     onClose={() => setIsEditOpen(false)}
                     task={task}
                     roomID={roomID}
+                    addLog={addLog}
                 />
             )}
             <AlertDialog

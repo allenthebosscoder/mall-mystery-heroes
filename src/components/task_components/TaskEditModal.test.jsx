@@ -14,18 +14,24 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TaskEditModal from './TaskEditModal';
 import TaskAccordion from './TaskAccordion';
-import { gameContext } from '../Contexts';
-import { updateTaskForRoom, updatePointsForPlayer } from '../firebase_calls/dbCalls';
+import { gameContext, executionContext } from '../Contexts';
+import {
+    updateTaskForRoom,
+    updatePointsForPlayer,
+    addPlayerMessageForRoom,
+} from '../firebase_calls/dbCalls';
 
 jest.mock('../firebase_calls/dbCalls', () => ({
     updateTaskForRoom: jest.fn(),
     updatePointsForPlayer: jest.fn(),
+    addPlayerMessageForRoom: jest.fn(),
     // TaskAccordion — the real parent, rendered unstubbed by the reopen
     // test below — imports this too.
     deleteTaskForRoom: jest.fn(),
 }));
 
 const onClose = jest.fn();
+const addLog = jest.fn();
 
 const baseTask = {
     taskIndex: 1,
@@ -40,7 +46,7 @@ const baseTask = {
 
 const renderModal = (task = baseTask) => (
     <ChakraProvider>
-        <TaskEditModal isOpen onClose={onClose} task={task} roomID="room-a" />
+        <TaskEditModal isOpen onClose={onClose} task={task} roomID="room-a" addLog={addLog} />
     </ChakraProvider>
 );
 
@@ -50,6 +56,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     updateTaskForRoom.mockResolvedValue(undefined);
     updatePointsForPlayer.mockResolvedValue(undefined);
+    addPlayerMessageForRoom.mockResolvedValue(undefined);
 });
 
 describe('TaskEditModal', () => {
@@ -351,6 +358,29 @@ describe('TaskEditModal', () => {
             'room-a'
         );
     });
+
+    it('logs the edit to the GM log and announces it in the player chat', async () => {
+        mountModal();
+
+        await userEvent.clear(screen.getByDisplayValue('Find the clue'));
+        await userEvent.type(screen.getByPlaceholderText('Task Title'), 'Find the second clue');
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(await screen.findByText(/task updated/i)).toBeInTheDocument();
+        expect(addLog).toHaveBeenCalledWith(
+            'Mission "Find the second clue" was edited',
+            'blue.400'
+        );
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Mission Find the second clue was edited',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
 });
 
 describe('TaskEditModal reopened from TaskAccordion', () => {
@@ -362,9 +392,11 @@ describe('TaskEditModal reopened from TaskAccordion', () => {
         render(
             <ChakraProvider>
                 <gameContext.Provider value={{ roomID: 'room-a' }}>
-                    <Accordion allowToggle defaultIndex={0}>
-                        <TaskAccordion task={task} />
-                    </Accordion>
+                    <executionContext.Provider value={{ addLog: jest.fn() }}>
+                        <Accordion allowToggle defaultIndex={0}>
+                            <TaskAccordion task={task} />
+                        </Accordion>
+                    </executionContext.Provider>
                 </gameContext.Provider>
             </ChakraProvider>
         );

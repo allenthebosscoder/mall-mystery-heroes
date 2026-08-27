@@ -10,7 +10,7 @@ import { ChakraProvider } from '@chakra-ui/react';
 import { render, screen } from '@testing-library/react';
 import { onSnapshot } from 'firebase/firestore';
 import TaskList from './TaskList';
-import { gameContext } from '../Contexts';
+import { gameContext, executionContext } from '../Contexts';
 import { fetchTasksByCompletionForRoom } from '../firebase_calls/dbCalls';
 
 jest.mock('firebase/firestore', () => ({
@@ -27,7 +27,9 @@ const mountTaskList = () =>
     render(
         <ChakraProvider>
             <gameContext.Provider value={{ roomID: 'room-a' }}>
-                <TaskList />
+                <executionContext.Provider value={{ addLog: jest.fn() }}>
+                    <TaskList />
+                </executionContext.Provider>
             </gameContext.Provider>
         </ChakraProvider>
     );

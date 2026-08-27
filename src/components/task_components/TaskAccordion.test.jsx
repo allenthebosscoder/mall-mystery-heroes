@@ -24,14 +24,15 @@
  */
 import React from 'react';
 import { ChakraProvider, Accordion } from '@chakra-ui/react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TaskAccordion from './TaskAccordion';
-import { gameContext } from '../Contexts';
-import { deleteTaskForRoom } from '../firebase_calls/dbCalls';
+import { gameContext, executionContext } from '../Contexts';
+import { deleteTaskForRoom, addPlayerMessageForRoom } from '../firebase_calls/dbCalls';
 
 jest.mock('../firebase_calls/dbCalls', () => ({
     deleteTaskForRoom: jest.fn(),
+    addPlayerMessageForRoom: jest.fn(),
 }));
 jest.mock(
     './TaskEditModal',
@@ -49,13 +50,17 @@ const baseTask = {
     completedBy: [],
 };
 
+const executionHandlers = { addLog: jest.fn() };
+
 const mountAccordion = (task = baseTask) =>
     render(
         <ChakraProvider>
             <gameContext.Provider value={{ roomID: 'room-a' }}>
-                <Accordion allowToggle defaultIndex={0}>
-                    <TaskAccordion task={task} />
-                </Accordion>
+                <executionContext.Provider value={executionHandlers}>
+                    <Accordion allowToggle defaultIndex={0}>
+                        <TaskAccordion task={task} />
+                    </Accordion>
+                </executionContext.Provider>
             </gameContext.Provider>
         </ChakraProvider>
     );
@@ -63,6 +68,7 @@ const mountAccordion = (task = baseTask) =>
 beforeEach(() => {
     jest.clearAllMocks();
     deleteTaskForRoom.mockResolvedValue(undefined);
+    addPlayerMessageForRoom.mockResolvedValue(undefined);
 });
 
 describe('TaskAccordion', () => {
@@ -121,5 +127,28 @@ describe('TaskAccordion', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Go Back' }));
 
         expect(deleteTaskForRoom).not.toHaveBeenCalled();
+    });
+
+    it('logs the deletion to the GM log and announces it in the player chat', async () => {
+        mountAccordion();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Delete', hidden: true }));
+        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                'Mission "Find the clue" was deleted',
+                'red.400'
+            )
+        );
+        expect(addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Mission Find the clue was deleted',
+                standings: null,
+            },
+            'room-a'
+        );
     });
 });

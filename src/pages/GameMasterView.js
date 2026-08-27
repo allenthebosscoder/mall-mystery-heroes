@@ -245,10 +245,16 @@ const GameMasterView = () => {
                     onClose={() => setShowTaskCreationModal(false)}
                     handleNewTaskAdded={handleNewTaskAdded}
                 />
-                <TaskListModal
-                    isOpen={showTaskListModal}
-                    onClose={() => setShowTaskListModal(false)}
-                />
+                {/* TaskAccordion (rendered inside TaskListModal) needs addLog
+                    for mission edit/delete announcements — this modal sits
+                    outside both narrower executionContext.Provider scopes
+                    below, so it gets its own. */}
+                <executionContext.Provider value={executionContextProviderValues}>
+                    <TaskListModal
+                        isOpen={showTaskListModal}
+                        onClose={() => setShowTaskListModal(false)}
+                    />
+                </executionContext.Provider>
 
                 <Box h="6%" m="2px" marginX="4px">
                     <HeaderExecution addLog={addLog} arrayOfAlivePlayers={aliveNames} />

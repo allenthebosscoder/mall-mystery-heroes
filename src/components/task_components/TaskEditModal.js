@@ -22,7 +22,11 @@ import {
     Text,
 } from '@chakra-ui/react';
 import CreateAlert from '../CreateAlert';
-import { updatePointsForPlayer, updateTaskForRoom } from '../firebase_calls/dbCalls';
+import {
+    addPlayerMessageForRoom,
+    updatePointsForPlayer,
+    updateTaskForRoom,
+} from '../firebase_calls/dbCalls';
 import { planScoreAdjustment } from '../../game/missionEdit';
 
 // Self-contained: owns both the Modal chrome and the form fields, unlike
@@ -44,7 +48,7 @@ import { planScoreAdjustment } from '../../game/missionEdit';
 // exactly that reason: closing unmounts it, and reopening remounts it
 // with the current task's values, instead of resurrecting edits the GM
 // abandoned by clicking "Close".
-const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
+const TaskEditModal = ({ isOpen, onClose, task, roomID, addLog }) => {
     const [title, setTitle] = useState(task.title);
     const [description, setDescription] = useState(task.description);
     const [taskType, setTaskType] = useState(task.taskType);
@@ -132,6 +136,16 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID }) => {
                     applyProgress.current.appliedPlayerIndexes.add(index);
                 }
             }
+            await addLog(`Mission "${updates.title}" was edited`, 'blue.400');
+            await addPlayerMessageForRoom(
+                {
+                    type: 'broadcast',
+                    recipient: null,
+                    text: `Mission ${updates.title} was edited`,
+                    standings: null,
+                },
+                roomID
+            );
             createAlert('success', 'Task Updated', 'Your mission has been updated', 1500);
             setPendingAdjustment(null);
             onClose();
