@@ -260,6 +260,25 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         maxCompletions: null,
     };
 
+    it('rejects completing a mission that has been deleted, without leaking the raw lookup error', async () => {
+        // fetchTaskByIndexForRoom returns null for a deleted mission (a
+        // fresh query, no stale cache). The real fetchReferenceByIndexForTask
+        // throws Error('Task not found') for the same case (dbCalls.js) —
+        // the fix is to never call it once the null check above has
+        // already rejected the index, so its rejection can't leak past the
+        // friendlier "Invalid task index" message (docs/improvements.md
+        // item 63/62 follow-up).
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue(null);
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        expect(await screen.findByText(/invalid task index/i)).toBeInTheDocument();
+        expect(screen.queryByText(/task not found/i)).not.toBeInTheDocument();
+        expect(dbCalls.fetchReferenceByIndexForTask).not.toHaveBeenCalled();
+        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
+    });
+
     it('rejects completing a mission that has already ended', async () => {
         dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, isComplete: true });
 

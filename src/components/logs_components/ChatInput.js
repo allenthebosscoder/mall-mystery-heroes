@@ -164,17 +164,23 @@ const handleCommandExecution = async (
 
                         // sanity check player input
                         if (arrayOfPlayerNames.includes(playerName)) {
-                            // sanity check mission index
+                            // sanity check mission index — checked before
+                            // fetching a doc reference for it, since a
+                            // deleted mission's fetchReferenceByIndexForTask
+                            // throws "Task not found" rather than returning
+                            // null, which would otherwise leak past this
+                            // friendlier message (docs/improvements.md item
+                            // 63, mirrors "/mission end"'s guard below).
                             const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
-                            const taskDocRef = await fetchReferenceByIndexForTask(
-                                missionIndex,
-                                roomID
-                            );
                             if (!task) {
                                 createAlert('error', 'Error', 'Invalid task index', 1500);
                                 console.error('invalid task');
                                 break;
                             }
+                            const taskDocRef = await fetchReferenceByIndexForTask(
+                                missionIndex,
+                                roomID
+                            );
 
                             // A mission /mission end already closed can't be
                             // completed again — this only used to check
