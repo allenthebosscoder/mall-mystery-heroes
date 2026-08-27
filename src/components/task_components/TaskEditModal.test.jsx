@@ -60,6 +60,24 @@ beforeEach(() => {
 });
 
 describe('TaskEditModal', () => {
+    it('applies the same blank-description default as TaskCreation when the description is cleared', async () => {
+        // TaskCreation.js's handleAddTask writes 'No description provided'
+        // for a blank description; TaskEditModal previously wrote whatever
+        // the field held verbatim, including '' (docs/improvements.md item
+        // 64).
+        mountModal();
+
+        await userEvent.clear(screen.getByDisplayValue('Look around'));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+        expect(await screen.findByText(/task updated/i)).toBeInTheDocument();
+        expect(updateTaskForRoom).toHaveBeenCalledWith(
+            1,
+            expect.objectContaining({ description: 'No description provided' }),
+            'room-a'
+        );
+    });
+
     it('submits updateTaskForRoom with the edited field values', async () => {
         mountModal();
 

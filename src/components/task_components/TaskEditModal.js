@@ -27,7 +27,7 @@ import {
     updatePointsForPlayer,
     updateTaskForRoom,
 } from '../firebase_calls/dbCalls';
-import { planScoreAdjustment } from '../../game/missionEdit';
+import { planScoreAdjustment, createApplyProgress } from '../../game/missionEdit';
 
 // Self-contained: owns both the Modal chrome and the form fields, unlike
 // TaskCreationModal/TaskCreation's split — editing's field set is small
@@ -88,10 +88,10 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID, addLog }) => {
     // repeated name in completedBy could never make one skip the other.
     // A ref, not state: it is read and written inside a single async run
     // and must never trigger a re-render.
-    const applyProgress = useRef({ taskWritten: false, appliedPlayerIndexes: new Set() });
+    const applyProgress = useRef(createApplyProgress());
 
     const resetApplyProgress = () => {
-        applyProgress.current = { taskWritten: false, appliedPlayerIndexes: new Set() };
+        applyProgress.current = createApplyProgress();
     };
 
     const buildUpdates = () => {
@@ -102,7 +102,10 @@ const TaskEditModal = ({ isOpen, onClose, task, roomID, addLog }) => {
             // stale would permanently desync the duplicate-title index
             // from the visible title. Mirrors TaskCreation.js.
             titleTrimmedLowerCase: title.replace(/\s/g, '').toLowerCase(),
-            description,
+            // Matches TaskCreation.js's blank-description default — an
+            // edit that clears the field should not leave the mission with
+            // no description at all (docs/improvements.md item 64).
+            description: description === '' ? 'No description provided' : description,
             taskType: effectiveTaskType,
             // Stored as the raw string from the Chakra NumberInput,
             // matching TaskCreation.js's convention and what

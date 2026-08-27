@@ -1,4 +1,4 @@
-const { planScoreAdjustment } = require('./missionEdit');
+const { planScoreAdjustment, createApplyProgress } = require('./missionEdit');
 
 describe('planScoreAdjustment', () => {
     it('returns the delta and affected players when a Task point value changes with existing completions', () => {
@@ -58,5 +58,29 @@ describe('planScoreAdjustment', () => {
         const newTask = { taskType: 'Revival Mission', pointValue: 5 };
 
         expect(planScoreAdjustment(oldTask, newTask)).toBeNull();
+    });
+});
+
+describe('createApplyProgress', () => {
+    it('starts with nothing written and no players applied', () => {
+        expect(createApplyProgress()).toEqual({
+            taskWritten: false,
+            appliedPlayerIndexes: new Set(),
+        });
+    });
+
+    it('returns a fresh, independent object on every call', () => {
+        // TaskEditModal.js's resetApplyProgress calls this at the start of
+        // every fresh handleSave and stores the result in a useRef,
+        // replacing whatever the previous attempt mutated it into — a
+        // shared/cached instance here would let one attempt's progress
+        // bleed into the next.
+        const first = createApplyProgress();
+        first.taskWritten = true;
+        first.appliedPlayerIndexes.add(0);
+
+        const second = createApplyProgress();
+
+        expect(second).toEqual({ taskWritten: false, appliedPlayerIndexes: new Set() });
     });
 });

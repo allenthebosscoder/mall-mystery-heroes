@@ -72,6 +72,8 @@ plus the auth and add-player work below:
 | 61 — orphaned Storage photos were never cleaned up when a room was deleted   | The scheduled `cleanupEndedRooms` function now deletes a room's Storage photos before deleting its Firestore data, with per-room failure isolation. 3 new emulator tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 62 — editing or deleting a mission left no log entry                         | `TaskAccordion.js`'s delete handler and `TaskEditModal.js`'s save handler now both call `addLog` and `addPlayerMessageForRoom` on success. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | 63 — `/mission done` on a deleted mission leaked a raw lookup error          | `fetchReferenceByIndexForTask` is now only called after the `if (!task)` guard, so a deleted mission's index never reaches the throwing call. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 64 — `TaskEditModal.js` did not apply the blank-description default          | `buildUpdates` now applies the same `'No description provided'` default as `TaskCreation.js` when the field is blank. 1 new test.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 65 — `TaskEditModal.js`'s retry-progress reset had no direct test            | The reset state is now a pure factory, `createApplyProgress()` in `src/game/missionEdit.js`, with its own direct unit tests. 2 new tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ### ⚠️ Partially addressed
 
@@ -2033,11 +2035,8 @@ instead of the friendlier message that was written for exactly this case.
 `if (!task)` guard, mirroring `/mission end`'s existing order — a deleted
 mission's index never reaches the throwing call at all, so completing it
 is not a reachable path, not merely a nicer error on one. 1 new test.
-Small, low-impact, and localized —
-worth picking up whenever `ChatInput.js`'s `/mission` handling is next
-touched.
 
-### 64. `docs/data-model.md`'s description default note does not cover the edit path
+### 64. `docs/data-model.md`'s description default note does not cover the edit path ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -2048,13 +2047,11 @@ for `TaskCreation.js`, which applies that default before writing, but not
 for `TaskEditModal.js`, which writes whatever the description field holds
 verbatim, including an empty string if a GM clears it while editing.
 
-**Not addressed:** either make `TaskEditModal.js` apply the same default
-(matching creation's behavior) or narrow the doc row to say the default
-only applies at creation time. Deferred as a documentation-accuracy
-nit — no known case where an edit-created blank description has caused a
-problem.
+**Resolution:** `TaskEditModal.js`'s `buildUpdates` now applies the same
+`'No description provided'` default as `TaskCreation.js` when the field is
+blank, so the doc row's claim now holds for both paths. 1 new test.
 
-### 65. `TaskEditModal.js`'s retry-progress reset has no direct test
+### 65. `TaskEditModal.js`'s retry-progress reset has no direct test ✅ Resolved
 
 **Impact: low · Effort: S**
 
@@ -2068,10 +2065,11 @@ exercised indirectly by the existing "starts a fresh attempt when Save is
 clicked again after a failed one" test, but no test isolates the reset
 function itself.
 
-**Not addressed:** low risk — the indirect coverage would catch a
-regression that broke fresh-attempt behavior, just not one that broke
-`resetApplyProgress()` in a way that happened not to affect that specific
-scenario. Worth a direct unit test next time this file is touched.
+**Resolution:** the reset state it builds — `{ taskWritten: false,
+appliedPlayerIndexes: new Set() }` — is now a pure factory,
+`createApplyProgress()` in `src/game/missionEdit.js`, with its own direct
+unit tests; `resetApplyProgress()` and the `useRef` initializer both call
+it instead of duplicating the object literal. 2 new tests.
 
 ### 66. `joinRoom` does not prevent one uid from owning multiple player docs in the same room
 

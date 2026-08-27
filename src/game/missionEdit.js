@@ -28,4 +28,16 @@ const planScoreAdjustment = (oldTask, newTask) => {
     return { delta, players: oldTask.completedBy };
 };
 
-module.exports = { planScoreAdjustment };
+/**
+ * The starting state for TaskEditModal's per-attempt write tracking: what
+ * has already landed in Firestore for the current save attempt, so a
+ * "Confirm" retry after a mid-loop failure can resume instead of
+ * re-awarding a player who already succeeded (see TaskEditModal.js's
+ * applyUpdate). A fresh object every call — TaskEditModal.js stores the
+ * result in a useRef and replaces it wholesale at the start of every new
+ * handleSave, so a shared/cached instance here would let one attempt's
+ * progress bleed into the next.
+ */
+const createApplyProgress = () => ({ taskWritten: false, appliedPlayerIndexes: new Set() });
+
+module.exports = { planScoreAdjustment, createApplyProgress };
