@@ -319,6 +319,32 @@ describe('MessageBubble', () => {
         expect(screen.getByText('psst, watch your back')).toBeInTheDocument();
     });
 
+    it('renders a gameEnded message as the pinned come-back announcement', () => {
+        mountBubble({
+            type: 'gameEnded',
+            recipient: null,
+            text: 'Please head back to the starting area.',
+            standings: null,
+        });
+
+        expect(screen.getByText('Please head back to the starting area.')).toBeInTheDocument();
+    });
+
+    it('renders a gameEndedLeaderboard message with the top 3 and a full-leaderboard button', () => {
+        mountBubble({
+            type: 'gameEndedLeaderboard',
+            recipient: null,
+            text: null,
+            standings: [
+                { name: 'Carol', score: 30, isAlive: true },
+                { name: 'Alice', score: 20, isAlive: true },
+            ],
+        });
+
+        expect(screen.getByText(/Carol.*30/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'View Full Leaderboard' })).toBeInTheDocument();
+    });
+
     it('does not label a killResult message as from the GM', () => {
         mountBubble({
             type: 'killResult',

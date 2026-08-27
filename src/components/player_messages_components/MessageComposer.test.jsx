@@ -118,6 +118,18 @@ describe('MessageComposer', () => {
         expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
     });
 
+    it('disables the photo button once the game has ended, even with playerName and targets set', () => {
+        mountComposer('Alice', ['bob'], { isGameActive: false });
+
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
+    });
+
+    it('leaves the Send button (text chat) enabled once the game has ended', () => {
+        mountComposer('Alice', ['bob'], { isGameActive: false });
+
+        expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+    });
+
     it('sends the typed message when Send is clicked', async () => {
         mountComposer();
 

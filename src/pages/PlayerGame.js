@@ -7,13 +7,10 @@ import { auth } from '../utils/firebase';
 import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
-    fetchAllPlayersQueryForRoom,
 } from '../components/firebase_calls/dbCalls';
-import { buildLeaderboardStandings } from '../game/leaderboard';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 import MessageFeed from '../components/player_messages_components/MessageFeed';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
-import GameOverScreen from '../components/game_end_components/GameOverScreen';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
@@ -21,7 +18,6 @@ const PlayerGame = () => {
     const [gameStarted, setGameStarted] = useState(false);
     const [isGameActive, setIsGameActive] = useState(true);
     const [playerData, setPlayerData] = useState(null);
-    const [players, setPlayers] = useState([]);
     // This player's own chat sends that MessageComposer has fired off but
     // Firestore hasn't confirmed yet — submitChatMessage writes server-side
     // now, so this browser no longer gets an automatic local echo of its
@@ -111,22 +107,6 @@ const PlayerGame = () => {
         return () => unsubscribe();
     }, [roomID, gameStarted, playerName, navigate, handleSubscriptionError]);
 
-    // Only subscribes once the game has ended — GameOverScreen is the only
-    // consumer of the full roster, so this costs nothing during normal
-    // gameplay (docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md).
-    useEffect(() => {
-        if (!roomID || isGameActive) return undefined;
-        const playersQuery = fetchAllPlayersQueryForRoom(roomID);
-        const unsubscribe = onSnapshot(
-            playersQuery,
-            (snapshot) => {
-                setPlayers(snapshot.docs.map((doc) => doc.data()));
-            },
-            handleSubscriptionError
-        );
-        return () => unsubscribe();
-    }, [roomID, isGameActive, handleSubscriptionError]);
-
     const handleLeave = async () => {
         try {
             await signOut(auth);
@@ -136,8 +116,6 @@ const PlayerGame = () => {
         clearPlayerSession();
         navigate('/');
     };
-
-    const standings = buildLeaderboardStandings(players);
 
     return (
         <Flex height="100vh" direction="column" p={4}>
@@ -149,7 +127,11 @@ const PlayerGame = () => {
                     Leave
                 </Button>
             </Flex>
-            {!isGameActive && <GameOverScreen standings={standings} />}
+            {/* Once the game has ended, the target/status text no longer
+                applies — the "please head back" and final-standings
+                announcements arrive as real chat messages instead
+                (Endgamebutton.js posts them). Chat itself stays mounted
+                either way, so players can keep talking on the way back. */}
             {isGameActive && (
                 <>
                     {!gameStarted && <Text mb={4}>Waiting for the host to start...</Text>}
@@ -170,21 +152,22 @@ const PlayerGame = () => {
                             </Text>
                         </>
                     )}
-                    <MessageFeed
-                        roomID={roomID}
-                        playerName={playerName}
-                        pendingMessages={pendingMessages}
-                        onPendingMessageConfirmed={handlePendingMessageConfirmed}
-                    />
-                    <MessageComposer
-                        roomID={roomID}
-                        playerName={playerName}
-                        targets={playerData?.targets ?? []}
-                        onOptimisticSend={handleOptimisticSend}
-                        onOptimisticSendFailed={handleOptimisticSendFailed}
-                    />
                 </>
             )}
+            <MessageFeed
+                roomID={roomID}
+                playerName={playerName}
+                pendingMessages={pendingMessages}
+                onPendingMessageConfirmed={handlePendingMessageConfirmed}
+            />
+            <MessageComposer
+                roomID={roomID}
+                playerName={playerName}
+                targets={playerData?.targets ?? []}
+                isGameActive={isGameActive}
+                onOptimisticSend={handleOptimisticSend}
+                onOptimisticSendFailed={handleOptimisticSendFailed}
+            />
         </Flex>
     );
 };

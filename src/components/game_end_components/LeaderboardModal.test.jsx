@@ -1,10 +1,10 @@
 /**
  * Layer 3 — component test, jsdom + Testing Library.
  *
- * LeaderboardModal is presentational: GameOverScreen owns isOpen state and
+ * LeaderboardModal is presentational: GameEndedLeaderboardBubble (the
+ * 'gameEndedLeaderboard' chat message's rendering) owns isOpen state and
  * hands down the full standings array, already sorted by
- * buildLeaderboardStandings
- * (docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md).
+ * buildLeaderboardStandings.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';

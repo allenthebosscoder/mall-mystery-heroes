@@ -86,6 +86,56 @@ describe('MessageFeed', () => {
         expect(screen.getByText('Game starts soon!')).toBeInTheDocument();
     });
 
+    it('renders a gameEnded message pinned above the scrolling feed, not inside it', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docChanges: () =>
+                    asDocChanges([
+                        {
+                            type: 'chat',
+                            recipient: null,
+                            text: 'gg everyone',
+                            standings: null,
+                            mission: null,
+                            sender: 'Bob',
+                        },
+                        {
+                            type: 'gameEnded',
+                            recipient: null,
+                            text: 'Please head back to the starting area.',
+                            standings: null,
+                        },
+                    ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        const pinned = screen.getByText('Please head back to the starting area.');
+        expect(pinned).toBeInTheDocument();
+        // Pinned message lives outside the scrollable feed container, not
+        // as one of its list items.
+        expect(screen.getByTestId('message-feed')).not.toContainElement(pinned);
+        expect(screen.getByText('gg everyone')).toBeInTheDocument();
+    });
+
+    it('does not render a pinned section at all when there is no gameEnded message', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({
+                docChanges: () =>
+                    asDocChanges([
+                        { type: 'broadcast', recipient: null, text: 'hi', standings: null },
+                    ]),
+            });
+            return () => {};
+        });
+
+        mountFeed();
+
+        expect(screen.queryByTestId('pinned-message')).not.toBeInTheDocument();
+    });
+
     it('shows a whisper addressed to this player', () => {
         onSnapshot.mockImplementation((query, onNext) => {
             onNext({

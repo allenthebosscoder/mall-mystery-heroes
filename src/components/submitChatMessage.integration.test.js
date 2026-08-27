@@ -129,15 +129,13 @@ describe('submitChatMessage', () => {
         }
     });
 
-    it('rejects once the game has ended', async () => {
+    it('still allows chat once the game has ended, so players can banter on the way back', async () => {
         const alice = await createIndependentIdentity();
         try {
             await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }], { isGameActive: false });
             const call = httpsCallable(alice.functions, 'submitChatMessage');
 
-            await expect(call({ roomId: ROOM, text: 'hi' })).rejects.toThrow(
-                'This game has ended.'
-            );
+            await expect(call({ roomId: ROOM, text: 'hi' })).resolves.toBeDefined();
         } finally {
             await terminate(alice.db);
         }

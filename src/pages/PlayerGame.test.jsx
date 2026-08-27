@@ -24,7 +24,6 @@ import PlayerGame from './PlayerGame';
 import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
-    fetchAllPlayersQueryForRoom,
 } from '../components/firebase_calls/dbCalls';
 import { writePlayerSession, readPlayerSession } from '../utils/playerSession';
 
@@ -38,7 +37,6 @@ jest.mock('../utils/firebase', () => ({ auth: {} }));
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
     fetchPlayerReferenceForRoom: jest.fn(),
-    fetchAllPlayersQueryForRoom: jest.fn(),
 }));
 // Stubbed — each has its own thorough test file (MessageFeed.test.jsx,
 // MessageComposer.test.jsx). This file stays focused on PlayerGame's own
@@ -58,7 +56,7 @@ jest.mock('../components/player_messages_components/MessageComposer', () => (pro
     <div>
         <div>
             message-composer-stub roomID={props.roomID} playerName={props.playerName} targets=
-            {JSON.stringify(props.targets)}
+            {JSON.stringify(props.targets)} isGameActive={String(props.isGameActive)}
         </div>
         <button
             onClick={() =>
@@ -232,7 +230,7 @@ describe('PlayerGame', () => {
         expect(screen.getByText('Your target: Bob')).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=["Bob"]'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=["Bob"] isGameActive=true'
             )
         ).toBeInTheDocument();
     });
@@ -345,60 +343,39 @@ describe('PlayerGame', () => {
             screen.getByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
         ).toBeInTheDocument();
         expect(
-            screen.getByText('message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[]')
+            screen.getByText(
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[] isGameActive=true'
+            )
         ).toBeInTheDocument();
     });
 
-    it('does not subscribe to the full roster while the game is still active', () => {
+    it('hides the target-status text but keeps chat mounted once the game has ended', () => {
         writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({
-                    exists: () => true,
-                    data: () => ({ gameStarted: true, isGameActive: true }),
-                });
-            }
-            return () => {};
-        });
-
-        renderWaiting();
-
-        expect(fetchAllPlayersQueryForRoom).not.toHaveBeenCalled();
-    });
-
-    it('shows the game-over screen and hides chat once the game has ended', () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        fetchAllPlayersQueryForRoom.mockReturnValue('players-query-ref');
         onSnapshot.mockImplementation((ref, callback) => {
             if (ref === 'room-ref') {
                 callback({
                     exists: () => true,
                     data: () => ({ gameStarted: true, isGameActive: false }),
                 });
-            } else if (ref === 'players-query-ref') {
-                callback({
-                    docs: [
-                        { data: () => ({ name: 'alice', score: 10, isAlive: true }) },
-                        { data: () => ({ name: 'bob', score: 5, isAlive: false }) },
-                    ],
-                });
             }
             return () => {};
         });
 
         renderWaiting();
 
-        expect(screen.getByText('Game Over')).toBeInTheDocument();
-        expect(screen.getByText('Please head back to the starting area.')).toBeInTheDocument();
-        expect(screen.getByText('1. alice — 10')).toBeInTheDocument();
+        // The dedicated "Game Over" screen is gone — the game-end
+        // announcements now arrive as real chat messages instead
+        // (Endgamebutton.js posts them, MessageBubble.js renders them).
+        expect(screen.queryByText('Game Over')).not.toBeInTheDocument();
         expect(screen.queryByText(/your target/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/waiting for the host/i)).not.toBeInTheDocument();
         expect(
-            screen.queryByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
-        ).not.toBeInTheDocument();
+            screen.getByText('message-feed-stub roomID=Fluffy42317 playerName=Alice')
+        ).toBeInTheDocument();
         expect(
-            screen.queryByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[]'
+            screen.getByText(
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[] isGameActive=false'
             )
-        ).not.toBeInTheDocument();
+        ).toBeInTheDocument();
     });
 });

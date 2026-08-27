@@ -8,15 +8,23 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Endgamebutton from './Endgamebutton';
 import { gameContext } from '../Contexts';
-import { endGame } from '../firebase_calls/dbCalls';
+import {
+    endGame,
+    fetchAllPlayersDataForRoom,
+    addPlayerMessageForRoom,
+} from '../firebase_calls/dbCalls';
 
 const mockNavigate = jest.fn();
 
-jest.mock('../firebase_calls/dbCalls', () => ({ endGame: jest.fn() }));
+jest.mock('../firebase_calls/dbCalls', () => ({
+    endGame: jest.fn(),
+    fetchAllPlayersDataForRoom: jest.fn(),
+    addPlayerMessageForRoom: jest.fn(),
+}));
 jest.mock('react-router-dom', () => ({
     useNavigate: () => mockNavigate,
 }));
@@ -32,6 +40,12 @@ const mountEndgamebutton = () =>
 
 beforeEach(() => {
     jest.clearAllMocks();
+    endGame.mockResolvedValue(undefined);
+    fetchAllPlayersDataForRoom.mockResolvedValue([
+        { name: 'Alice', score: 20, isAlive: true },
+        { name: 'Bob', score: 30, isAlive: false },
+    ]);
+    addPlayerMessageForRoom.mockResolvedValue(undefined);
 });
 
 const confirmEndGame = async () => {
@@ -41,13 +55,12 @@ const confirmEndGame = async () => {
 
 describe('Endgamebutton (improvements item 10)', () => {
     it('navigates to /dashboard once endGame resolves', async () => {
-        endGame.mockResolvedValue(undefined);
         mountEndgamebutton();
 
         await confirmEndGame();
 
         expect(endGame).toHaveBeenCalledWith('room-a');
-        expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'));
     });
 
     it('shows an alert and does not navigate when endGame rejects', async () => {
@@ -58,5 +71,47 @@ describe('Endgamebutton (improvements item 10)', () => {
 
         expect(await screen.findByText(/network down/i)).toBeInTheDocument();
         expect(mockNavigate).not.toHaveBeenCalled();
+    });
+});
+
+describe('game-end broadcasts (pinned come-back message + top-3 leaderboard)', () => {
+    it('posts the pinned come-back message and the leaderboard broadcast, in that order', async () => {
+        mountEndgamebutton();
+
+        await confirmEndGame();
+
+        await waitFor(() => expect(addPlayerMessageForRoom).toHaveBeenCalledTimes(2));
+        expect(addPlayerMessageForRoom).toHaveBeenNthCalledWith(
+            1,
+            {
+                type: 'gameEnded',
+                recipient: null,
+                text: 'Please head back to the starting area.',
+                standings: null,
+            },
+            'room-a'
+        );
+        expect(addPlayerMessageForRoom).toHaveBeenNthCalledWith(
+            2,
+            {
+                type: 'gameEndedLeaderboard',
+                recipient: null,
+                text: null,
+                standings: [
+                    { name: 'Bob', score: 30, isAlive: false },
+                    { name: 'Alice', score: 20, isAlive: true },
+                ],
+            },
+            'room-a'
+        );
+    });
+
+    it('still navigates even if posting the broadcasts fails, since the game already ended', async () => {
+        fetchAllPlayersDataForRoom.mockRejectedValue(new Error('network error'));
+        mountEndgamebutton();
+
+        await confirmEndGame();
+
+        await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'));
     });
 });

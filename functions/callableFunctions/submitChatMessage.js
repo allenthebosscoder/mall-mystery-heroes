@@ -31,9 +31,11 @@ const CHAT_RATE_LIMIT = { max: 20, windowMs: 60000 };
  * caller actually is from context.auth.uid rather than trusting a
  * client-supplied `sender` field — closing the identity-spoofing gap
  * addChatMessageForRoom (src/components/firebase_calls/dbCalls.js,
- * deleted in Task 5 of this plan) had. Also enforces the room being
- * active and a per-player rate limit
- * (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+ * deleted in Task 5 of this plan) had. Also enforces a per-player rate
+ * limit (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
+ * Intentionally not gated on the room's isGameActive — chat stays open
+ * after the game ends, so players can banter on the way back to the
+ * starting area.
  *
  * Runs under the Admin SDK, which bypasses firestore.rules entirely.
  * firestore.rules's `playerMessages` `allow write: if
@@ -105,10 +107,11 @@ exports.submitChatMessage = functions.https.onCall(async (data, context) => {
         const senderDoc = senderSnapshot.docs[0];
         const senderData = senderDoc.data();
 
-        if (!roomSnapshot.data().isGameActive) {
-            throw new functions.https.HttpsError('failed-precondition', 'This game has ended.');
-        }
-
+        // Deliberately not gated on isGameActive — once a game ends, players
+        // are still walking back to the starting area and should be able to
+        // banter the whole way, not just up to the moment the GM clicks
+        // "End Game". submitKillPhoto.js keeps its own isGameActive check
+        // (nothing left to submit a kill for once the game's over).
         const rateLimits = senderData.rateLimits || {};
         const currentWindow = rateLimits.chat
             ? {

@@ -20,6 +20,7 @@ const MessageComposer = ({
     roomID,
     playerName,
     targets = [],
+    isGameActive = true,
     onOptimisticSend,
     onOptimisticSendFailed,
 }) => {
@@ -151,6 +152,9 @@ const MessageComposer = ({
     // subscription on the same condition; this keeps the composer from
     // attempting a chat write with sender: ''.
     const disabled = !playerName;
+    // Nothing left to submit a kill for once the game's over — chat itself
+    // stays open (isGameActive doesn't affect `disabled` above).
+    const photoDisabled = disabled || targets.length === 0 || !isGameActive;
 
     return (
         <Flex p={2} borderTop="1px solid" borderColor="gray.600">
@@ -171,11 +175,11 @@ const MessageComposer = ({
                     capture="environment"
                     onChange={handleFileChange}
                     aria-label="Take Photo"
-                    disabled={disabled || targets.length === 0}
+                    disabled={photoDisabled}
                 />
             </VisuallyHidden>
             <Button
-                isDisabled={disabled || targets.length === 0}
+                isDisabled={photoDisabled}
                 onClick={() => fileInputRef.current.click()}
                 mr={2}
                 aria-label="Send photo"

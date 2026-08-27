@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Box, List } from '@chakra-ui/react';
+import { Box, Flex, List } from '@chakra-ui/react';
 import { onSnapshot } from 'firebase/firestore';
 import { fetchPlayerMessagesQueryForRoom } from '../firebase_calls/dbCalls';
 import { normalizePlayerName } from '../../game/playerNames';
@@ -75,8 +75,9 @@ const MessageFeed = ({ roomID, playerName, pendingMessages = [], onPendingMessag
         () => [
             ...allMessages.filter(
                 (message) =>
-                    !message.recipient ||
-                    normalizePlayerName(message.recipient) === normalizedPlayerName
+                    message.type !== 'gameEnded' &&
+                    (!message.recipient ||
+                        normalizePlayerName(message.recipient) === normalizedPlayerName)
             ),
             // Always mine, always visible only to me (they never leave this
             // browser's React state), so no recipient-style filtering
@@ -85,6 +86,14 @@ const MessageFeed = ({ roomID, playerName, pendingMessages = [], onPendingMessag
             ...pendingMessages,
         ],
         [allMessages, normalizedPlayerName, pendingMessages]
+    );
+
+    // The room-wide "please head back" announcement, posted once when the
+    // GM ends the game — pulled out of the normal scrolling list and kept
+    // visible above it, regardless of how much chat happens afterward.
+    const pinnedMessage = useMemo(
+        () => allMessages.find((message) => message.type === 'gameEnded'),
+        [allMessages]
     );
 
     // Keeps the feed pinned to the newest message as it grows, matching the
@@ -97,13 +106,20 @@ const MessageFeed = ({ roomID, playerName, pendingMessages = [], onPendingMessag
     }, [messages]);
 
     return (
-        <Box flex="1" overflow="auto" p={2} ref={feedBoxRef} data-testid="message-feed">
-            <List styleType="none">
-                {messages.map((message) => (
-                    <MessageBubble key={message.id} message={message} playerName={playerName} />
-                ))}
-            </List>
-        </Box>
+        <Flex direction="column" flex="1" overflow="hidden">
+            {pinnedMessage && (
+                <List styleType="none" data-testid="pinned-message">
+                    <MessageBubble message={pinnedMessage} playerName={playerName} />
+                </List>
+            )}
+            <Box flex="1" overflow="auto" p={2} ref={feedBoxRef} data-testid="message-feed">
+                <List styleType="none">
+                    {messages.map((message) => (
+                        <MessageBubble key={message.id} message={message} playerName={playerName} />
+                    ))}
+                </List>
+            </Box>
+        </Flex>
     );
 };
 

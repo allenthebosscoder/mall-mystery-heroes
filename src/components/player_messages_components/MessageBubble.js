@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Flex, Image, List, ListItem, Text } from '@chakra-ui/react';
 import { normalizePlayerName } from '../../game/playerNames';
 import { formatMessageTime } from '../../utils/formatMessageTime';
+import GameEndedLeaderboardBubble from './GameEndedLeaderboardBubble';
 
 // One message's rendering, extracted from MessageFeed.js and wrapped in
 // React.memo so an unchanged message (same object reference, preserved by
@@ -60,6 +61,8 @@ const MessageBubble = ({ message, playerName }) => {
                         </Text>
                     )}
                 </Box>
+            ) : message.type === 'gameEndedLeaderboard' ? (
+                <GameEndedLeaderboardBubble standings={message.standings} />
             ) : message.type === 'killPhoto' ? (
                 <Box bg="gray.700" borderRadius="md" p={2}>
                     <Text fontWeight="bold" mb={1}>

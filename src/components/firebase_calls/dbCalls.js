@@ -320,6 +320,22 @@ export const fetchAliveRosterForRoom = async (roomID) => {
     });
 };
 
+// One-time fetch of every player (alive and dead), shaped for
+// src/game/leaderboard.js's buildLeaderboardStandings — Endgamebutton.js
+// uses this to compute final standings for the game-end broadcasts.
+export const fetchAllPlayersDataForRoom = async (roomID) => {
+    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
+    const playerSnapshot = await getDocs(playerCollectionRef);
+    return playerSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+            name: data.name,
+            score: data.score,
+            isAlive: data.isAlive,
+        };
+    });
+};
+
 //ends the game
 export const endGame = async (roomID) => {
     const roomRef = doc(db, 'rooms', roomID);

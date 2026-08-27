@@ -12,10 +12,10 @@ import {
     VStack,
 } from '@chakra-ui/react';
 
-// Presentational — GameOverScreen owns isOpen state and hands down the
-// full standings array, already sorted by buildLeaderboardStandings
-// (docs/superpowers/specs/2026-08-17-player-game-over-screen-design.md).
-// Matches KillPhotoModal's Modal structure and dark-theme styling.
+// Presentational — GameEndedLeaderboardBubble (the 'gameEndedLeaderboard'
+// chat message's rendering) owns isOpen state and hands down the full
+// standings array, already sorted by buildLeaderboardStandings. Matches
+// KillPhotoModal's Modal structure and dark-theme styling.
 const LeaderboardModal = ({ isOpen, onClose, standings }) => {
     return (
         <Modal isOpen={isOpen} onClose={onClose}>
