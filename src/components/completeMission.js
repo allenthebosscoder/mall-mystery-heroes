@@ -39,6 +39,7 @@ const CompleteMission = (handlers) => {
     } = handlers;
 
     return async (playerName, missionIndex, roomID, players) => {
+        const normalizedPlayerName = normalizePlayerName(playerName);
         const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
 
         let isPlayerDead = false;
@@ -46,16 +47,16 @@ const CompleteMission = (handlers) => {
             const deadPlayers = (await fetchPlayersByStatusForRoom(false, roomID)).map(
                 normalizePlayerName
             );
-            isPlayerDead = deadPlayers.includes(playerName);
+            isPlayerDead = deadPlayers.includes(normalizedPlayerName);
         }
 
-        const plan = planMissionCompletion(task, playerName, { isPlayerDead });
+        const plan = planMissionCompletion(task, normalizedPlayerName, { isPlayerDead });
         if (plan.error) throw new Error(plan.error);
 
         const taskDocRef = await fetchReferenceByIndexForTask(missionIndex, roomID);
-        const displayName = resolvePlayerDisplayName(playerName, players);
+        const displayName = resolvePlayerDisplayName(normalizedPlayerName, players);
 
-        await addPlayerToCompletedByForTask(taskDocRef, playerName);
+        await addPlayerToCompletedByForTask(taskDocRef, normalizedPlayerName);
         await addLog(`${displayName} completed mission: ${task.title}`, 'green.400');
         await addPlayerMessageForRoom(
             {
@@ -68,11 +69,11 @@ const CompleteMission = (handlers) => {
         );
 
         if (plan.awardsPoints !== null) {
-            await updatePointsForPlayer(playerName, plan.awardsPoints, roomID);
+            await updatePointsForPlayer(normalizedPlayerName, plan.awardsPoints, roomID);
         }
 
         if (plan.revivesPlayer) {
-            await updateIsAliveForPlayer(playerName, true, roomID);
+            await updateIsAliveForPlayer(normalizedPlayerName, true, roomID);
             handlePlayerRevive(displayName);
             const roster = await fetchAliveRosterForRoom(roomID);
             const { needTargets, needAssassins } = playersNeedingConnections(roster);
