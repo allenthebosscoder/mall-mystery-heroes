@@ -94,6 +94,20 @@ describe('openMissionsForPlayer', () => {
     });
 
     it('includes everything else, in the given order', () => {
-        expect(openMissionsForPlayer(missions, 'carol').map((m) => m.taskIndex)).toEqual([1]);
+        expect(openMissionsForPlayer(missions, 'carol').map((m) => m.taskIndex)).toEqual([1, 3]);
+    });
+
+    it('does not exclude a multi-completion mission for a player who has not completed it, even after another player has', () => {
+        const missions = [
+            {
+                taskIndex: 4,
+                title: 'Multi mission',
+                isComplete: false,
+                completedBy: ['bob'],
+                maxCompletions: 2,
+            },
+        ];
+
+        expect(openMissionsForPlayer(missions, 'alice').map((m) => m.taskIndex)).toEqual([4]);
     });
 });

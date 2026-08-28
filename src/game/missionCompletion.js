@@ -31,7 +31,7 @@ const planMissionCompletion = (task, playerName, { isPlayerDead }) => {
 
     const completedCount = task.completedBy.length + 1;
     return {
-        awardsPoints: task.taskType === 'Task' ? parseInt(task.pointValue) : null,
+        awardsPoints: task.taskType === 'Task' ? parseInt(task.pointValue, 10) : null,
         revivesPlayer: task.taskType === 'Revival Mission',
         autoEnds: Boolean(task.maxCompletions) && completedCount >= task.maxCompletions,
     };
@@ -39,12 +39,12 @@ const planMissionCompletion = (task, playerName, { isPlayerDead }) => {
 
 /**
  * Which of `missions` a given player could still complete: not already
- * ended, and not already completed by anyone. Feeds the
+ * ended, and not already completed by this player. Feeds the
  * photo-approval dropdown's mission options directly — a mission that
  * would obviously fail planMissionCompletion is never offered as an
  * option in the first place.
  */
-const openMissionsForPlayer = (missions, _playerName) =>
-    missions.filter((mission) => !mission.isComplete && mission.completedBy.length === 0);
+const openMissionsForPlayer = (missions, playerName) =>
+    missions.filter((mission) => !mission.isComplete && !mission.completedBy.includes(playerName));
 
 module.exports = { planMissionCompletion, openMissionsForPlayer };
