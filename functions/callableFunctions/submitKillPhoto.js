@@ -147,6 +147,7 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
             url,
             assassin: assassinData.name,
             target: null,
+            mission: null,
             timestamp: FieldValue.serverTimestamp(),
             status: 'pending',
             originalPlayerData: null,

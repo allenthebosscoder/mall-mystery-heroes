@@ -59,6 +59,7 @@ describe('submitKillPhoto', () => {
             expect(snapshot.docs[0].data()).toMatchObject({
                 assassin: 'alice',
                 target: null,
+                mission: null,
                 url: REALISTIC_URL,
                 status: 'pending',
                 originalPlayerData: null,
