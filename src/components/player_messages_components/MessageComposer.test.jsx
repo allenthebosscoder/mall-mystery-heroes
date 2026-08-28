@@ -106,10 +106,15 @@ describe('MessageComposer', () => {
         expect(screen.getByRole('button', { name: 'Send photo' })).toBeEnabled();
     });
 
-    it('disables the photo button when targets is empty, even if playerName is set', () => {
+    it('keeps the photo button enabled when targets is empty, as long as playerName is set', () => {
+        // The zero-targets gate was removed: a dead player (who always has
+        // zero targets) still needs to be able to submit a photo, since the
+        // moderator's dropdown may resolve it to an open mission instead of
+        // a kill target
+        // (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
         mountComposer('Alice', []);
 
-        expect(screen.getByRole('button', { name: 'Send photo' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Send photo' })).toBeEnabled();
     });
 
     it('disables the photo button when playerName is empty, even if targets is set', () => {
@@ -374,21 +379,24 @@ describe('MessageComposer', () => {
         clickSpy.mockRestore();
     });
 
-    // The photo button's own isDisabled guard (disabled || targets.length
-    // === 0) has no effect on the hidden file input it drives unless the
-    // native input carries the same guard: VisuallyHidden keeps the input
-    // focusable and in the tab order by design, so a keyboard/screen-reader
-    // user (or anything driving the DOM directly) can otherwise reach it and
-    // run the whole capture flow even when the button is disabled.
-    it('does not let a file selection through the hidden input when targets is empty', async () => {
+    it('lets a file selection through the hidden input when targets is empty', async () => {
+        // The zero-targets gate was removed — a dead player (always zero
+        // targets) still needs to be able to submit a photo
+        // (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
         mountComposer('Alice', []);
 
         const fileInput = screen.getByLabelText('Take Photo');
         await userEvent.upload(fileInput, fakeFile);
 
-        expect(compressImage).not.toHaveBeenCalled();
+        await waitFor(() => expect(compressImage).toHaveBeenCalled());
     });
 
+    // The photo button's own isDisabled guard (disabled || !isGameActive)
+    // has no effect on the hidden file input it drives unless the native
+    // input carries the same guard: VisuallyHidden keeps the input
+    // focusable and in the tab order by design, so a keyboard/screen-reader
+    // user (or anything driving the DOM directly) can otherwise reach it and
+    // run the whole capture flow even when the button is disabled.
     it('does not let a file selection through the hidden input when playerName is empty', async () => {
         mountComposer('', ['bob']);
 

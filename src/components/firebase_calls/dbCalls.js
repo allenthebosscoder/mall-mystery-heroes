@@ -201,7 +201,12 @@ export const updatePhotoStatusForRoom = async (roomID, photoID, status) => {
 // killed), so this is the point a kill's target is first recorded.
 export const approvePhotoForRoom = async (roomID, photoID, target, originalPlayerData) => {
     const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
-    await updateDoc(photoRef, { status: 'approved', target, originalPlayerData });
+    await updateDoc(photoRef, {
+        status: 'approved',
+        target,
+        originalPlayerData,
+        mission: null,
+    });
 };
 
 // Approves a photo as evidence of a mission completion instead of a kill —

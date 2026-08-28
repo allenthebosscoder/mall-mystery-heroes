@@ -163,7 +163,6 @@ const PlayerGame = () => {
             <MessageComposer
                 roomID={roomID}
                 playerName={playerName}
-                targets={playerData?.targets ?? []}
                 isGameActive={isGameActive}
                 onOptimisticSend={handleOptimisticSend}
                 onOptimisticSendFailed={handleOptimisticSendFailed}

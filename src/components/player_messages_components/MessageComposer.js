@@ -19,7 +19,6 @@ import KillPhotoModal from './KillPhotoModal';
 const MessageComposer = ({
     roomID,
     playerName,
-    targets = [],
     isGameActive = true,
     onOptimisticSend,
     onOptimisticSendFailed,
@@ -153,8 +152,12 @@ const MessageComposer = ({
     // attempting a chat write with sender: ''.
     const disabled = !playerName;
     // Nothing left to submit a kill for once the game's over — chat itself
-    // stays open (isGameActive doesn't affect `disabled` above).
-    const photoDisabled = disabled || targets.length === 0 || !isGameActive;
+    // stays open (isGameActive doesn't affect `disabled` above). A player
+    // with zero targets (true of every dead player) can still submit a
+    // photo — the moderator's combined target/mission dropdown may still
+    // have an open mission to offer them even with no live kill target
+    // (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
+    const photoDisabled = disabled || !isGameActive;
 
     return (
         <Flex p={2} borderTop="1px solid" borderColor="gray.600">

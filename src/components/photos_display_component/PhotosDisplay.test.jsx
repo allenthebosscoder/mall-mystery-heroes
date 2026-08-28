@@ -713,6 +713,26 @@ describe('approving a photo as a mission completion', () => {
         expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
     });
 
+    it('excludes a mission already completed by this player even when the photo carries their display-cased name', async () => {
+        // currentPhoto.assassin is display-cased (e.g. "Bob"), but
+        // completedBy entries are normalized (lowercase, whitespace
+        // stripped) by completeMission.js — the exclusion check must
+        // normalize the assassin's name before comparing against
+        // completedBy, or an already-completed mission wrongly stays in
+        // the dropdown.
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'Bob' }],
+            [{ name: 'Bob', targets: ['alice', 'carol'] }],
+            [
+                { taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] },
+                { taskIndex: 2, title: 'Already done', isComplete: false, completedBy: ['bob'] },
+            ]
+        );
+
+        expect(screen.getByRole('option', { name: 'Find the clue' })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
+    });
+
     it('completes a Task mission and marks the photo approved with the resolved mission index', async () => {
         dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({
             title: 'Find the clue',
@@ -739,6 +759,28 @@ describe('approving a photo as a mission completion', () => {
         );
         expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('bob', 10, 'room-a');
         expect(dbCalls.approvePhotoAsMissionForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 1);
+    });
+
+    it('shows a message and keeps Approve disabled when the assassin has no open targets or missions', async () => {
+        // Heads-off finding #5: once the zero-targets photo gate is
+        // removed (finding #1), a dead player with no targets and no open
+        // Revival Mission yet can land here with nothing selectable.
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: [] }],
+            []
+        );
+
+        expect(
+            screen.getByText('No open targets or missions for this player.')
+        ).toBeInTheDocument();
+        expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        expect(executeKill).not.toHaveBeenCalled();
+        expect(dbCalls.approvePhotoForRoom).not.toHaveBeenCalled();
+        expect(dbCalls.approvePhotoAsMissionForRoom).not.toHaveBeenCalled();
     });
 
     it('denies a photo with generic wording regardless of category', async () => {

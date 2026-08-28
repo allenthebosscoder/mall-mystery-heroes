@@ -158,9 +158,12 @@ GM can fix the form without retyping.
 ### `/mission view`
 
 Opens a read-only popup (`TaskListModal`) listing missions split into
-Active/Completed tabs. Marking a mission done or closing it out is still
-only done via `/mission done`/`/mission end` — this popup has no actions
-of its own (docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md).
+Active/Completed tabs — this popup has no actions of its own
+(docs/superpowers/specs/2026-08-04-mission-modal-ui-design.md). Closing a
+mission out is still only done via `/mission end`; marking one done is now
+reachable two ways — `/mission done`, or approving a submitted photo as
+that mission from the kill-photo moderation screen
+(`PhotosDisplay.js`, docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
 
 ### `/whisper <player> <message>`
 

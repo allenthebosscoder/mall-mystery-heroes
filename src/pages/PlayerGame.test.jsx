@@ -55,8 +55,8 @@ jest.mock('../components/player_messages_components/MessageFeed', () => (props) 
 jest.mock('../components/player_messages_components/MessageComposer', () => (props) => (
     <div>
         <div>
-            message-composer-stub roomID={props.roomID} playerName={props.playerName} targets=
-            {JSON.stringify(props.targets)} isGameActive={String(props.isGameActive)}
+            message-composer-stub roomID={props.roomID} playerName={props.playerName} isGameActive=
+            {String(props.isGameActive)}
         </div>
         <button
             onClick={() =>
@@ -230,7 +230,7 @@ describe('PlayerGame', () => {
         expect(screen.getByText('Your target: Bob')).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=["Bob"] isGameActive=true'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true'
             )
         ).toBeInTheDocument();
     });
@@ -344,7 +344,7 @@ describe('PlayerGame', () => {
         ).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[] isGameActive=true'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true'
             )
         ).toBeInTheDocument();
     });
@@ -374,7 +374,7 @@ describe('PlayerGame', () => {
         ).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice targets=[] isGameActive=false'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=false'
             )
         ).toBeInTheDocument();
     });

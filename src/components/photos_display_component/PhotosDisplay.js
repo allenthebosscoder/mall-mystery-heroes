@@ -116,7 +116,7 @@ const PhotosDisplay = ({ players = [] }) => {
           )?.targets ?? [])
         : [];
     const currentOpenMissions = currentPhoto
-        ? openMissionsForPlayer(missions, currentPhoto.assassin)
+        ? openMissionsForPlayer(missions, normalizePlayerName(currentPhoto.assassin))
         : [];
 
     const combinedOptions = [
@@ -374,6 +374,15 @@ const PhotosDisplay = ({ players = [] }) => {
                                     </optgroup>
                                 )}
                             </Select>
+                        ) : combinedOptions.length === 0 ? (
+                            // The zero-targets photo gate was removed, so a
+                            // dead player with no open Revival Mission yet
+                            // can land here with nothing selectable — say so
+                            // plainly rather than showing an empty picker
+                            // area with a silently-disabled Approve button.
+                            <Text color="gray.400">
+                                No open targets or missions for this player.
+                            </Text>
                         ) : (
                             // Auto-resolved from the single combined
                             // option — still shown, not just used

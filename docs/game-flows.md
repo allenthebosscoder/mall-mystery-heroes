@@ -198,6 +198,7 @@ sequenceDiagram
     participant FS as Firestore
     participant PD as PhotosDisplay
     participant EK as executeKill (client)
+    participant CM as completeMission (client)
     participant UK as undoKill (client)
     participant UKP as undoKillPlayer (Cloud Function)
     actor GM
@@ -205,20 +206,26 @@ sequenceDiagram
     App->>FS: addDoc(photos, {url, assassin, target, timestamp, status:"pending"})
     FS-->>PD: onSnapshot (all photos, ordered by timestamp asc)
     PD->>PD: filter status === "pending" client-side
-    PD-->>GM: render oldest pending photo
+    PD-->>GM: render oldest pending photo, with a combined target/mission dropdown
 
-    alt Approve
-        GM->>PD: ✓
+    alt Approve as kill
+        GM->>PD: ✓ (target selected)
         PD->>EK: executeKill(target, assassin, roomID)
         Note over EK: same Cloud Function call as /kill — see flow 2
         EK-->>PD: {preKillSnapshot, addedTargets, addedAssassins, remapLogs, ...}
-        PD->>FS: approvePhotoForRoom(roomID, photoId, preKillSnapshot)
+        PD->>FS: approvePhotoForRoom(roomID, photoId, target, preKillSnapshot)
         PD->>FS: addLog("target was killed by assassin")
+    else Approve as mission
+        GM->>PD: ✓ (mission selected)
+        PD->>CM: completeMission(assassin, missionIndex, roomID, players)
+        Note over CM: same planMissionCompletion decision, and the same completedBy/points-or-revival/auto-end writes, /mission done uses — see flow 4
+        CM-->>PD: (void)
+        PD->>FS: approvePhotoAsMissionForRoom(roomID, photoId, missionIndex)
     else Deny
         GM->>PD: ✗
         PD->>FS: updatePhotoStatusForRoom("denied")
-        PD->>FS: addLog("attempt was denied")
-    else Undo last judgment, previous action was Approve
+        PD->>FS: addLog("assassin's photo submission was denied")
+    else Undo last judgment, previous action was Approve as kill
         GM->>PD: ←
         PD->>UK: undoKill(roomID, photoId)
         UK->>UKP: httpsCallable('undoKillPlayer', {roomId, photoId})
@@ -245,6 +252,13 @@ player `killPlayer`'s transaction touched (target, killer, and anyone the
 remap reassigned) — is persisted onto the photo document itself
 (`approvePhotoForRoom`) rather than kept only in React state, which is what
 makes Undo survive a reload (`improvements.md` item 6).
+
+Approving a photo as a mission instead of a kill reuses the exact same
+`completeMission` orchestration (and, underneath it, the same
+`planMissionCompletion` decision logic) that `/mission done` runs — see flow
+4 — so a mission completion behaves identically no matter which of the two
+paths triggered it
+(docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
 
 **Undoing an approval no longer replays individual client writes.** The
 2026-08-16 full-kill-undo redesign
