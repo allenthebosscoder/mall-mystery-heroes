@@ -281,6 +281,7 @@ Two routes reach the same outcome, with different side effects.
 sequenceDiagram
     actor GM
     participant CI as ChatInput
+    participant CM as completeMission (client)
     participant FS as Firestore
     participant RP as RemapPlayers
 
@@ -288,18 +289,22 @@ sequenceDiagram
         GM->>CI: /revive alice
         CI->>FS: fetchPlayersByStatusForRoom(false) → must contain player
         CI->>FS: updateIsAliveForPlayer(player, true)
+        CI->>FS: fetchAlivePlayerNamesForRoom
+        CI->>RP: handleRegeneration([player], [player], alive)
+        RP-->>CI: [newTargets, newAssassins]
+        CI-->>GM: RemapPlayerModal
     else /mission done <player> <index>, taskType = "Revival Mission"
         GM->>CI: /mission done alice 3
-        CI->>FS: fetchTaskByIndexForRoom(index)
-        CI->>FS: fetchPlayersByStatusForRoom(false) → must contain player
-        CI->>FS: updateIsAliveForPlayer(player, true)
-        CI->>FS: addPlayerToCompletedByForTask(taskRef, player)
+        CI->>CM: completeMission(player, index, roomID, players)
+        Note over CM: same shared logic PhotosDisplay's<br/>"Approve as mission" branch uses — see flow 3
+        CM->>FS: fetchTaskByIndexForRoom, fetchPlayersByStatusForRoom(false) → must contain player
+        CM->>FS: addPlayerToCompletedByForTask(taskRef, player), updateIsAliveForPlayer(player, true)
+        CM->>FS: fetchAliveRosterForRoom
+        CM->>RP: handleRegeneration(needTargets, needAssassins, alive)
+        RP-->>CM: [newTargets, newAssassins]
+        CM-->>CI: (void)
+        CI-->>GM: RemapPlayerModal
     end
-
-    CI->>FS: fetchAlivePlayerNamesForRoom
-    CI->>RP: handleRegeneration([player], [player], alive)
-    RP-->>CI: [newTargets, newAssassins]
-    CI-->>GM: RemapPlayerModal
 ```
 
 A revived player keeps the score of `0` set at death — revival restores life but
