@@ -5,10 +5,8 @@ import enter from '../../assets/enter-green.png';
 import { executionContext, gameContext } from '../Contexts';
 import {
     addPlayerMessageForRoom,
-    addPlayerToCompletedByForTask,
     fetchAliveRosterForRoom,
     fetchPlayersByStatusForRoom,
-    fetchReferenceByIndexForTask,
     fetchTaskByIndexForRoom,
     fetchTasksByCompletionForRoom,
     setOpenSznOfPlayerToValueForRoom,
@@ -18,6 +16,7 @@ import {
 } from '../firebase_calls/dbCalls';
 import commandCompletion from '../../game/commandCompletion';
 import RemapPlayers from '../RemapPlayers';
+import CompleteMission from '../completeMission';
 import { executeKill } from '../executeKill';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
 import { buildLeaderboardStandings } from '../../game/leaderboard';
@@ -162,156 +161,16 @@ const handleCommandExecution = async (
                             break;
                         }
 
-                        // sanity check player input
                         if (arrayOfPlayerNames.includes(playerName)) {
-                            // sanity check mission index — checked before
-                            // fetching a doc reference for it, since a
-                            // deleted mission's fetchReferenceByIndexForTask
-                            // throws "Task not found" rather than returning
-                            // null, which would otherwise leak past this
-                            // friendlier message (docs/improvements.md item
-                            // 63, mirrors "/mission end"'s guard below).
-                            const task = await fetchTaskByIndexForRoom(missionIndex, roomID);
-                            if (!task) {
-                                createAlert('error', 'Error', 'Invalid task index', 1500);
-                                console.error('invalid task');
-                                break;
-                            }
-                            const taskDocRef = await fetchReferenceByIndexForTask(
-                                missionIndex,
-                                roomID
-                            );
-
-                            // A mission /mission end already closed can't be
-                            // completed again — this only used to check
-                            // whether THIS player had already done it, not
-                            // whether the mission itself was still open.
-                            if (task.isComplete) {
-                                createAlert(
-                                    'error',
-                                    'Error',
-                                    `Mission ${missionIndex} has already ended`,
-                                    1500
-                                );
-                                console.error(`Mission ${missionIndex} has already ended`);
-                                break;
-                            }
-
-                            // check if player has completed task
-                            if (!task.completedBy.includes(playerName)) {
-                                const displayName = resolvePlayerDisplayName(playerName, players);
-
-                                // Announced before any type-specific
-                                // consequence (scoring, revival) — a
-                                // revival's own "was revived" message
-                                // (below) should read as following this
-                                // one, not preceding it.
-                                await addPlayerToCompletedByForTask(taskDocRef, playerName);
-                                await addLog(
-                                    `${displayName} completed mission: ${task.title}`,
-                                    'green.400'
-                                );
-                                await addPlayerMessageForRoom(
-                                    {
-                                        type: 'broadcast',
-                                        recipient: null,
-                                        text: `${displayName} completed mission: ${task.title}`,
-                                        standings: null,
-                                    },
-                                    roomID
-                                );
-
-                                //updates player scores for task types
-                                if (task.taskType === 'Task') {
-                                    const points = parseInt(task.pointValue);
-                                    await updatePointsForPlayer(playerName, points, roomID);
-                                } else if (task.taskType === 'Revival Mission') {
-                                    //updates player live status for revival missions.
-                                    // fetchPlayersByStatusForRoom returns case-preserved
-                                    // names, so this needs normalizing against the
-                                    // normalized playerName (improvements items 1, 35).
-                                    arrayOfDeadPlayers = (
-                                        await fetchPlayersByStatusForRoom(false, roomID)
-                                    ).map((name) => normalizePlayerName(name));
-                                    if (arrayOfDeadPlayers.includes(playerName)) {
-                                        await updateIsAliveForPlayer(playerName, true, roomID);
-                                        handlePlayerRevive(displayName);
-                                        // Rebalances whoever else is short of
-                                        // the room's own per-player cap too,
-                                        // not just the revived player —
-                                        // otherwise planRemap does the
-                                        // minimum to satisfy only the one
-                                        // name it's given, bolting every new
-                                        // link onto whichever candidates
-                                        // happen to have room and leaving
-                                        // the rest of the roster untouched
-                                        // (src/game/targetGraph.js). Uses
-                                        // each player's real stored casing,
-                                        // e.g. "Bob" — planRemap's roster is
-                                        // keyed by that casing, so the
-                                        // normalized `playerName` ("bob")
-                                        // used here previously never matched
-                                        // and silently skipped the revived
-                                        // player entirely.
-                                        const roster = await fetchAliveRosterForRoom(roomID);
-                                        const { needTargets, needAssassins } =
-                                            playersNeedingConnections(roster);
-                                        const [targets, assassins] = await handleTargetRegeneration(
-                                            needTargets,
-                                            needAssassins,
-                                            roster.map((player) => player.name),
-                                            roomID
-                                        );
-                                        handleAddNewAssassins(assassins);
-                                        handleAddNewTargets(targets);
-                                        handleSetShowMessageToTrue();
-                                    } else {
-                                        createAlert(
-                                            'error',
-                                            'Error',
-                                            `Player ${args[1]} is not dead`,
-                                            1500
-                                        );
-                                        console.error(`Player ${args[1]} is not dead`);
-                                    }
-                                }
-
-                                // Optional per-mission completion cap — unset
-                                // or 0 means unlimited, matching every
-                                // mission created before this field existed.
-                                const completedCount = task.completedBy.length + 1;
-                                if (task.maxCompletions && completedCount >= task.maxCompletions) {
-                                    await updateIsCompleteToTrueForTaskByIndex(
-                                        missionIndex,
-                                        roomID
-                                    );
-                                    // The GM's own log keeps the mechanical
-                                    // detail; players just see it ended.
-                                    await addLog(
-                                        `Mission "${task.title}" auto-ended — reached its ${task.maxCompletions}-completion cap`,
-                                        'purple.400'
-                                    );
-                                    await addPlayerMessageForRoom(
-                                        {
-                                            type: 'broadcast',
-                                            recipient: null,
-                                            text: `Mission ${task.title} has been completed!`,
-                                            standings: null,
-                                        },
-                                        roomID
-                                    );
-                                }
-                            } else {
-                                createAlert(
-                                    'error',
-                                    'Error',
-                                    `Player ${args[1]} has already completed the mission`,
-                                    1500
-                                );
-                                console.error(
-                                    `Player ${args[1]} has already completed the mission`
-                                );
-                            }
+                            const completeMission = CompleteMission({
+                                addLog,
+                                handleTargetRegeneration,
+                                handleAddNewAssassins,
+                                handleAddNewTargets,
+                                handleSetShowMessageToTrue,
+                                handlePlayerRevive,
+                            });
+                            await completeMission(playerName, missionIndex, roomID, players);
                         } else {
                             createAlert('error', 'Error', `Player ${args[1]} is invalid`, 1500);
                             console.error(`Player ${args[1]} is invalid.`);

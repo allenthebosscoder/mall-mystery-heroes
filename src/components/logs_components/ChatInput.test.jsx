@@ -252,6 +252,13 @@ describe('/mission start and /mission view open the mission modals (improvements
 
 describe('/mission done (bug report: ended missions, missing chat log, completion cap)', () => {
     const baseTask = {
+        // Real Firestore task docs are queried by this field (dbCalls.js's
+        // fetchTaskByIndexForRoom), and planMissionCompletion's "already
+        // ended" message is built from it rather than from the caller's
+        // typed index (src/game/missionCompletion.js) — omitting it here
+        // would read "Mission undefined has already ended" once
+        // completeMission (not this file) builds that message.
+        taskIndex: 1,
         title: 'Find the clue',
         taskType: 'Task',
         pointValue: '10',
@@ -353,6 +360,25 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
                 'green.400'
             )
         );
+        expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
+    });
+
+    it('rejects completing a Revival Mission for a player who is not dead, without recording the completion (bug fix)', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({
+            title: 'Revive a fallen ally',
+            taskType: 'Revival Mission',
+            pointValue: '0',
+            completedBy: [],
+            isComplete: false,
+            maxCompletions: 1,
+        });
+        dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue([]); // nobody is dead
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        expect(await screen.findByText(/bob is not dead/i)).toBeInTheDocument();
+        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
         expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
     });
 
