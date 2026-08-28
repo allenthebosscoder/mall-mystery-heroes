@@ -30,9 +30,15 @@ jest.mock('firebase/firestore', () => ({
 // Explicit factory, not auto-mock — see ChatInput.test.jsx for why.
 jest.mock('../firebase_calls/dbCalls', () => ({
     addPlayerMessageForRoom: jest.fn(),
+    addPlayerToCompletedByForTask: jest.fn(),
+    approvePhotoAsMissionForRoom: jest.fn(),
     approvePhotoForRoom: jest.fn(),
     fetchPhotosQueryByAscendingTimestampForRoom: jest.fn(() => 'photos-query'),
+    fetchReferenceByIndexForTask: jest.fn(),
+    fetchTaskByIndexForRoom: jest.fn(),
+    fetchTasksQueryForRoom: jest.fn(() => 'missions-query'),
     updatePhotoStatusForRoom: jest.fn(),
+    updatePointsForPlayer: jest.fn(),
 }));
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
 jest.mock('../undoKill', () => ({ undoKill: jest.fn() }));
@@ -43,6 +49,7 @@ const executionHandlers = {
     handleAddNewAssassins: jest.fn(),
     handleAddNewTargets: jest.fn(),
     handleSetShowMessageToTrue: jest.fn(),
+    handlePlayerRevive: jest.fn(),
 };
 
 // Every assassin used across this file's photo docs has exactly one
@@ -63,13 +70,17 @@ const defaultPlayers = [
  * are reassigned by array index each call, so keeping a photo at the same
  * index across calls keeps its ID stable).
  */
-const mountWithSnapshot = (photoDocs, players = defaultPlayers) => {
-    let deliverUpdate;
+const mountWithSnapshot = (photoDocs, players = defaultPlayers, missions = []) => {
+    let deliverPhotoUpdate;
     onSnapshot.mockImplementation((query, onNext) => {
-        deliverUpdate = onNext;
-        onNext({
-            docs: photoDocs.map((data, i) => ({ id: `photo-${i}`, data: () => data })),
-        });
+        if (query === 'photos-query') {
+            deliverPhotoUpdate = onNext;
+            onNext({
+                docs: photoDocs.map((data, i) => ({ id: `photo-${i}`, data: () => data })),
+            });
+        } else {
+            onNext({ docs: missions.map((data) => ({ data: () => data })) });
+        }
         return () => {};
     });
 
@@ -85,7 +96,7 @@ const mountWithSnapshot = (photoDocs, players = defaultPlayers) => {
 
     return (nextPhotoDocs) =>
         act(async () => {
-            deliverUpdate({
+            deliverPhotoUpdate({
                 docs: nextPhotoDocs.map((data, i) => ({ id: `photo-${i}`, data: () => data })),
             });
         });
@@ -95,6 +106,9 @@ beforeEach(() => {
     jest.clearAllMocks();
     dbCalls.updatePhotoStatusForRoom.mockResolvedValue(undefined);
     dbCalls.addPlayerMessageForRoom.mockResolvedValue(undefined);
+    dbCalls.approvePhotoAsMissionForRoom.mockResolvedValue(undefined);
+    dbCalls.addPlayerToCompletedByForTask.mockResolvedValue(undefined);
+    dbCalls.updatePointsForPlayer.mockResolvedValue(undefined);
     undoKill.mockResolvedValue(undefined);
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
@@ -321,7 +335,7 @@ describe('kill outcomes are announced in the room chat', () => {
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: "bob's kill attempt was denied",
+                    text: "bob's photo submission was denied",
                     standings: null,
                     mission: null,
                     sender: null,
@@ -575,7 +589,7 @@ describe('moderator resolves the target (players no longer pick who they killed)
             [{ name: 'bob', targets: ['alice'] }]
         );
 
-        expect(screen.queryByLabelText('Select target')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
         // The auto-resolved target must still be visible, even with no
         // dropdown — otherwise the moderator has no way to catch a target
         // that drifted (via a remap from an unrelated kill) between when
@@ -593,7 +607,7 @@ describe('moderator resolves the target (players no longer pick who they killed)
             [{ name: 'bob', targets: ['alice', 'carol'] }]
         );
 
-        expect(screen.getByLabelText('Select target')).toBeInTheDocument();
+        expect(screen.getByLabelText('Select target or mission')).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'alice' })).toBeInTheDocument();
         expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
     });
@@ -611,7 +625,7 @@ describe('moderator resolves the target (players no longer pick who they killed)
             [{ name: 'bob', targets: ['alice', 'carol'] }]
         );
 
-        await userEvent.selectOptions(screen.getByLabelText('Select target'), 'carol');
+        await userEvent.selectOptions(screen.getByLabelText('Select target or mission'), 'carol');
         await userEvent.click(screen.getByAltText('Approve'));
 
         await waitFor(() => expect(executeKill).toHaveBeenCalledWith('carol', 'bob', 'room-a'));
@@ -653,7 +667,7 @@ describe('moderator resolves the target (players no longer pick who they killed)
             ]
         );
 
-        await userEvent.selectOptions(screen.getByLabelText('Select target'), 'dave');
+        await userEvent.selectOptions(screen.getByLabelText('Select target or mission'), 'dave');
         await userEvent.click(screen.getByAltText('Approve'));
 
         // carol (the next photo's assassin) has exactly one target, so no
@@ -662,7 +676,7 @@ describe('moderator resolves the target (players no longer pick who they killed)
         // approve carol's photo against 'dave', a name that isn't even one
         // of carol's own targets).
         await waitFor(() =>
-            expect(screen.queryByLabelText('Select target')).not.toBeInTheDocument()
+            expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument()
         );
 
         await userEvent.click(screen.getByAltText('Approve'));
@@ -679,5 +693,77 @@ describe('moderator resolves the target (players no longer pick who they killed)
         await userEvent.click(screen.getByAltText('Deny'));
 
         await waitFor(() => expect(dbCalls.updatePhotoStatusForRoom).toHaveBeenCalled());
+    });
+});
+
+describe('approving a photo as a mission completion', () => {
+    it('lists open missions grouped separately from kill targets, excluding ended or already-completed ones', async () => {
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: ['alice', 'carol'] }],
+            [
+                { taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] },
+                { taskIndex: 2, title: 'Ended mission', isComplete: true, completedBy: [] },
+                { taskIndex: 3, title: 'Already done', isComplete: false, completedBy: ['bob'] },
+            ]
+        );
+
+        expect(screen.getByRole('option', { name: 'Find the clue' })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: 'Ended mission' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
+    });
+
+    it('completes a Task mission and marks the photo approved with the resolved mission index', async () => {
+        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({
+            title: 'Find the clue',
+            taskType: 'Task',
+            pointValue: '10',
+            completedBy: [],
+            isComplete: false,
+            maxCompletions: null,
+        });
+        dbCalls.fetchReferenceByIndexForTask.mockResolvedValue('task-doc-ref');
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: [] }],
+            [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
+        );
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerToCompletedByForTask).toHaveBeenCalledWith(
+                'task-doc-ref',
+                'bob'
+            )
+        );
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('bob', 10, 'room-a');
+        expect(dbCalls.approvePhotoAsMissionForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 1);
+    });
+
+    it('denies a photo with generic wording regardless of category', async () => {
+        mountWithSnapshot([{ status: 'pending', target: null, assassin: 'bob' }]);
+
+        await userEvent.click(screen.getByAltText('Deny'));
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                "bob's photo submission was denied",
+                'gray'
+            )
+        );
+    });
+
+    it('shows a not-yet-supported message and performs no write when Undo is clicked on a mission-approved photo', async () => {
+        mountWithSnapshot([
+            { status: 'approved', mission: 1, assassin: 'bob', originalPlayerData: null },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Undo'));
+
+        expect(
+            await screen.findByText(/not available for mission completions/i)
+        ).toBeInTheDocument();
+        expect(dbCalls.updatePhotoStatusForRoom).not.toHaveBeenCalled();
     });
 });

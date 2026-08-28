@@ -18,6 +18,14 @@ describe('splitPhotosByStatus', () => {
         expect(judged).toEqual([{ photo, action: 'pass', originalPlayerData: { score: 10 } }]);
     });
 
+    it('maps an approved photo with a resolved mission to action "missionPass"', () => {
+        const photo = { id: '1', status: 'approved', mission: 2, originalPlayerData: null };
+
+        const { judged } = splitPhotosByStatus([photo]);
+
+        expect(judged).toEqual([{ photo, action: 'missionPass', originalPlayerData: null }]);
+    });
+
     it('maps a denied photo to action "deny"', () => {
         const photo = { id: '1', status: 'denied' };
 

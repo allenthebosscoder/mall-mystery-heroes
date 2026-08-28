@@ -15,7 +15,7 @@
  * @param {Array<{id: string, status: 'pending'|'approved'|'denied', originalPlayerData?: object}>} photos
  * @returns {{
  *   unjudged: typeof photos,
- *   judged: Array<{photo: typeof photos[number], action: 'pass'|'deny', originalPlayerData: object|undefined}>
+ *   judged: Array<{photo: typeof photos[number], action: 'pass'|'missionPass'|'deny', originalPlayerData: object|undefined}>
  * }}
  */
 export const splitPhotosByStatus = (photos) => {
@@ -25,7 +25,8 @@ export const splitPhotosByStatus = (photos) => {
         .filter((photo) => photo.status === 'approved' || photo.status === 'denied')
         .map((photo) => ({
             photo,
-            action: photo.status === 'approved' ? 'pass' : 'deny',
+            action:
+                photo.status === 'denied' ? 'deny' : photo.mission != null ? 'missionPass' : 'pass',
             originalPlayerData: photo.originalPlayerData,
         }));
 

@@ -3,8 +3,10 @@ import { useContext, useEffect, useState } from 'react';
 import { gameContext } from '../Contexts';
 import {
     addPlayerMessageForRoom,
+    approvePhotoAsMissionForRoom,
     approvePhotoForRoom,
     fetchPhotosQueryByAscendingTimestampForRoom,
+    fetchTasksQueryForRoom,
     updatePhotoStatusForRoom,
 } from '../firebase_calls/dbCalls';
 import { onSnapshot } from 'firebase/firestore';
@@ -18,6 +20,9 @@ import undo from '../../assets/arrow-left.png';
 import GamePhotos from './GamePhotos';
 import { executionContext } from '../Contexts';
 import CreateAlert from '../CreateAlert';
+import CompleteMission from '../completeMission';
+import RemapPlayers from '../RemapPlayers';
+import { openMissionsForPlayer } from '../../game/missionCompletion';
 
 // A player no longer names who they killed when submitting a photo —
 // everyone in the game knows each other, and an ambiguous photo is
@@ -34,12 +39,13 @@ const PhotosDisplay = ({ players = [] }) => {
     // the current unjudged photo), so suppressing these IDs from
     // unjudgedPhotos is enough to make the queue advance instantly.
     const [optimisticallyJudgedIds, setOptimisticallyJudgedIds] = useState([]);
-    // The moderator's in-progress target pick for the current photo —
-    // only meaningful when the assassin has more than one live target
-    // (see effectiveTarget below). Reset whenever the queue advances to a
+    // The moderator's in-progress target/mission pick for the current photo —
+    // only meaningful when there's more than one combined option (see
+    // effectiveSelection below). Reset whenever the queue advances to a
     // different photo, so a pick made for one photo never leaks into the
     // next one's default.
-    const [selectedTarget, setSelectedTarget] = useState('');
+    const [selectedOption, setSelectedOption] = useState('');
+    const [missions, setMissions] = useState([]);
     const { roomID } = useContext(gameContext);
     const {
         addLog,
@@ -47,6 +53,7 @@ const PhotosDisplay = ({ players = [] }) => {
         handleAddNewAssassins,
         handleAddNewTargets,
         handleSetShowMessageToTrue,
+        handlePlayerRevive,
     } = useContext(executionContext);
     const createAlert = CreateAlert();
 
@@ -82,6 +89,21 @@ const PhotosDisplay = ({ players = [] }) => {
         return () => unsubscribe();
     }, [roomID]);
 
+    useEffect(() => {
+        const missionsQuery = fetchTasksQueryForRoom(roomID);
+        const unsubscribe = onSnapshot(
+            missionsQuery,
+            (snapshot) => {
+                setMissions(snapshot.docs.map((doc) => doc.data()));
+            },
+            (error) => {
+                console.error('Error fetching missions: ', error);
+            }
+        );
+
+        return () => unsubscribe();
+    }, [roomID]);
+
     const visibleUnjudgedPhotos = unjudgedPhotos.filter(
         (photo) => !optimisticallyJudgedIds.includes(photo.id)
     );
@@ -93,22 +115,34 @@ const PhotosDisplay = ({ players = [] }) => {
                   normalizePlayerName(player.name) === normalizePlayerName(currentPhoto.assassin)
           )?.targets ?? [])
         : [];
+    const currentOpenMissions = currentPhoto
+        ? openMissionsForPlayer(missions, currentPhoto.assassin)
+        : [];
+
+    const combinedOptions = [
+        ...currentAssassinTargets.map((target) => ({ value: `target:${target}`, label: target })),
+        ...currentOpenMissions.map((mission) => ({
+            value: `mission:${mission.taskIndex}`,
+            label: mission.title,
+        })),
+    ];
+
     // Derived, not state. Auto-resolves only when there's exactly one
-    // option (nothing to actually choose) — with two or more, this stays
-    // unresolved (blocking Approve) until `selectedTarget` genuinely
-    // matches one of the assassin's targets, i.e. the moderator has
-    // explicitly picked one from the dropdown.
-    const effectiveTarget =
-        currentAssassinTargets.length === 1
-            ? currentAssassinTargets[0]
-            : currentAssassinTargets.includes(selectedTarget)
-              ? selectedTarget
+    // combined option (nothing to actually choose) — with two or more,
+    // this stays unresolved (blocking Approve) until `selectedOption`
+    // genuinely matches one of the combined options, i.e. the moderator
+    // has explicitly picked one from the dropdown.
+    const effectiveSelection =
+        combinedOptions.length === 1
+            ? combinedOptions[0].value
+            : combinedOptions.some((option) => option.value === selectedOption)
+              ? selectedOption
               : '';
 
     // A pick made for one photo must never leak into the next one's
     // default once the queue advances.
     useEffect(() => {
-        setSelectedTarget('');
+        setSelectedOption('');
     }, [currentPhoto?.id]);
 
     // Approving a photo used to kill the target unconditionally — no check
@@ -122,61 +156,54 @@ const PhotosDisplay = ({ players = [] }) => {
     // kill (docs/superpowers/specs/2026-08-16-full-kill-undo-design.md).
     const handlePass = async () => {
         if (visibleUnjudgedPhotos.length === 0) return;
-        // The moderator hasn't resolved a target yet (the assassin has more
-        // than one live target, and none has been picked) — nothing to
-        // approve against.
-        if (!effectiveTarget) return;
-        const target = effectiveTarget;
+        if (!effectiveSelection) return;
         const [approvingPhoto] = visibleUnjudgedPhotos;
-        // Suppress this photo from the queue immediately — executeKill can
-        // take several real seconds against a cold Cloud Function, and
-        // there's no reason to make the GM stare at the same photo while
-        // it runs. Rolled back in the catch block if it ultimately fails.
         setOptimisticallyJudgedIds((previous) => [...previous, approvingPhoto.id]);
-        // Reset synchronously, in the same batch as the queue advance
-        // above — not just via the currentPhoto?.id effect below, which
-        // only runs after this render commits. Without this, the very next
-        // render briefly computes effectiveTarget for the *new* current
-        // photo using this pick, which resolves to a value the moderator
-        // never chose for it if that assassin's targets happen to include
-        // the same name.
-        setSelectedTarget('');
+        setSelectedOption('');
 
         try {
-            const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } = await executeKill(
-                target,
-                approvingPhoto.assassin,
-                roomID
-            );
+            if (effectiveSelection.startsWith('mission:')) {
+                const missionIndex = Number(effectiveSelection.slice('mission:'.length));
+                const handleTargetRegeneration = RemapPlayers(handleRemapping, createAlert);
+                const completeMission = CompleteMission({
+                    addLog,
+                    handleTargetRegeneration,
+                    handleAddNewAssassins,
+                    handleAddNewTargets,
+                    handleSetShowMessageToTrue,
+                    handlePlayerRevive,
+                });
+                await completeMission(approvingPhoto.assassin, missionIndex, roomID, players);
+                await approvePhotoAsMissionForRoom(roomID, approvingPhoto.id, missionIndex);
+            } else {
+                const target = effectiveSelection.slice('target:'.length);
+                const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } =
+                    await executeKill(target, approvingPhoto.assassin, roomID);
 
-            // Persists preKillSnapshot (and the now-resolved target) onto
-            // the photo doc so undo survives a reload (docs/improvements.md
-            // item 6) — the onSnapshot listener above picks up the
-            // resulting status change and recomputes judgedPhotos, so no
-            // local state update is needed here.
-            await approvePhotoForRoom(roomID, approvingPhoto.id, target, preKillSnapshot);
-            await addLog(`${target} was killed by ${approvingPhoto.assassin}`, 'red.400');
-            await addPlayerMessageForRoom(
-                {
-                    type: 'killResult',
-                    recipient: null,
-                    text: `${target} was killed by ${approvingPhoto.assassin}`,
-                    standings: null,
-                    mission: null,
-                    sender: null,
-                    assassin: approvingPhoto.assassin,
-                    target,
-                    outcome: 'approved',
-                },
-                roomID
-            );
+                await approvePhotoForRoom(roomID, approvingPhoto.id, target, preKillSnapshot);
+                await addLog(`${target} was killed by ${approvingPhoto.assassin}`, 'red.400');
+                await addPlayerMessageForRoom(
+                    {
+                        type: 'killResult',
+                        recipient: null,
+                        text: `${target} was killed by ${approvingPhoto.assassin}`,
+                        standings: null,
+                        mission: null,
+                        sender: null,
+                        assassin: approvingPhoto.assassin,
+                        target,
+                        outcome: 'approved',
+                    },
+                    roomID
+                );
 
-            for (const log of remapLogs) {
-                await handleRemapping(log);
+                for (const log of remapLogs) {
+                    await handleRemapping(log);
+                }
+                handleAddNewAssassins(addedAssassins);
+                handleAddNewTargets(addedTargets);
+                handleSetShowMessageToTrue();
             }
-            handleAddNewAssassins(addedAssassins);
-            handleAddNewTargets(addedTargets);
-            handleSetShowMessageToTrue();
         } catch (error) {
             console.error('Error approving photo: ', error);
             setOptimisticallyJudgedIds((previous) =>
@@ -195,16 +222,16 @@ const PhotosDisplay = ({ players = [] }) => {
         setOptimisticallyJudgedIds((previous) => [...previous, denyingPhoto.id]);
         // Same reasoning as handlePass — reset synchronously with the queue
         // advance, not just via the effect below.
-        setSelectedTarget('');
+        setSelectedOption('');
 
         try {
             await updatePhotoStatusForRoom(roomID, denyingPhoto.id, 'denied');
-            await addLog(`${denyingPhoto.assassin}'s kill attempt was denied`, 'gray');
+            await addLog(`${denyingPhoto.assassin}'s photo submission was denied`, 'gray');
             await addPlayerMessageForRoom(
                 {
                     type: 'killResult',
                     recipient: null,
-                    text: `${denyingPhoto.assassin}'s kill attempt was denied`,
+                    text: `${denyingPhoto.assassin}'s photo submission was denied`,
                     standings: null,
                     mission: null,
                     sender: null,
@@ -237,6 +264,16 @@ const PhotosDisplay = ({ players = [] }) => {
 
         const last = judgedPhotos[judgedPhotos.length - 1];
         const { photo, action } = last;
+
+        if (action === 'missionPass') {
+            createAlert(
+                'info',
+                'Not Supported',
+                'Undo is not available for mission completions yet.',
+                1500
+            );
+            return;
+        }
 
         try {
             if (action === 'pass') {
@@ -305,26 +342,50 @@ const PhotosDisplay = ({ players = [] }) => {
                 {currentPhoto && (
                     <Box sx={styles.targetPickerBox}>
                         <Text mb={1}>Submitted by {currentPhoto.assassin}</Text>
-                        {currentAssassinTargets.length > 1 ? (
+                        {combinedOptions.length > 1 ? (
                             <Select
-                                aria-label="Select target"
-                                placeholder="Choose target"
-                                value={effectiveTarget}
-                                onChange={(event) => setSelectedTarget(event.target.value)}
+                                aria-label="Select target or mission"
+                                placeholder="Choose target or mission"
+                                value={effectiveSelection}
+                                onChange={(event) => setSelectedOption(event.target.value)}
                             >
-                                {currentAssassinTargets.map((target) => (
-                                    <option key={target} value={target}>
-                                        {target}
-                                    </option>
-                                ))}
+                                {currentAssassinTargets.length > 0 && (
+                                    <optgroup label="Kill Target">
+                                        {currentAssassinTargets.map((target) => (
+                                            <option
+                                                key={`target:${target}`}
+                                                value={`target:${target}`}
+                                            >
+                                                {target}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                {currentOpenMissions.length > 0 && (
+                                    <optgroup label="Mission">
+                                        {currentOpenMissions.map((mission) => (
+                                            <option
+                                                key={`mission:${mission.taskIndex}`}
+                                                value={`mission:${mission.taskIndex}`}
+                                            >
+                                                {mission.title}
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )}
                             </Select>
                         ) : (
-                            // Auto-resolved from the assassin's one live
-                            // target — still shown, not just used silently,
-                            // so the moderator can catch a target that
-                            // drifted (via an unrelated kill's remap)
-                            // between when this photo was submitted and now.
-                            effectiveTarget && <Text>Target: {effectiveTarget}</Text>
+                            // Auto-resolved from the single combined
+                            // option — still shown, not just used
+                            // silently, so the moderator can catch a
+                            // target/mission that drifted between when
+                            // this photo was submitted and now.
+                            effectiveSelection &&
+                            (effectiveSelection.startsWith('mission:') ? (
+                                <Text>Mission: {currentOpenMissions[0]?.title}</Text>
+                            ) : (
+                                <Text>Target: {currentAssassinTargets[0]}</Text>
+                            ))
                         )}
                     </Box>
                 )}
@@ -335,8 +396,8 @@ const PhotosDisplay = ({ players = [] }) => {
                         src={confirm}
                         alt="Approve"
                         sx={styles.buttonImage}
-                        opacity={effectiveTarget ? 1 : 0.3}
-                        cursor={effectiveTarget ? 'pointer' : 'not-allowed'}
+                        opacity={effectiveSelection ? 1 : 0.3}
+                        cursor={effectiveSelection ? 'pointer' : 'not-allowed'}
                         onClick={handlePass}
                     />
                 </Box>

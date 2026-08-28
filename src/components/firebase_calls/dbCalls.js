@@ -204,6 +204,17 @@ export const approvePhotoForRoom = async (roomID, photoID, target, originalPlaye
     await updateDoc(photoRef, { status: 'approved', target, originalPlayerData });
 };
 
+// Approves a photo as evidence of a mission completion instead of a kill —
+// the sibling of approvePhotoForRoom for the mission branch of
+// PhotosDisplay.js's dropdown
+// (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
+// Persists which mission the photo was approved as, mirroring how
+// approvePhotoForRoom persists the resolved `target`.
+export const approvePhotoAsMissionForRoom = async (roomID, photoID, missionIndex) => {
+    const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
+    await updateDoc(photoRef, { status: 'approved', mission: missionIndex });
+};
+
 //returns a query of all tasks for room
 export const fetchTasksQueryForRoom = (roomID) => {
     const taskCollectionRef = collection(db, 'rooms', roomID, 'tasks');
