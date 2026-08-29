@@ -11,7 +11,7 @@ import {
 } from '../firebase_calls/dbCalls';
 import { onSnapshot } from 'firebase/firestore';
 import { splitPhotosByStatus } from '../../game/photoJudgments';
-import { normalizePlayerName } from '../../game/playerNames';
+import { normalizePlayerName, resolvePlayerDisplayName } from '../../game/playerNames';
 import { executeKill } from '../executeKill';
 import { undoKill } from '../undoKill';
 import confirm from '../../assets/enter-green.png';
@@ -53,6 +53,7 @@ const PhotosDisplay = ({ players = [] }) => {
         handleAddNewAssassins,
         handleAddNewTargets,
         handleSetShowMessageToTrue,
+        handlePlayerRevive,
     } = useContext(executionContext);
     const createAlert = CreateAlert();
 
@@ -170,12 +171,47 @@ const PhotosDisplay = ({ players = [] }) => {
                     missionIndex,
                     result.reversalSnapshot
                 );
-                for (const log of result.remapLogs) {
-                    await handleRemapping(log);
+                const displayName = resolvePlayerDisplayName(approvingPhoto.assassin, players);
+
+                await addLog(`${displayName} completed mission: ${result.taskTitle}`, 'green.400');
+                await addPlayerMessageForRoom(
+                    {
+                        type: 'broadcast',
+                        recipient: null,
+                        text: `${displayName} completed mission: ${result.taskTitle}`,
+                        standings: null,
+                    },
+                    roomID
+                );
+
+                if (result.revivesPlayer) {
+                    handlePlayerRevive(displayName);
                 }
-                handleAddNewAssassins(result.addedAssassins);
-                handleAddNewTargets(result.addedTargets);
-                handleSetShowMessageToTrue();
+
+                if (result.reversalSnapshot.wasAutoEnded) {
+                    await addLog(
+                        `Mission "${result.taskTitle}" auto-ended — reached its ${result.maxCompletions}-completion cap`,
+                        'purple.400'
+                    );
+                    await addPlayerMessageForRoom(
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: `Mission ${result.taskTitle} has been completed!`,
+                            standings: null,
+                        },
+                        roomID
+                    );
+                }
+
+                if (result.revivesPlayer) {
+                    for (const log of result.remapLogs) {
+                        await handleRemapping(log);
+                    }
+                    handleAddNewAssassins(result.addedAssassins);
+                    handleAddNewTargets(result.addedTargets);
+                    handleSetShowMessageToTrue();
+                }
             } else {
                 const target = effectiveSelection.slice('target:'.length);
                 const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } =

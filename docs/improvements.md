@@ -2105,6 +2105,78 @@ creating a second one; letting them transparently rejoin as their
 existing player was considered but deferred — it touches the join flow's
 UI and session handling, not just this callable. 2 new emulator tests.
 
+### 67. `recordLastMissionCommandCompletion` is a non-atomic follow-up write after `completeMission`'s own transaction 🚫 Not pursuing
+
+**Impact: low · Effort: M**
+
+Found during the final whole-branch review of the mission-undo feature
+(docs/superpowers/specs/2026-08-29-mission-undo-design.md). `completeMission`
+awards points (or revives-and-regenerates) inside one atomic Firestore
+transaction, then returns its `reversalSnapshot` to the caller.
+`ChatInput.js`'s `/mission done` case makes a second, separate write —
+`recordLastMissionCommandCompletion(roomID, result.reversalSnapshot)` —
+_after_ that transaction has already succeeded. If this follow-up write
+fails (a dropped connection, a transient Firestore error), the completion
+has already landed for real — the player's score/revival state is
+correct and durable — but `/mission undo` has nothing to act on, since
+the room's `lastMissionCommandCompletion` field never got set. The
+completion becomes permanently un-undoable via the command path, with no
+error surfaced to the GM pointing at that specific consequence (the outer
+catch would report the write failure itself, but a GM who dismisses that
+toast has no way to know undo was the casualty).
+
+The photo-approval path has the identical shape and precedent —
+`approvePhotoAsMissionForRoom`'s `missionUndoSnapshot` write is exactly
+as non-atomic with `completeMission`'s transaction — so this is
+consistent with an existing, already-accepted risk, not a new one this
+feature introduced.
+
+**Not addressed:** making the snapshot write atomic with the completion
+itself would mean folding `lastMissionCommandCompletion` into
+`completeMission`'s own transaction — but `completeMission` is called by
+both `ChatInput.js` and `PhotosDisplay.js`, and only one of those two
+callers ever wants a `lastMissionCommandCompletion` write, so the Cloud
+Function would need to know which caller it is (or take an extra flag) to
+avoid writing a field the photo-approval path has no use for. Judged
+disproportionate to the value for a follow-up write whose failure mode is
+"undo becomes unavailable for this one completion," not any loss of game
+state.
+
+### 68. Undoing two independent completion stacks out of chronological order can restore a stale score 🚫 Not pursuing
+
+**Impact: low · Effort: L**
+
+Found during the final whole-branch review of the mission-undo feature
+(docs/superpowers/specs/2026-08-29-mission-undo-design.md). Photo-approved
+and typed (`/mission done`) completions each track their own independent
+"most recent completion" — by design, so a GM undoing the photo screen's
+last judgment never accidentally reverts a different, unrelated typed
+completion, and vice versa. But each undo replays a verbatim "before"
+snapshot with no awareness of the other stack.
+
+Concretely: a player completes mission A via `/mission done` (score
+10→20), then completes mission B via photo approval (score 20→35). If the
+GM then undoes the command completion (mission A) _first_, its snapshot
+resets the score to 10 — clobbering credit for mission B's completion,
+which already landed after the snapshot was taken. The subsequent photo
+undo (mission B) then resets the score to 20 — its own snapshot's "before"
+value — leaving the player at 20 with neither completion's credit
+actually intact, even though both individual undos "succeeded."
+
+**Not addressed:** this is inherent to two independent stacks each
+replaying a verbatim "before" snapshot with no cross-stack ordering
+awareness, not a bug specific to this feature's implementation — kill-undo
+already carries the same class of risk today (undoing an older approved
+kill after a newer one has already changed the same player's data;
+tracked as part of item 50's blast-radius note above). A real fix would
+mean either a single shared undo history across both completion sources
+(reopening the "two independent stacks" design decision this feature
+deliberately made, for reasons unrelated to this risk) or per-field
+conflict detection at undo time (comparing current data against the
+snapshot's assumptions before replaying) — both disproportionate to a
+scenario that requires a specific out-of-order GM action across two
+different UIs to trigger.
+
 ---
 
 ## Suggested sequencing

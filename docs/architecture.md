@@ -245,7 +245,7 @@ Gaps that remain, per [improvements.md](./improvements.md):
 
 ## Cloud Functions
 
-`functions/` contains six callables and one scheduled function:
+`functions/` contains nine callables and one scheduled function:
 
 - `targetFunction` — a stub that checks `context.auth` and echoes its input
   back. Nothing in the game depends on it; its only caller, a debug button
@@ -272,6 +272,32 @@ Gaps that remain, per [improvements.md](./improvements.md):
   transaction via the Admin SDK. Replaced a client-side Undo that only ever
   reverted the target's own side of the kill. `src/components/undoKill.js`
   is its thin `httpsCallable` wrapper, same shape as `executeKill.js`.
+- `completeMission` (`functions/callableFunctions/completeMission.js`) —
+  the atomic replacement for the client-side mission-completion
+  orchestration (docs/superpowers/specs/2026-08-29-mission-undo-design.md).
+  Records a Task completion (award points) or a Revival Mission completion
+  (revive the player and regenerate targets/assassins for whoever that
+  leaves short, via the same vendored `planRemap` `killPlayer` uses),
+  auto-ends the mission once `maxCompletions` is reached, and returns a
+  `reversalSnapshot` of every player it touched for later undo, all inside
+  one Firestore transaction. `src/components/completeMission.js` is its
+  thin `httpsCallable` wrapper, called by both `ChatInput.js`'s
+  `/mission done` and `PhotosDisplay.js`'s photo-approval flow.
+- `undoMissionPhotoApproval` / `undoMissionCommand`
+  (`functions/callableFunctions/undoMissionCompletion.js`) — the atomic
+  reversal of a mission completion, mirroring `undoKillPlayer`'s replay
+  pattern exactly, plus removing the player from the mission's
+  `completedBy` (and un-setting `isComplete` if the completion had
+  auto-ended it). Two thin `onCall` wrappers around one shared internal
+  reversal function, since the two undo stacks look up their
+  `reversalSnapshot` differently: `undoMissionPhotoApproval` reads it from
+  the photo document's `missionUndoSnapshot`; `undoMissionCommand` reads it
+  from the room document's `lastMissionCommandCompletion`. Two independent
+  "last completion" stacks, not one shared history — approving a photo as
+  a mission and typing `/mission done` each track their own most-recent
+  completion. `src/components/undoMissionPhotoApproval.js` and
+  `src/components/undoMissionCommand.js` are their thin `httpsCallable`
+  wrappers.
 - `joinRoom` (`functions/callableFunctions/joinRoom.js`) — lets a player
   self-register into a room from their own device, atomically checking for
   a duplicate name and that the room is still in its Lobby phase, all

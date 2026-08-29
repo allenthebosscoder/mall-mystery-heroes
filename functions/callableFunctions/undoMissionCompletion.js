@@ -119,10 +119,20 @@ exports.undoMissionPhotoApproval = functions.https.onCall(async (data, context) 
                 `Photo is not an approved mission completion (status: ${photoData.status}); nothing to undo.`
             );
         }
+        if (!photoData.missionUndoSnapshot) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'This mission completion predates undo support and cannot be reverted.'
+            );
+        }
 
         await applyReversal(transaction, roomRef, photoData.missionUndoSnapshot);
 
-        transaction.update(photoRef, { status: 'pending' });
+        transaction.update(photoRef, {
+            status: 'pending',
+            mission: null,
+            missionUndoSnapshot: null,
+        });
     });
 });
 

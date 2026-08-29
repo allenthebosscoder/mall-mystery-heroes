@@ -63,6 +63,9 @@ describe('completeMission', () => {
                 alice: { score: 5, targets: [], assassins: [], isAlive: true, openSeason: false },
             },
         });
+        expect(data.taskTitle).toBe('Find the clue');
+        expect(data.maxCompletions).toBeNull();
+        expect(data.revivesPlayer).toBe(false);
     });
 
     it('revives the player for a Revival Mission completion and reassigns targets for everyone the regen touched', async () => {
@@ -90,6 +93,7 @@ describe('completeMission', () => {
         expect(Object.keys(data.reversalSnapshot.players)).toEqual(
             expect.arrayContaining(['alice', 'bob'])
         );
+        expect(data.revivesPlayer).toBe(true);
     });
 
     it('sets isComplete and wasAutoEnded once maxCompletions is reached', async () => {
@@ -104,6 +108,9 @@ describe('completeMission', () => {
 
         expect((await fetchTask(3)).isComplete).toBe(true);
         expect(data.reversalSnapshot.wasAutoEnded).toBe(true);
+        expect(data.taskTitle).toBe('Find the clue');
+        expect(data.maxCompletions).toBe(1);
+        expect(data.revivesPlayer).toBe(false);
     });
 
     it('does not set wasAutoEnded when maxCompletions is not yet reached', async () => {

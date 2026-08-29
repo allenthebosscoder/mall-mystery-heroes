@@ -109,6 +109,9 @@ beforeEach(() => {
         addedTargets: {},
         addedAssassins: {},
         remapLogs: [],
+        taskTitle: 'Find the clue',
+        maxCompletions: null,
+        revivesPlayer: false,
     });
     dbCalls.recordLastMissionCommandCompletion.mockResolvedValue(undefined);
     undoMissionCommand.mockResolvedValue(undefined);
@@ -335,7 +338,7 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
         );
     });
 
-    it('passes remapLogs, addedTargets, and addedAssassins from the response through to their handlers', async () => {
+    it('passes remapLogs, addedTargets, and addedAssassins from a revival completion through to their handlers', async () => {
         completeMission.mockResolvedValue({
             reversalSnapshot: {
                 missionIndex: 1,
@@ -346,6 +349,9 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
             addedTargets: { bob: ['carol'] },
             addedAssassins: { carol: ['bob'] },
             remapLogs: ['New target for bob: carol'],
+            taskTitle: 'Revival Mission',
+            maxCompletions: null,
+            revivesPlayer: true,
         });
 
         const commandInput = mountChatInput();
@@ -361,6 +367,131 @@ describe('/mission done (bug report: ended missions, missing chat log, completio
             carol: ['bob'],
         });
         expect(executionHandlers.handleSetShowMessageToTrue).toHaveBeenCalled();
+    });
+
+    it('announces the completion in the GM log and player chat', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {},
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+            taskTitle: 'Find the clue',
+            maxCompletions: null,
+            revivesPlayer: false,
+        });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                'Bob completed mission: Find the clue',
+                'green.400'
+            )
+        );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Bob completed mission: Find the clue',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
+
+    it('additionally announces an auto-end when the completion reaches maxCompletions', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: true,
+                players: {},
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+            taskTitle: 'Find the clue',
+            maxCompletions: 1,
+            revivesPlayer: false,
+        });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(executionHandlers.addLog).toHaveBeenCalledWith(
+                'Mission "Find the clue" auto-ended — reached its 1-completion cap',
+                'purple.400'
+            )
+        );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Mission Find the clue has been completed!',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
+
+    it('calls handlePlayerRevive when the completion revives the player', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 2,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {},
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+            taskTitle: 'Revival Mission',
+            maxCompletions: null,
+            revivesPlayer: true,
+        });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 2');
+
+        await waitFor(() =>
+            expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
+                'Bob',
+                expect.any(Function)
+            )
+        );
+    });
+
+    it('does not fire any remap handlers for a plain Task completion', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {},
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+            taskTitle: 'Find the clue',
+            maxCompletions: null,
+            revivesPlayer: false,
+        });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() => expect(completeMission).toHaveBeenCalled());
+        expect(executionHandlers.handleAddNewAssassins).not.toHaveBeenCalled();
+        expect(executionHandlers.handleAddNewTargets).not.toHaveBeenCalled();
+        expect(executionHandlers.handleSetShowMessageToTrue).not.toHaveBeenCalled();
+        expect(executionHandlers.handlePlayerRevive).not.toHaveBeenCalled();
     });
 });
 

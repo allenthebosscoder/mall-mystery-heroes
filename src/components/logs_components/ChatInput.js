@@ -169,12 +169,50 @@ const handleCommandExecution = async (
                                 roomID,
                                 result.reversalSnapshot
                             );
-                            for (const log of result.remapLogs) {
-                                await handleRemapping(log);
+                            const displayName = resolvePlayerDisplayName(playerName, players);
+
+                            await addLog(
+                                `${displayName} completed mission: ${result.taskTitle}`,
+                                'green.400'
+                            );
+                            await addPlayerMessageForRoom(
+                                {
+                                    type: 'broadcast',
+                                    recipient: null,
+                                    text: `${displayName} completed mission: ${result.taskTitle}`,
+                                    standings: null,
+                                },
+                                roomID
+                            );
+
+                            if (result.revivesPlayer) {
+                                handlePlayerRevive(displayName, createAlert);
                             }
-                            handleAddNewAssassins(result.addedAssassins);
-                            handleAddNewTargets(result.addedTargets);
-                            handleSetShowMessageToTrue();
+
+                            if (result.reversalSnapshot.wasAutoEnded) {
+                                await addLog(
+                                    `Mission "${result.taskTitle}" auto-ended — reached its ${result.maxCompletions}-completion cap`,
+                                    'purple.400'
+                                );
+                                await addPlayerMessageForRoom(
+                                    {
+                                        type: 'broadcast',
+                                        recipient: null,
+                                        text: `Mission ${result.taskTitle} has been completed!`,
+                                        standings: null,
+                                    },
+                                    roomID
+                                );
+                            }
+
+                            if (result.revivesPlayer) {
+                                for (const log of result.remapLogs) {
+                                    await handleRemapping(log);
+                                }
+                                handleAddNewAssassins(result.addedAssassins);
+                                handleAddNewTargets(result.addedTargets);
+                                handleSetShowMessageToTrue();
+                            }
                         } else {
                             createAlert('error', 'Error', `Player ${args[1]} is invalid`, 1500);
                             console.error(`Player ${args[1]} is invalid.`);
@@ -288,11 +326,13 @@ const handleCommandExecution = async (
                 if (arrayOfDeadPlayers.includes(playerName)) {
                     await updateIsAliveForPlayer(playerName, true, roomID);
                     // Rebalances whoever else is short of the room's own
-                    // per-player cap too, not just the revived player, and
-                    // uses each player's real stored casing — see the
-                    // matching comment in the Revival Mission branch above
-                    // for why (docs/improvements.md, bug report: revival
-                    // never reassigned targets).
+                    // per-player cap too, not just the revived player, using
+                    // each player's real stored casing — reviving one player
+                    // can leave others short a target/assassin once the
+                    // roster's connections are recomputed, so the whole
+                    // alive roster needs to be considered, not just the one
+                    // name just revived (docs/improvements.md, bug report:
+                    // revival never reassigned targets).
                     const roster = await fetchAliveRosterForRoom(roomID);
                     const { needTargets, needAssassins } = playersNeedingConnections(roster);
                     const [target, assassin] = await handleTargetRegeneration(

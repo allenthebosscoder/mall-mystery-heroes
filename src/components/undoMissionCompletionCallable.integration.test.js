@@ -151,6 +151,30 @@ describe('undoMissionPhotoApproval', () => {
         );
         expect((await fetchPlayerForRoom('alice', ROOM)).data().score).toBe(15);
     });
+
+    it('rejects undo of a photo approved before mission-undo shipped (no missionUndoSnapshot), and mutates nothing', async () => {
+        // Photos approved as missions by the mission-completion-via-photo
+        // feature (which shipped before mission-undo) have status:
+        // 'approved' and mission set, but no missionUndoSnapshot field at
+        // all — it didn't exist yet when they were approved.
+        await seedRoom(ROOM, [{ name: 'alice', score: 5 }]);
+        const photosRef = collection(db, 'rooms', ROOM, 'photos');
+        const ref = await addDoc(photosRef, {
+            url: 'https://example.com/photo.jpg',
+            assassin: 'alice',
+            target: null,
+            mission: 1,
+            timestamp: new Date(),
+            status: 'approved',
+            originalPlayerData: null,
+        });
+
+        await expect(
+            undoMissionPhotoApprovalCallable({ roomId: ROOM, photoId: ref.id })
+        ).rejects.toThrow(/predates undo support/i);
+        const photoSnapshot = await getDoc(doc(db, 'rooms', ROOM, 'photos', ref.id));
+        expect(photoSnapshot.data().status).toBe('approved');
+    });
 });
 
 describe('undoMissionCommand', () => {

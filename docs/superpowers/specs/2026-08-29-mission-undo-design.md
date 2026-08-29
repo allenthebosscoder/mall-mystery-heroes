@@ -169,11 +169,16 @@ stacks look up their snapshot differently:
 - New `case 'undo':` under `case '/mission':`, calling a new client
   wrapper (`undoMissionCommand.js`, mirroring `undoKill.js`'s shape) with
   just `roomID`, no arguments parsed from the command line. Success logs
-  and broadcasts an undo announcement (mirrors the wording pattern
-  `PhotosDisplay.js`'s own kill-undo already uses: `` `Undo: ${displayName}'s
-completion of "${task.title}" was reverted` `` for the GM log and player
-  chat, both — matching how every other mission-completion event already
-  announces to both).
+  and broadcasts a generic undo announcement — `'Undo: the last mission
+completion was reverted'` — for the GM log and player chat, both.
+  (Amendment: this is deliberately generic, not `` `Undo: ${displayName}'s
+completion of "${task.title}" was reverted` `` as originally specified
+  here. `undoMissionCommand`/`undoMissionPhotoApproval` don't return who
+  or what was undone — only that the reversal succeeded — and neither
+  client-side undo path has an independent reason to need that detail
+  beyond display text, so building it out was judged disproportionate to
+  the value of a more specific string. A deliberate implementation
+  choice, not an oversight.)
 
 ### `src/components/photos_display_component/PhotosDisplay.js` (modified)
 
@@ -185,9 +190,9 @@ completion of "${task.title}" was reverted` `` for the GM log and player
   "not supported yet" alert — it now calls the new
   `undoMissionPhotoApproval` client wrapper with `{roomId, photoId}`
   (mirroring the existing `undoKill(roomID, photo.id)` call one branch up),
-  logs/broadcasts the same undo-announcement wording described above, and
-  relies on the same `onSnapshot` listener (already existing) to pick up
-  the photo's `status: 'pending'` reset.
+  logs/broadcasts the same generic undo-announcement wording described
+  above, and relies on the same `onSnapshot` listener (already existing)
+  to pick up the photo's `status: 'pending'` reset.
 
 ### `src/game/commandCompletion.js` (modified)
 

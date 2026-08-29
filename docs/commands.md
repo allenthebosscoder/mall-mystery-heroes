@@ -165,6 +165,20 @@ reachable two ways — `/mission done`, or approving a submitted photo as
 that mission from the kill-photo moderation screen
 (`PhotosDisplay.js`, docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
 
+### `/mission undo`
+
+Takes no arguments. Undoes the single most recent mission completed via
+`/mission done` — not one approved via a photo, which has its own,
+separate Undo button on the photo-moderation screen
+(`PhotosDisplay.js`), tracked independently
+(docs/superpowers/specs/2026-08-29-mission-undo-design.md). Restores the
+completing player's score/revival/target-regeneration state exactly as it
+was before the completion, and removes them from the mission's
+`completedBy` list — reversing an auto-end too, if the completion had
+triggered one. Shows an error ("Nothing to undo.") if there is no typed
+completion left to undo, either because none was ever made or because it
+was already undone.
+
 ### `/whisper <player> <message>`
 
 Sends a private, player-facing message — visible only to the named player,

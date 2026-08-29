@@ -3,9 +3,11 @@
  * it — matches src/game/missionEdit.js's decide-then-write shape
  * (CLAUDE.md's "Separate deciding from writing"). Shared by
  * ChatInput.js's /mission done command and PhotosDisplay.js's
- * photo-approval flow (src/components/completeMission.js is the I/O
- * shell that calls this and performs the actual writes), so the two
- * paths can never quietly diverge.
+ * photo-approval flow, both of which call the server-side
+ * completeMission Cloud Function (functions/callableFunctions/
+ * completeMission.js is the I/O shell that calls this — via its vendored
+ * copy, functions/vendor/game/missionCompletion.js — and performs the
+ * actual writes), so the two paths can never quietly diverge.
  */
 
 /**

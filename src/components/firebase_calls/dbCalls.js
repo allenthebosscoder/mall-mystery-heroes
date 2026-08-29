@@ -206,6 +206,7 @@ export const approvePhotoForRoom = async (roomID, photoID, target, originalPlaye
         target,
         originalPlayerData,
         mission: null,
+        missionUndoSnapshot: null,
     });
 };
 

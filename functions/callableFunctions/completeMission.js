@@ -212,6 +212,9 @@ exports.completeMission = functions.https.onCall(async (data, context) => {
             addedTargets,
             addedAssassins,
             remapLogs,
+            taskTitle: task.title,
+            maxCompletions: task.maxCompletions,
+            revivesPlayer: plan.revivesPlayer,
         };
     });
 });

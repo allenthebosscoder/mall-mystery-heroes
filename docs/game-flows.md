@@ -1,8 +1,10 @@
 # Game flows
 
-Sequence diagrams for the four flows that matter. Killing a player (flow 2) is
-the one step that runs server-side, inside a Cloud Function
-(`improvements.md` item 4); everything else shown still runs in the browser.
+Sequence diagrams for the four flows that matter. Killing a player (flow 2),
+completing a mission and its undo (flows 3 and 4), and kill-undo (flow 3) all
+run server-side, inside a Cloud Function (`improvements.md` item 4,
+docs/superpowers/specs/2026-08-29-mission-undo-design.md); everything else
+shown still runs in the browser.
 
 ---
 
@@ -199,8 +201,11 @@ sequenceDiagram
     participant PD as PhotosDisplay
     participant EK as executeKill (client)
     participant CM as completeMission (client)
+    participant CMF as completeMission (Cloud Function)
     participant UK as undoKill (client)
     participant UKP as undoKillPlayer (Cloud Function)
+    participant UMPA as undoMissionPhotoApproval (client)
+    participant UMPACF as undoMissionPhotoApproval (Cloud Function)
     actor GM
 
     App->>FS: addDoc(photos, {url, assassin, target, timestamp, status:"pending"})
@@ -217,10 +222,19 @@ sequenceDiagram
         PD->>FS: addLog("target was killed by assassin")
     else Approve as mission
         GM->>PD: ✓ (mission selected)
-        PD->>CM: completeMission(assassin, missionIndex, roomID, players)
-        Note over CM: same planMissionCompletion decision, and the same completedBy/points-or-revival/auto-end writes, /mission done uses — see flow 4
-        CM-->>PD: (void)
-        PD->>FS: approvePhotoAsMissionForRoom(roomID, photoId, missionIndex)
+        PD->>CM: completeMission(missionIndex, assassin, roomID)
+        CM->>CMF: httpsCallable('completeMission', {missionIndex, playerName, roomId})
+        Note over CMF: one transaction — same planMissionCompletion decision, and the same completedBy/points-or-revival/auto-end writes, /mission done uses — see flow 4
+        CMF-->>CM: {reversalSnapshot, addedTargets, addedAssassins, remapLogs, taskTitle, maxCompletions, revivesPlayer}
+        CM-->>PD: same response
+        PD->>FS: approvePhotoAsMissionForRoom(roomID, photoId, missionIndex, reversalSnapshot)
+        PD->>FS: addLog("assassin completed mission: title") + broadcast
+        opt revivesPlayer
+            PD->>PD: handlePlayerRevive(displayName)
+        end
+        opt wasAutoEnded
+            PD->>FS: addLog("Mission \"title\" auto-ended — reached its N-completion cap") + broadcast
+        end
     else Deny
         GM->>PD: ✗
         PD->>FS: updatePhotoStatusForRoom("denied")
@@ -233,6 +247,14 @@ sequenceDiagram
         UKP-->>UK: (void)
         UK-->>PD: resolved promise
         PD->>FS: addLog("Undo: target's death by assassin was reverted")
+    else Undo — mission completion
+        GM->>PD: ←
+        PD->>UMPA: undoMissionPhotoApproval(roomID, photoId)
+        UMPA->>UMPACF: httpsCallable('undoMissionPhotoApproval', {roomId, photoId})
+        Note over UMPACF: one transaction: verifies the photo is an approved<br/>mission completion with a missionUndoSnapshot (rejects a<br/>pre-mission-undo photo that predates that field), restores<br/>every snapshotted player verbatim, removes the player from<br/>completedBy (un-sets isComplete if auto-ended), then resets<br/>the photo's status/mission/missionUndoSnapshot
+        UMPACF-->>UMPA: (void)
+        UMPA-->>PD: resolved promise
+        PD->>FS: addLog("Undo: the last mission completion was reverted")
     else Undo last judgment, previous action was Deny
         GM->>PD: ←
         PD->>FS: updatePhotoStatusForRoom("pending")
@@ -253,12 +275,17 @@ remap reassigned) — is persisted onto the photo document itself
 (`approvePhotoForRoom`) rather than kept only in React state, which is what
 makes Undo survive a reload (`improvements.md` item 6).
 
-Approving a photo as a mission instead of a kill reuses the exact same
-`completeMission` orchestration (and, underneath it, the same
-`planMissionCompletion` decision logic) that `/mission done` runs — see flow
+Approving a photo as a mission instead of a kill calls the exact same
+server-side `completeMission` Cloud Function (and, underneath it, the same
+`planMissionCompletion` decision logic) that `/mission done` calls — see flow
 4 — so a mission completion behaves identically no matter which of the two
-paths triggered it
-(docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
+paths triggered it, and each caller persists its own `reversalSnapshot` for
+later undo (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md,
+docs/superpowers/specs/2026-08-29-mission-undo-design.md). Undoing a
+mission-approved photo is likewise a single atomic Cloud Function call —
+`undoMissionPhotoApproval` — mirroring how `undoKillPlayer` already undoes
+an approved kill; it is a photo-anchored undo stack, entirely independent
+of `/mission undo`'s own stack (flow 4).
 
 **Undoing an approval no longer replays individual client writes.** The
 2026-08-16 full-kill-undo redesign
@@ -282,6 +309,9 @@ sequenceDiagram
     actor GM
     participant CI as ChatInput
     participant CM as completeMission (client)
+    participant CMF as completeMission (Cloud Function)
+    participant UMC as undoMissionCommand (client)
+    participant UMCCF as undoMissionCommand (Cloud Function)
     participant FS as Firestore
     participant RP as RemapPlayers
 
@@ -292,18 +322,24 @@ sequenceDiagram
         CI->>FS: fetchAlivePlayerNamesForRoom
         CI->>RP: handleRegeneration([player], [player], alive)
         RP-->>CI: [newTargets, newAssassins]
-        CI-->>GM: RemapPlayerModal
+        CI-->>GM: RemapPlayerModal, handlePlayerRevive
     else /mission done <player> <index>, taskType = "Revival Mission"
         GM->>CI: /mission done alice 3
-        CI->>CM: completeMission(player, index, roomID, players)
-        Note over CM: same shared logic PhotosDisplay's<br/>"Approve as mission" branch uses — see flow 3
-        CM->>FS: fetchTaskByIndexForRoom, fetchPlayersByStatusForRoom(false) → must contain player
-        CM->>FS: addPlayerToCompletedByForTask(taskRef, player), updateIsAliveForPlayer(player, true)
-        CM->>FS: fetchAliveRosterForRoom
-        CM->>RP: handleRegeneration(needTargets, needAssassins, alive)
-        RP-->>CM: [newTargets, newAssassins]
-        CM-->>CI: (void)
-        CI-->>GM: RemapPlayerModal
+        CI->>CM: completeMission(index, player, roomID)
+        CM->>CMF: httpsCallable('completeMission', {missionIndex, playerName, roomId})
+        Note over CMF: one transaction — reads the task and whether the<br/>player is dead, decides via planMissionCompletion, revives<br/>the player, and runs the same planRemap regeneration<br/>RemapPlayers.js runs client-side for /revive, but inside<br/>this same transaction — see flow 3
+        CMF-->>CM: {reversalSnapshot, addedTargets, addedAssassins, remapLogs, taskTitle, maxCompletions, revivesPlayer:true}
+        CM-->>CI: same response
+        CI->>FS: recordLastMissionCommandCompletion(roomID, reversalSnapshot)
+        CI-->>GM: RemapPlayerModal, handlePlayerRevive
+    else /mission undo
+        GM->>CI: /mission undo
+        CI->>UMC: undoMissionCommand(roomID)
+        UMC->>UMCCF: httpsCallable('undoMissionCommand', {roomId})
+        Note over UMCCF: one transaction: reads the room's<br/>lastMissionCommandCompletion (errors "Nothing to undo." if<br/>absent), restores every snapshotted player verbatim,<br/>removes the player from completedBy (un-sets isComplete if<br/>auto-ended), clears lastMissionCommandCompletion to null —<br/>a command-anchored undo stack, independent of the<br/>photo-approval one (flow 3)
+        UMCCF-->>UMC: (void)
+        UMC-->>CI: resolved promise
+        CI->>FS: addLog/broadcast("Undo: the last mission completion was reverted")
     end
 ```
 
