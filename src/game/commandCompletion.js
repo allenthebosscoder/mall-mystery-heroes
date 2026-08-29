@@ -14,7 +14,7 @@ import { KNOWN_COMMANDS, UNIMPLEMENTED_COMMANDS } from './commands';
 // group] is one slot, not several.
 const TOKEN = /\/\S+|\[[^\]]+\]|\S+/g;
 
-const MISSION_SUBCOMMANDS = ['done', 'end', 'start', 'view'];
+const MISSION_SUBCOMMANDS = ['done', 'end', 'start', 'undo', 'view'];
 const OPEN_SEASON_VALUES = ['start', 'end'];
 
 // Placeholder labels for each command's arguments, in order — used only to
@@ -38,6 +38,7 @@ const MISSION_ARG_LABELS = {
     done: ['[player_name]', '[mission_index]'],
     end: ['[mission_index]'],
     start: [],
+    undo: [],
     view: [],
 };
 

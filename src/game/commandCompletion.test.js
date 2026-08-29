@@ -180,10 +180,10 @@ describe('complete — /leaderboard', () => {
 });
 
 describe('complete — /mission sub-command completes to the bare word, not a full skeleton', () => {
-    it('offers all four sub-commands when nothing has been typed yet', () => {
+    it('offers all five sub-commands when nothing has been typed yet', () => {
         const result = complete('/mission ', { players, missions });
         expect(result.applied).toBe(true);
-        expect(result.candidates).toEqual(['done', 'end', 'start', 'view']);
+        expect(result.candidates).toEqual(['done', 'end', 'start', 'undo', 'view']);
     });
 
     it('completes "/mission s" to the bare word "start"', () => {
@@ -235,7 +235,7 @@ describe('complete — /mission end offers only active missions', () => {
     });
 });
 
-describe('complete — /mission start and /mission view take no arguments', () => {
+describe('complete — /mission start, /mission view, and /mission undo take no arguments', () => {
     it('has nothing to complete after "/mission start "', () => {
         const result = complete('/mission start ', { players, missions });
         expect(result).toEqual({ applied: false });
@@ -243,6 +243,11 @@ describe('complete — /mission start and /mission view take no arguments', () =
 
     it('has nothing to complete after "/mission view "', () => {
         const result = complete('/mission view ', { players, missions });
+        expect(result).toEqual({ applied: false });
+    });
+
+    it('has nothing to complete after "/mission undo "', () => {
+        const result = complete('/mission undo ', { players, missions });
         expect(result).toEqual({ applied: false });
     });
 });
@@ -264,6 +269,7 @@ describe('complete — suggestionLines show the whole command in context, not ju
             '/mission done [player_name] [mission_index]',
             '/mission end [mission_index]',
             '/mission start',
+            '/mission undo',
             '/mission view',
         ]);
     });
