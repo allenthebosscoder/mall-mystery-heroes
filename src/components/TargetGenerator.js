@@ -35,6 +35,16 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
 
     //actions that occur when clicking generate button
     const handleClick = () => {
+        // Checked here too, not just in onYesClose below — a moderator
+        // should see this error the moment they click Begin Game with too
+        // few players, not after they've already reviewed a target preview
+        // and clicked Confirm. onYesClose keeps its own copy of this check
+        // as a safety net for the roster shrinking below 2 while the
+        // dialog is still open (e.g. a player gets removed mid-preview).
+        if (arrayOfPlayers.length < 2) {
+            createAlert('error', 'Error', 'Not enough players (must have at least 2)', 1500);
+            return;
+        }
         onOpen();
         setGraph(buildTargetGraph(arrayOfPlayers));
     };

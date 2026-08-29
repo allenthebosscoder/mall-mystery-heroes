@@ -60,6 +60,30 @@ describe('Begin Game confirmation', () => {
         expect(screen.getByText('Generate Targets')).toBeInTheDocument();
         expect(updateTargetsForPlayer).not.toHaveBeenCalled();
     });
+
+    it('shows the not-enough-players error immediately and never opens the dialog, with 1 player', async () => {
+        mountTargetGenerator(['Alice']);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Begin Game' }));
+
+        expect(
+            await screen.findByText('Not enough players (must have at least 2)')
+        ).toBeInTheDocument();
+        expect(screen.queryByText('Generate Targets')).not.toBeInTheDocument();
+        expect(markGameAsStarted).not.toHaveBeenCalled();
+    });
+
+    it('does the same with zero players', async () => {
+        mountTargetGenerator([]);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Begin Game' }));
+
+        expect(
+            await screen.findByText('Not enough players (must have at least 2)')
+        ).toBeInTheDocument();
+        expect(screen.queryByText('Generate Targets')).not.toBeInTheDocument();
+        expect(markGameAsStarted).not.toHaveBeenCalled();
+    });
 });
 
 describe('confirming writes targets, logs the start, and hands off to the lobby (improvements item 23)', () => {
@@ -120,11 +144,27 @@ describe('a rejected target write shows an error instead of failing silently (im
     });
 });
 
-describe('confirming with fewer than 2 players never starts the game (bug: joinRoom would then reject every player as "already started")', () => {
+describe("confirming after the roster drops below 2 while the dialog is still open (onYesClose's own safety net, now that handleClick blocks the common case earlier)", () => {
     it('shows the not-enough-players error and performs no writes at all', async () => {
-        mountTargetGenerator(['Alice']);
+        const { rerender } = mountTargetGenerator(['Alice', 'Bob', 'Carol']);
 
-        await beginGame();
+        await userEvent.click(screen.getByRole('button', { name: 'Begin Game' }));
+        expect(screen.getByText('Generate Targets')).toBeInTheDocument();
+
+        // A player is removed from the room while this moderator still has
+        // the preview dialog open — arrayOfPlayers is a live prop, so this
+        // is a real scenario, not just a test setup convenience.
+        rerender(
+            <ChakraProvider>
+                <TargetGenerator
+                    arrayOfPlayers={['Alice']}
+                    roomID="room-a"
+                    handleLobbyRoom={handleLobbyRoom}
+                />
+            </ChakraProvider>
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: 'Confirm and Begin Game' }));
 
         expect(
             await screen.findByText('Not enough players (must have at least 2)')
@@ -134,17 +174,6 @@ describe('confirming with fewer than 2 players never starts the game (bug: joinR
         expect(updateAssassinsForPlayer).not.toHaveBeenCalled();
         expect(addLogForRoom).not.toHaveBeenCalled();
         expect(handleLobbyRoom).not.toHaveBeenCalled();
-    });
-
-    it('does the same with zero players', async () => {
-        mountTargetGenerator([]);
-
-        await beginGame();
-
-        expect(
-            await screen.findByText('Not enough players (must have at least 2)')
-        ).toBeInTheDocument();
-        expect(markGameAsStarted).not.toHaveBeenCalled();
     });
 });
 
