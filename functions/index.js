@@ -26,5 +26,9 @@ exports.submitChatMessage = submitChatMessage
 const { completeMission } = require("./callableFunctions/completeMission")
 exports.completeMission = completeMission
 
+const { undoMissionPhotoApproval, undoMissionCommand } = require("./callableFunctions/undoMissionCompletion")
+exports.undoMissionPhotoApproval = undoMissionPhotoApproval
+exports.undoMissionCommand = undoMissionCommand
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms
