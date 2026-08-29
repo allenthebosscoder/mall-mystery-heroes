@@ -30,6 +30,8 @@ import ChatInput from './ChatInput';
 import { executionContext, gameContext } from '../Contexts';
 import * as dbCalls from '../firebase_calls/dbCalls';
 import { executeKill } from '../executeKill';
+import { completeMission } from '../completeMission';
+import { undoMissionCommand } from '../undoMissionCommand';
 
 // An explicit factory, not just `jest.mock('../firebase_calls/dbCalls')` —
 // auto-mocking still loads the real module first to learn its shape, which
@@ -37,18 +39,19 @@ import { executeKill } from '../executeKill';
 // `fetch`, undefined in jsdom).
 jest.mock('../firebase_calls/dbCalls', () => ({
     addPlayerMessageForRoom: jest.fn(),
-    addPlayerToCompletedByForTask: jest.fn(),
     fetchAliveRosterForRoom: jest.fn(),
     fetchPlayersByStatusForRoom: jest.fn(),
-    fetchReferenceByIndexForTask: jest.fn(),
     fetchTaskByIndexForRoom: jest.fn(),
     fetchTasksByCompletionForRoom: jest.fn(),
+    recordLastMissionCommandCompletion: jest.fn(),
     setOpenSznOfPlayerToValueForRoom: jest.fn(),
     updateIsAliveForPlayer: jest.fn(),
     updateIsCompleteToTrueForTaskByIndex: jest.fn(),
     updatePointsForPlayer: jest.fn(),
 }));
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
+jest.mock('../completeMission', () => ({ completeMission: jest.fn() }));
+jest.mock('../undoMissionCommand', () => ({ undoMissionCommand: jest.fn() }));
 // An inspectable double, not a bare arrow function — some tests need to
 // assert on exactly what ChatInput passes as playersNeedingTarget/
 // playersNeedingAssassins (see the revival case-casing regression test
@@ -101,6 +104,14 @@ beforeEach(() => {
         addedAssassins: {},
         remapLogs: [],
     });
+    completeMission.mockResolvedValue({
+        reversalSnapshot: { missionIndex: 1, playerName: 'bob', wasAutoEnded: false, players: {} },
+        addedTargets: {},
+        addedAssassins: {},
+        remapLogs: [],
+    });
+    dbCalls.recordLastMissionCommandCompletion.mockResolvedValue(undefined);
+    undoMissionCommand.mockResolvedValue(undefined);
     mockRegenerate.mockResolvedValue([{}, {}]);
 });
 
@@ -251,213 +262,146 @@ describe('/mission start and /mission view open the mission modals (improvements
 });
 
 describe('/mission done (bug report: ended missions, missing chat log, completion cap)', () => {
-    const baseTask = {
-        // Real Firestore task docs are queried by this field (dbCalls.js's
-        // fetchTaskByIndexForRoom), and planMissionCompletion's "already
-        // ended" message is built from it rather than from the caller's
-        // typed index (src/game/missionCompletion.js) — omitting it here
-        // would read "Mission undefined has already ended" once
-        // completeMission (not this file) builds that message.
-        taskIndex: 1,
-        title: 'Find the clue',
-        taskType: 'Task',
-        pointValue: '10',
-        completedBy: [],
-        isComplete: false,
-        maxCompletions: null,
-    };
+    it('calls completeMission with the missionIndex, the normalized player name, and roomID', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
 
-    it('rejects completing a mission that has been deleted, without leaking the raw lookup error', async () => {
-        // fetchTaskByIndexForRoom returns null for a deleted mission (a
-        // fresh query, no stale cache). The real fetchReferenceByIndexForTask
-        // throws Error('Task not found') for the same case (dbCalls.js) —
-        // the fix is to never call it once the null check above has
-        // already rejected the index, so its rejection can't leak past the
-        // friendlier "Invalid task index" message (docs/improvements.md
-        // item 63/62 follow-up).
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue(null);
+        await waitFor(() => expect(completeMission).toHaveBeenCalledWith(1, 'bob', 'room-a'));
+    });
+
+    it('rejects completing a mission that has been deleted, surfacing the Cloud Function error', async () => {
+        // Validity of the mission index (deleted mission, already ended,
+        // etc.) is entirely server-side now — planMissionCompletion runs
+        // inside the completeMission Cloud Function
+        // (functions/callableFunctions/completeMission.js), not here.
+        completeMission.mockRejectedValue(new Error('Invalid task index'));
 
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/mission done bob 1');
 
         expect(await screen.findByText(/invalid task index/i)).toBeInTheDocument();
-        expect(screen.queryByText(/task not found/i)).not.toBeInTheDocument();
-        expect(dbCalls.fetchReferenceByIndexForTask).not.toHaveBeenCalled();
-        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
+        expect(dbCalls.recordLastMissionCommandCompletion).not.toHaveBeenCalled();
     });
 
-    it('rejects completing a mission that has already ended', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, isComplete: true });
+    it('rejects completing a mission that has already ended, without recording anything', async () => {
+        completeMission.mockRejectedValue(new Error('Mission 1 has already ended'));
 
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/mission done bob 1');
 
         expect(await screen.findByText(/mission 1 has already ended/i)).toBeInTheDocument();
-        expect(dbCalls.updatePointsForPlayer).not.toHaveBeenCalled();
-        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
+        expect(dbCalls.recordLastMissionCommandCompletion).not.toHaveBeenCalled();
     });
 
-    it('logs the completion to chat and broadcasts it to players, using the player\'s actual stored casing, not "bob"', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask });
+    it('records the reversalSnapshot completeMission returns, via recordLastMissionCommandCompletion', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: true,
+                players: {
+                    bob: {
+                        score: 10,
+                        targets: [],
+                        assassins: [],
+                        isAlive: true,
+                        openSeason: false,
+                    },
+                },
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
 
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/mission done bob 1');
 
         await waitFor(() =>
+            expect(dbCalls.recordLastMissionCommandCompletion).toHaveBeenCalledWith('room-a', {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: true,
+                players: {
+                    bob: {
+                        score: 10,
+                        targets: [],
+                        assassins: [],
+                        isAlive: true,
+                        openSeason: false,
+                    },
+                },
+            })
+        );
+    });
+
+    it('passes remapLogs, addedTargets, and addedAssassins from the response through to their handlers', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {},
+            },
+            addedTargets: { bob: ['carol'] },
+            addedAssassins: { carol: ['bob'] },
+            remapLogs: ['New target for bob: carol'],
+        });
+
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission done bob 1');
+
+        await waitFor(() =>
+            expect(executionHandlers.handleRemapping).toHaveBeenCalledWith(
+                'New target for bob: carol'
+            )
+        );
+        expect(executionHandlers.handleAddNewTargets).toHaveBeenCalledWith({ bob: ['carol'] });
+        expect(executionHandlers.handleAddNewAssassins).toHaveBeenCalledWith({
+            carol: ['bob'],
+        });
+        expect(executionHandlers.handleSetShowMessageToTrue).toHaveBeenCalled();
+    });
+});
+
+describe('/mission undo', () => {
+    it('calls undoMissionCommand with just roomID', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission undo');
+
+        await waitFor(() => expect(undoMissionCommand).toHaveBeenCalledWith('room-a'));
+    });
+
+    it('logs and broadcasts the undo announcement on success', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/mission undo');
+
+        await waitFor(() =>
             expect(executionHandlers.addLog).toHaveBeenCalledWith(
-                'Bob completed mission: Find the clue',
-                'green.400'
+                'Undo: the last mission completion was reverted',
+                'blue.200'
             )
         );
         expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
             {
                 type: 'broadcast',
                 recipient: null,
-                text: 'Bob completed mission: Find the clue',
+                text: 'Undo: the last mission completion was reverted',
                 standings: null,
             },
             'room-a'
         );
     });
 
-    it('auto-ends the mission and announces it once the completion cap is reached', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, maxCompletions: 1 });
-
+    it('surfaces a thrown error through the outer-catch wording', async () => {
+        // The outer catch's wording is built from `commandLine`, which is
+        // just the top-level command word ("/mission") — parseCommand
+        // never folds the "undo" sub-argument into it (src/game/commands.js).
+        undoMissionCommand.mockRejectedValueOnce(new Error('Nothing to undo.'));
         const commandInput = mountChatInput();
-        typeAndSubmit(commandInput, '/mission done bob 1');
+        typeAndSubmit(commandInput, '/mission undo');
 
-        await waitFor(() =>
-            expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).toHaveBeenCalledWith(1, 'room-a')
-        );
-        // The GM's own log keeps the mechanical detail ("auto-ended...
-        // completion cap") — that phrasing is for the GM, not players.
-        expect(executionHandlers.addLog).toHaveBeenCalledWith(
-            'Mission "Find the clue" auto-ended — reached its 1-completion cap',
-            'purple.400'
-        );
-        // The player-facing broadcast gets a plain completion announcement
-        // instead — a player doesn't need to know why it closed.
-        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
-            {
-                type: 'broadcast',
-                recipient: null,
-                text: 'Mission Find the clue has been completed!',
-                standings: null,
-            },
-            'room-a'
-        );
-    });
-
-    it('does not auto-end the mission before the completion cap is reached', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...baseTask, maxCompletions: 2 });
-
-        const commandInput = mountChatInput();
-        typeAndSubmit(commandInput, '/mission done bob 1');
-
-        await waitFor(() =>
-            expect(executionHandlers.addLog).toHaveBeenCalledWith(
-                'Bob completed mission: Find the clue',
-                'green.400'
-            )
-        );
-        expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
-    });
-
-    it('rejects completing a Revival Mission for a player who is not dead, without recording the completion (bug fix)', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({
-            title: 'Revive a fallen ally',
-            taskType: 'Revival Mission',
-            pointValue: '0',
-            completedBy: [],
-            isComplete: false,
-            maxCompletions: 1,
-        });
-        dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue([]); // nobody is dead
-
-        const commandInput = mountChatInput();
-        typeAndSubmit(commandInput, '/mission done bob 1');
-
-        expect(await screen.findByText(/bob is not dead/i)).toBeInTheDocument();
-        expect(dbCalls.addPlayerToCompletedByForTask).not.toHaveBeenCalled();
-        expect(dbCalls.updateIsCompleteToTrueForTaskByIndex).not.toHaveBeenCalled();
-    });
-
-    describe('Revival Mission', () => {
-        const revivalTask = {
-            ...baseTask,
-            taskType: 'Revival Mission',
-            pointValue: 0,
-        };
-
-        beforeEach(() => {
-            dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({ ...revivalTask });
-            dbCalls.fetchPlayersByStatusForRoom.mockResolvedValue(['Bob']);
-            dbCalls.updateIsAliveForPlayer.mockResolvedValue(undefined);
-            dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
-                { name: 'Bob', targets: [], assassins: [] },
-                { name: 'Carol', targets: ['Dave'], assassins: ['Dave'] },
-                { name: 'Dave', targets: ['Carol'], assassins: ['Carol'] },
-            ]);
-        });
-
-        it('announces the mission completion before the revival, not after', async () => {
-            const commandInput = mountChatInput();
-            typeAndSubmit(commandInput, '/mission done bob 1');
-
-            await waitFor(() => expect(executionHandlers.handlePlayerRevive).toHaveBeenCalled());
-
-            const completedCallOrder = executionHandlers.addLog.mock.invocationCallOrder[0];
-            const revivedCallOrder =
-                executionHandlers.handlePlayerRevive.mock.invocationCallOrder[0];
-            expect(completedCallOrder).toBeLessThan(revivedCallOrder);
-        });
-
-        it("regenerates targets using the player's real stored casing, not the normalized lookup key", async () => {
-            const commandInput = mountChatInput();
-            typeAndSubmit(commandInput, '/mission done bob 1');
-
-            // Bug report: revival never reassigned targets. Root cause was
-            // the normalized (lowercase) command argument being passed
-            // straight through as playersNeedingTarget/playersNeedingAssassins,
-            // instead of the player's actual stored-case name — planRemap's
-            // roster is keyed by that stored casing, so a lowercase 'bob'
-            // silently never matches 'Bob' and gets skipped. Carol and Dave
-            // are already mutually paired (3 alive -> cap of 1), so only
-            // Bob is actually short here.
-            await waitFor(() =>
-                expect(mockRegenerate).toHaveBeenCalledWith(
-                    ['Bob'],
-                    ['Bob'],
-                    ['Bob', 'Carol', 'Dave'],
-                    'room-a'
-                )
-            );
-        });
-
-        it("also rebalances whoever else is short of the room's cap, not just the revived player", async () => {
-            // Bug report: after a revival, the revived player only ever
-            // gets bolted onto whichever one or two candidates happen to
-            // have room, leaving them lopsided while the rest of the
-            // roster is untouched. Dave is already one short here (mirrors
-            // what an unrelated earlier kill could easily leave behind).
-            dbCalls.fetchAliveRosterForRoom.mockResolvedValue([
-                { name: 'Bob', targets: [], assassins: [] },
-                { name: 'Carol', targets: ['Dave'], assassins: ['Dave'] },
-                { name: 'Dave', targets: [], assassins: ['Carol'] },
-            ]);
-
-            const commandInput = mountChatInput();
-            typeAndSubmit(commandInput, '/mission done bob 1');
-
-            await waitFor(() =>
-                expect(mockRegenerate).toHaveBeenCalledWith(
-                    ['Bob', 'Dave'],
-                    ['Bob'],
-                    ['Bob', 'Carol', 'Dave'],
-                    'room-a'
-                )
-            );
-        });
+        expect(await screen.findByText(/\/mission failed: nothing to undo/i)).toBeInTheDocument();
     });
 });
 

@@ -22,6 +22,8 @@ import { gameContext, executionContext } from '../Contexts';
 import * as dbCalls from '../firebase_calls/dbCalls';
 import { executeKill } from '../executeKill';
 import { undoKill } from '../undoKill';
+import { completeMission } from '../completeMission';
+import { undoMissionPhotoApproval } from '../undoMissionPhotoApproval';
 
 jest.mock('firebase/firestore', () => ({
     onSnapshot: jest.fn(),
@@ -30,18 +32,16 @@ jest.mock('firebase/firestore', () => ({
 // Explicit factory, not auto-mock — see ChatInput.test.jsx for why.
 jest.mock('../firebase_calls/dbCalls', () => ({
     addPlayerMessageForRoom: jest.fn(),
-    addPlayerToCompletedByForTask: jest.fn(),
     approvePhotoAsMissionForRoom: jest.fn(),
     approvePhotoForRoom: jest.fn(),
     fetchPhotosQueryByAscendingTimestampForRoom: jest.fn(() => 'photos-query'),
-    fetchReferenceByIndexForTask: jest.fn(),
-    fetchTaskByIndexForRoom: jest.fn(),
     fetchTasksQueryForRoom: jest.fn(() => 'missions-query'),
     updatePhotoStatusForRoom: jest.fn(),
-    updatePointsForPlayer: jest.fn(),
 }));
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
 jest.mock('../undoKill', () => ({ undoKill: jest.fn() }));
+jest.mock('../completeMission', () => ({ completeMission: jest.fn() }));
+jest.mock('../undoMissionPhotoApproval', () => ({ undoMissionPhotoApproval: jest.fn() }));
 
 const executionHandlers = {
     addLog: jest.fn(),
@@ -107,9 +107,14 @@ beforeEach(() => {
     dbCalls.updatePhotoStatusForRoom.mockResolvedValue(undefined);
     dbCalls.addPlayerMessageForRoom.mockResolvedValue(undefined);
     dbCalls.approvePhotoAsMissionForRoom.mockResolvedValue(undefined);
-    dbCalls.addPlayerToCompletedByForTask.mockResolvedValue(undefined);
-    dbCalls.updatePointsForPlayer.mockResolvedValue(undefined);
     undoKill.mockResolvedValue(undefined);
+    completeMission.mockResolvedValue({
+        reversalSnapshot: { missionIndex: 1, playerName: 'bob', wasAutoEnded: false, players: {} },
+        addedTargets: {},
+        addedAssassins: {},
+        remapLogs: [],
+    });
+    undoMissionPhotoApproval.mockResolvedValue(undefined);
     executeKill.mockResolvedValue({
         targetWasOpenSzn: false,
         preKillSnapshot: {
@@ -733,16 +738,57 @@ describe('approving a photo as a mission completion', () => {
         expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
     });
 
-    it('completes a Task mission and marks the photo approved with the resolved mission index', async () => {
-        dbCalls.fetchTaskByIndexForRoom.mockResolvedValue({
-            title: 'Find the clue',
-            taskType: 'Task',
-            pointValue: '10',
-            completedBy: [],
-            isComplete: false,
-            maxCompletions: null,
+    it('completes a Task mission and marks the photo approved with the resolved mission index and reversal snapshot', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {
+                    bob: {
+                        score: 10,
+                        targets: [],
+                        assassins: [],
+                        isAlive: true,
+                        openSeason: false,
+                    },
+                },
+            },
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
         });
-        dbCalls.fetchReferenceByIndexForTask.mockResolvedValue('task-doc-ref');
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ name: 'bob', targets: [] }],
+            [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
+        );
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(completeMission).toHaveBeenCalledWith(1, 'bob', 'room-a'));
+        expect(dbCalls.approvePhotoAsMissionForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 1, {
+            missionIndex: 1,
+            playerName: 'bob',
+            wasAutoEnded: false,
+            players: {
+                bob: { score: 10, targets: [], assassins: [], isAlive: true, openSeason: false },
+            },
+        });
+    });
+
+    it('passes remapLogs, addedTargets, and addedAssassins from a mission completion through to their handlers', async () => {
+        completeMission.mockResolvedValue({
+            reversalSnapshot: {
+                missionIndex: 1,
+                playerName: 'bob',
+                wasAutoEnded: false,
+                players: {},
+            },
+            addedTargets: { bob: ['carol'] },
+            addedAssassins: { carol: ['bob'] },
+            remapLogs: ['New target for bob: carol'],
+        });
         mountWithSnapshot(
             [{ status: 'pending', target: null, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
@@ -752,13 +798,15 @@ describe('approving a photo as a mission completion', () => {
         await userEvent.click(screen.getByAltText('Approve'));
 
         await waitFor(() =>
-            expect(dbCalls.addPlayerToCompletedByForTask).toHaveBeenCalledWith(
-                'task-doc-ref',
-                'bob'
+            expect(executionHandlers.handleRemapping).toHaveBeenCalledWith(
+                'New target for bob: carol'
             )
         );
-        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('bob', 10, 'room-a');
-        expect(dbCalls.approvePhotoAsMissionForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 1);
+        expect(executionHandlers.handleAddNewTargets).toHaveBeenCalledWith({ bob: ['carol'] });
+        expect(executionHandlers.handleAddNewAssassins).toHaveBeenCalledWith({
+            carol: ['bob'],
+        });
+        expect(executionHandlers.handleSetShowMessageToTrue).toHaveBeenCalled();
     });
 
     it('shows a message and keeps Approve disabled when the assassin has no open targets or missions', async () => {
@@ -796,16 +844,39 @@ describe('approving a photo as a mission completion', () => {
         );
     });
 
-    it('shows a not-yet-supported message and performs no write when Undo is clicked on a mission-approved photo', async () => {
+    it('undoes a mission-approved photo for real, instead of showing the placeholder', async () => {
         mountWithSnapshot([
             { status: 'approved', mission: 1, assassin: 'bob', originalPlayerData: null },
         ]);
 
         await userEvent.click(screen.getByAltText('Undo'));
 
-        expect(
-            await screen.findByText(/not available for mission completions/i)
-        ).toBeInTheDocument();
-        expect(dbCalls.updatePhotoStatusForRoom).not.toHaveBeenCalled();
+        await waitFor(() =>
+            expect(undoMissionPhotoApproval).toHaveBeenCalledWith('room-a', 'photo-0')
+        );
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Undo: the last mission completion was reverted',
+            'blue.200'
+        );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Undo: the last mission completion was reverted',
+                standings: null,
+            },
+            'room-a'
+        );
+    });
+
+    it('shows an error alert when undoing a mission-approved photo fails', async () => {
+        undoMissionPhotoApproval.mockRejectedValueOnce(new Error('nothing to undo'));
+        mountWithSnapshot([
+            { status: 'approved', mission: 1, assassin: 'bob', originalPlayerData: null },
+        ]);
+
+        await userEvent.click(screen.getByAltText('Undo'));
+
+        expect(await screen.findByText(/nothing to undo/i)).toBeInTheDocument();
     });
 });

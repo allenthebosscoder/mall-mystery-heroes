@@ -20,8 +20,8 @@ import undo from '../../assets/arrow-left.png';
 import GamePhotos from './GamePhotos';
 import { executionContext } from '../Contexts';
 import CreateAlert from '../CreateAlert';
-import CompleteMission from '../completeMission';
-import RemapPlayers from '../RemapPlayers';
+import { completeMission } from '../completeMission';
+import { undoMissionPhotoApproval } from '../undoMissionPhotoApproval';
 import { openMissionsForPlayer } from '../../game/missionCompletion';
 
 // A player no longer names who they killed when submitting a photo —
@@ -53,7 +53,6 @@ const PhotosDisplay = ({ players = [] }) => {
         handleAddNewAssassins,
         handleAddNewTargets,
         handleSetShowMessageToTrue,
-        handlePlayerRevive,
     } = useContext(executionContext);
     const createAlert = CreateAlert();
 
@@ -164,17 +163,19 @@ const PhotosDisplay = ({ players = [] }) => {
         try {
             if (effectiveSelection.startsWith('mission:')) {
                 const missionIndex = Number(effectiveSelection.slice('mission:'.length));
-                const handleTargetRegeneration = RemapPlayers(handleRemapping, createAlert);
-                const completeMission = CompleteMission({
-                    addLog,
-                    handleTargetRegeneration,
-                    handleAddNewAssassins,
-                    handleAddNewTargets,
-                    handleSetShowMessageToTrue,
-                    handlePlayerRevive,
-                });
-                await completeMission(approvingPhoto.assassin, missionIndex, roomID, players);
-                await approvePhotoAsMissionForRoom(roomID, approvingPhoto.id, missionIndex);
+                const result = await completeMission(missionIndex, approvingPhoto.assassin, roomID);
+                await approvePhotoAsMissionForRoom(
+                    roomID,
+                    approvingPhoto.id,
+                    missionIndex,
+                    result.reversalSnapshot
+                );
+                for (const log of result.remapLogs) {
+                    await handleRemapping(log);
+                }
+                handleAddNewAssassins(result.addedAssassins);
+                handleAddNewTargets(result.addedTargets);
+                handleSetShowMessageToTrue();
             } else {
                 const target = effectiveSelection.slice('target:'.length);
                 const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } =
@@ -266,12 +267,22 @@ const PhotosDisplay = ({ players = [] }) => {
         const { photo, action } = last;
 
         if (action === 'missionPass') {
-            createAlert(
-                'info',
-                'Not Supported',
-                'Undo is not available for mission completions yet.',
-                1500
-            );
+            try {
+                await undoMissionPhotoApproval(roomID, photo.id);
+                await addLog('Undo: the last mission completion was reverted', 'blue.200');
+                await addPlayerMessageForRoom(
+                    {
+                        type: 'broadcast',
+                        recipient: null,
+                        text: 'Undo: the last mission completion was reverted',
+                        standings: null,
+                    },
+                    roomID
+                );
+            } catch (error) {
+                console.error('Error undoing mission completion:', error);
+                createAlert('error', 'Error undoing photo judgment', error.message, 1500);
+            }
             return;
         }
 

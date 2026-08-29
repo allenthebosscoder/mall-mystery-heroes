@@ -9,6 +9,7 @@ import {
     fetchPlayersByStatusForRoom,
     fetchTaskByIndexForRoom,
     fetchTasksByCompletionForRoom,
+    recordLastMissionCommandCompletion,
     setOpenSznOfPlayerToValueForRoom,
     updateIsAliveForPlayer,
     updateIsCompleteToTrueForTaskByIndex,
@@ -16,7 +17,8 @@ import {
 } from '../firebase_calls/dbCalls';
 import commandCompletion from '../../game/commandCompletion';
 import RemapPlayers from '../RemapPlayers';
-import CompleteMission from '../completeMission';
+import { completeMission } from '../completeMission';
+import { undoMissionCommand } from '../undoMissionCommand';
 import { executeKill } from '../executeKill';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
 import { buildLeaderboardStandings } from '../../game/leaderboard';
@@ -162,15 +164,17 @@ const handleCommandExecution = async (
                         }
 
                         if (arrayOfPlayerNames.includes(playerName)) {
-                            const completeMission = CompleteMission({
-                                addLog,
-                                handleTargetRegeneration,
-                                handleAddNewAssassins,
-                                handleAddNewTargets,
-                                handleSetShowMessageToTrue,
-                                handlePlayerRevive,
-                            });
-                            await completeMission(playerName, missionIndex, roomID, players);
+                            const result = await completeMission(missionIndex, playerName, roomID);
+                            await recordLastMissionCommandCompletion(
+                                roomID,
+                                result.reversalSnapshot
+                            );
+                            for (const log of result.remapLogs) {
+                                await handleRemapping(log);
+                            }
+                            handleAddNewAssassins(result.addedAssassins);
+                            handleAddNewTargets(result.addedTargets);
+                            handleSetShowMessageToTrue();
                         } else {
                             createAlert('error', 'Error', `Player ${args[1]} is invalid`, 1500);
                             console.error(`Player ${args[1]} is invalid.`);
@@ -206,6 +210,19 @@ const handleCommandExecution = async (
                         break;
                     case 'view':
                         handleShowMissionList();
+                        break;
+                    case 'undo':
+                        await undoMissionCommand(roomID);
+                        await addLog('Undo: the last mission completion was reverted', 'blue.200');
+                        await addPlayerMessageForRoom(
+                            {
+                                type: 'broadcast',
+                                recipient: null,
+                                text: 'Undo: the last mission completion was reverted',
+                                standings: null,
+                            },
+                            roomID
+                        );
                         break;
                     default:
                         createAlert('error', 'Error', `Inavlid argument: ${args[0]}`, 1500);
