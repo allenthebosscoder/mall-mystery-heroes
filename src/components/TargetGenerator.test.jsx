@@ -120,6 +120,34 @@ describe('a rejected target write shows an error instead of failing silently (im
     });
 });
 
+describe('confirming with fewer than 2 players never starts the game (bug: joinRoom would then reject every player as "already started")', () => {
+    it('shows the not-enough-players error and performs no writes at all', async () => {
+        mountTargetGenerator(['Alice']);
+
+        await beginGame();
+
+        expect(
+            await screen.findByText('Not enough players (must have at least 2)')
+        ).toBeInTheDocument();
+        expect(markGameAsStarted).not.toHaveBeenCalled();
+        expect(updateTargetsForPlayer).not.toHaveBeenCalled();
+        expect(updateAssassinsForPlayer).not.toHaveBeenCalled();
+        expect(addLogForRoom).not.toHaveBeenCalled();
+        expect(handleLobbyRoom).not.toHaveBeenCalled();
+    });
+
+    it('does the same with zero players', async () => {
+        mountTargetGenerator([]);
+
+        await beginGame();
+
+        expect(
+            await screen.findByText('Not enough players (must have at least 2)')
+        ).toBeInTheDocument();
+        expect(markGameAsStarted).not.toHaveBeenCalled();
+    });
+});
+
 describe('a rejected markGameAsStarted call aborts the handoff instead of silently continuing (final review finding 6)', () => {
     it('surfaces the error via a toast and does not write targets or hand off to the lobby', async () => {
         markGameAsStarted.mockRejectedValue(new Error('write failed'));

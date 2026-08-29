@@ -40,6 +40,20 @@ const TargetGenerator = ({ arrayOfPlayers, roomID, handleLobbyRoom }) => {
     };
     //actions that occur when clicking yes
     const onYesClose = async () => {
+        // The 2-player minimum used to be checked only in handleLobbyRoom,
+        // the very last step of this flow — after gameStarted was already
+        // flipped true below. That flag is the exact one joinRoom checks to
+        // reject self-registration, so a moderator who confirmed with too
+        // few players got stuck: the handoff aborted with an error, but the
+        // room was already permanently marked as started, locking out every
+        // new player with "This game has already started." Checking here,
+        // before any write happens, means an under-strength confirmation
+        // does nothing at all instead of doing it halfway.
+        if (arrayOfPlayers.length < 2) {
+            createAlert('error', 'Error', 'Not enough players (must have at least 2)', 1500);
+            return;
+        }
+
         // gameStarted is the security gate joinRoom checks before letting a
         // player self-register (docs/superpowers/specs/2026-08-06-player-
         // access-and-room-lifecycle-design.md) — it must flip before the
