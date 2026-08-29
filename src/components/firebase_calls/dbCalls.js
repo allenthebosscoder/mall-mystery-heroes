@@ -215,9 +215,18 @@ export const approvePhotoForRoom = async (roomID, photoID, target, originalPlaye
 // (docs/superpowers/specs/2026-08-27-mission-completion-via-photo-design.md).
 // Persists which mission the photo was approved as, mirroring how
 // approvePhotoForRoom persists the resolved `target`.
-export const approvePhotoAsMissionForRoom = async (roomID, photoID, missionIndex) => {
+export const approvePhotoAsMissionForRoom = async (
+    roomID,
+    photoID,
+    missionIndex,
+    reversalSnapshot
+) => {
     const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
-    await updateDoc(photoRef, { status: 'approved', mission: missionIndex });
+    await updateDoc(photoRef, {
+        status: 'approved',
+        mission: missionIndex,
+        missionUndoSnapshot: reversalSnapshot,
+    });
 };
 
 //returns a query of all tasks for room
@@ -356,6 +365,16 @@ export const fetchAllPlayersDataForRoom = async (roomID) => {
 export const endGame = async (roomID) => {
     const roomRef = doc(db, 'rooms', roomID);
     await updateDoc(roomRef, { isGameActive: false, endedAt: serverTimestamp() });
+};
+
+// Persists the most recent /mission done completion's reversal snapshot on
+// the room itself, so /mission undo has something to act on — the
+// command-path counterpart to approvePhotoAsMissionForRoom's
+// missionUndoSnapshot, tracked independently (two separate undo stacks,
+// docs/superpowers/specs/2026-08-29-mission-undo-design.md).
+export const recordLastMissionCommandCompletion = async (roomID, reversalSnapshot) => {
+    const roomRef = doc(db, 'rooms', roomID);
+    await updateDoc(roomRef, { lastMissionCommandCompletion: reversalSnapshot });
 };
 
 // Marks the room's Lobby phase as over — written once, when "Confirm and
