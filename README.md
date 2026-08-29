@@ -28,6 +28,12 @@ New to the codebase? Read `architecture.md`, then `data-model.md`. The data
 model is reconstructed from call sites and is not declared anywhere in code, so
 it is the piece least recoverable by reading source.
 
+Not writing code and just need to _run_ a game? The docs above are for
+developers. The [Moderator Playbook](https://claude.ai/code/artifact/350e07aa-21ea-4cf3-a53a-10f1cc29d923)
+is the plain-language operating guide instead — hosting, the console, judging
+photos, and the full command list — also linked from the console header
+itself once a game is underway.
+
 ## Prerequisites
 
 - Node.js 18 (matches the `engines` field in `functions/package.json`)

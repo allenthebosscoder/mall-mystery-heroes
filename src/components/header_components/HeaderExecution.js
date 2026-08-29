@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Image, Heading, HStack, Spacer } from '@chakra-ui/react';
 import whiteLogo from '../../assets/mall-logo-white-2.png';
+import PlaybookLink from './PlaybookLink';
 import ResetTargetsButton from './ResetTargetsButton';
 import Endgamebutton from './Endgamebutton';
 import LogoutButton from './LogoutButton';
@@ -13,6 +14,7 @@ const HeaderExecution = ({ addLog, arrayOfAlivePlayers }) => {
             <Image objectFit="cover" src={whiteLogo} alt="Logo" boxSize="36px" />
             <Heading>Lobby #: {roomID}</Heading>
             <Spacer />
+            <PlaybookLink />
             <ResetTargetsButton arrayOfPlayers={arrayOfAlivePlayers} addLog={addLog} />
             <Endgamebutton />
             <LogoutButton />
