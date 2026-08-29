@@ -23,5 +23,8 @@ exports.submitKillPhoto = submitKillPhoto
 const { submitChatMessage } = require("./callableFunctions/submitChatMessage")
 exports.submitChatMessage = submitChatMessage
 
+const { completeMission } = require("./callableFunctions/completeMission")
+exports.completeMission = completeMission
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms
