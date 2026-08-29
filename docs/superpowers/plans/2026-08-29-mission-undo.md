@@ -24,12 +24,14 @@
 ### Task 1: `functions/callableFunctions/completeMission.js` — the server-side completion Cloud Function
 
 **Files:**
+
 - Create: `functions/callableFunctions/completeMission.js`
 - Create: `src/components/completeMissionCallable.integration.test.js`
 - Modify: `functions/scripts/sync-shared-game-logic.js`
 - Modify: `functions/index.js` (or wherever Cloud Functions are exported from — check this file's current export list before assuming its name/shape)
 
 **Interfaces:**
+
 - Consumes: `planMissionCompletion` (vendored from `src/game/missionCompletion.js`), `planRemap` (already vendored at `functions/vendor/game/remapPlan.js`), `playersNeedingConnections` (already vendored at `functions/vendor/game/targetGraph.js`), `normalizePlayerName` (already vendored at `functions/vendor/game/playerNames.js`).
 - Produces: the `completeMission` callable, taking `{ missionIndex, playerName, roomId }` and returning `{ reversalSnapshot: { missionIndex, playerName, wasAutoEnded, players }, addedTargets, addedAssassins, remapLogs }`. Tasks 2, 4, 5, and 6 all depend on this exact shape.
 
@@ -117,7 +119,9 @@ describe('completeMission', () => {
             missionIndex: 1,
             playerName: 'alice',
             wasAutoEnded: false,
-            players: { alice: { score: 5, targets: [], assassins: [], isAlive: true, openSeason: false } },
+            players: {
+                alice: { score: 5, targets: [], assassins: [], isAlive: true, openSeason: false },
+            },
         });
     });
 
@@ -298,17 +302,13 @@ exports.completeMission = functions.https.onCall(async (data, context) => {
 
         const normalizedPlayerName = normalizePlayerName(playerName);
 
-        const taskSnapshot = await transaction.get(
-            tasksRef.where('taskIndex', '==', missionIndex)
-        );
+        const taskSnapshot = await transaction.get(tasksRef.where('taskIndex', '==', missionIndex));
         const taskDoc = taskSnapshot.empty ? null : taskSnapshot.docs[0];
         const task = taskDoc ? taskDoc.data() : null;
 
         let isPlayerDead = false;
         if (task && task.taskType === 'Revival Mission') {
-            const deadSnapshot = await transaction.get(
-                playersRef.where('isAlive', '==', false)
-            );
+            const deadSnapshot = await transaction.get(playersRef.where('isAlive', '==', false));
             isPlayerDead = deadSnapshot.docs.some(
                 (doc) => doc.data().trimmedNameLowerCase === normalizedPlayerName
             );
@@ -476,11 +476,13 @@ git commit -m "Add the atomic completeMission Cloud Function"
 ### Task 2: `functions/callableFunctions/undoMissionCompletion.js` — the shared server-side reversal
 
 **Files:**
+
 - Create: `functions/callableFunctions/undoMissionCompletion.js`
 - Create: `src/components/undoMissionCompletionCallable.integration.test.js`
 - Modify: `functions/index.js` (add the two new exports)
 
 **Interfaces:**
+
 - Consumes: the `reversalSnapshot` shape Task 1's `completeMission` returns (`{ missionIndex, playerName, wasAutoEnded, players }`).
 - Produces: two callables — `undoMissionPhotoApproval` (`{ roomId, photoId }` → void) and `undoMissionCommand` (`{ roomId }` → void). Tasks 4, 5, and 6 depend on these two callable names and argument shapes.
 
@@ -915,10 +917,12 @@ git commit -m "Add the shared server-side mission-undo reversal"
 ### Task 3: `dbCalls.js` extension + `docs/data-model.md`
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js`
 - Modify: `docs/data-model.md`
 
 **Interfaces:**
+
 - Produces: `approvePhotoAsMissionForRoom(roomID, photoID, missionIndex, reversalSnapshot)` (extends the existing 3-argument function with a 4th), `recordLastMissionCommandCompletion(roomID, reversalSnapshot)` (new). Tasks 5 and 6 both consume these.
 
 - [ ] **Step 1: Extend `approvePhotoAsMissionForRoom`**
@@ -926,7 +930,12 @@ git commit -m "Add the shared server-side mission-undo reversal"
 Read the current function in `src/components/firebase_calls/dbCalls.js` fresh (currently a 3-argument function, `roomID, photoID, missionIndex`, writing `{ status: 'approved', mission: missionIndex }`). Add a fourth parameter and field:
 
 ```js
-export const approvePhotoAsMissionForRoom = async (roomID, photoID, missionIndex, reversalSnapshot) => {
+export const approvePhotoAsMissionForRoom = async (
+    roomID,
+    photoID,
+    missionIndex,
+    reversalSnapshot
+) => {
     const photoRef = doc(db, 'rooms', roomID, 'photos', photoID);
     await updateDoc(photoRef, {
         status: 'approved',
@@ -989,12 +998,14 @@ git commit -m "Add dbCalls support for the two mission-undo snapshot fields"
 ### Task 4: Client-side callable wrappers
 
 **Files:**
+
 - Delete: `src/components/completeMission.js` (the old client orchestration)
 - Create: `src/components/completeMission.js` (new thin wrapper — same filename, different job)
 - Create: `src/components/undoMissionCommand.js`
 - Create: `src/components/undoMissionPhotoApproval.js`
 
 **Interfaces:**
+
 - Consumes: the `completeMission`, `undoMissionPhotoApproval`, `undoMissionCommand` callables from Tasks 1 and 2.
 - Produces: `completeMission(missionIndex, playerName, roomID)` → `Promise<{ reversalSnapshot, addedTargets, addedAssassins, remapLogs }>`; `undoMissionCommand(roomID)` → `Promise<void>`; `undoMissionPhotoApproval(roomID, photoID)` → `Promise<void>`. Tasks 5 and 6 both import these.
 
@@ -1102,10 +1113,12 @@ git commit -m "Add client wrappers for the new mission-completion Cloud Function
 ### Task 5: `ChatInput.js` — `/mission done` refactor and new `/mission undo`
 
 **Files:**
+
 - Modify: `src/components/logs_components/ChatInput.js`
 - Modify: `src/components/logs_components/ChatInput.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `completeMission`, `undoMissionCommand` (Task 4); `recordLastMissionCommandCompletion` (Task 3).
 
 **This task must land together with Task 4** (see Task 4's note) — its own gate is not meaningfully green in isolation, since Task 4 already broke this file's import.
@@ -1219,7 +1232,9 @@ describe('/mission undo', () => {
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/mission undo');
 
-        expect(await screen.findByText(/mission undo failed: nothing to undo/i)).toBeInTheDocument();
+        expect(
+            await screen.findByText(/mission undo failed: nothing to undo/i)
+        ).toBeInTheDocument();
     });
 });
 ```
@@ -1241,10 +1256,12 @@ git commit -m "Refactor /mission done onto completeMission, add /mission undo"
 ### Task 6: `PhotosDisplay.js` — real mission-undo behavior
 
 **Files:**
+
 - Modify: `src/components/photos_display_component/PhotosDisplay.js`
 - Modify: `src/components/photos_display_component/PhotosDisplay.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `completeMission`, `undoMissionPhotoApproval` (Task 4); `approvePhotoAsMissionForRoom`'s new 4th argument (Task 3).
 
 **This task must land together with Task 4** (see Task 4's note).
@@ -1360,9 +1377,7 @@ it('undoes a mission-approved photo for real, instead of showing the placeholder
 
     await userEvent.click(screen.getByAltText('Undo'));
 
-    await waitFor(() =>
-        expect(undoMissionPhotoApproval).toHaveBeenCalledWith('room-a', 'photo-0')
-    );
+    await waitFor(() => expect(undoMissionPhotoApproval).toHaveBeenCalledWith('room-a', 'photo-0'));
     expect(executionHandlers.addLog).toHaveBeenCalledWith(
         'Undo: the last mission completion was reverted',
         'blue.200'
@@ -1418,6 +1433,7 @@ git commit -m "Let PhotosDisplay undo a mission-approved photo for real"
 ### Task 7: `src/game/commandCompletion.js` — `/mission undo` tab completion
 
 **Files:**
+
 - Modify: `src/game/commandCompletion.js`
 - Modify: `src/game/commandCompletion.test.js`
 

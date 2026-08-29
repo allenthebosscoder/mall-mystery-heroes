@@ -32,7 +32,7 @@ improvement when mission-completion-via-photo shipped
 - **Two independent undo stacks, not one shared "last completion
   anywhere."** A GM who approves a photo as a mission, then later types a
   different mission's completion, expects the photo screen's Undo button
-  to undo *that photo* — not whatever happened most recently regardless of
+  to undo _that photo_ — not whatever happened most recently regardless of
   which UI it came from. So: photo-approved completions and typed
   (`/mission done`) completions each track their own separate "most
   recent" independently. Both still call the same underlying reversal
@@ -76,12 +76,12 @@ Mission) whether the player is dead, decides via the vendored
 `planMissionCompletion`, then a write phase that mirrors
 `completeMission.js`'s current five effects (record `completedBy`, award
 points or revive-and-regenerate-targets, auto-end on `maxCompletions`) —
-but with every touched player's *pre-write* state captured first, the same
+but with every touched player's _pre-write_ state captured first, the same
 `preWriteDataByName`-then-`preKillSnapshot` pattern `killPlayer.js` already
 uses. For a Task completion, that's just the completing player (if points
 were awarded). For a Revival Mission, that's the revived player plus every
 player the target/assassin regeneration reassigned — `planRemap`
-(vendored, same as `killPlayer.js` already uses) runs *inside* this
+(vendored, same as `killPlayer.js` already uses) runs _inside_ this
 transaction now, not via the client's `RemapPlayers.js`, so the same roster
 read/write ordering guarantees `killPlayer.js` already relies on apply
 here too.
@@ -171,7 +171,7 @@ stacks look up their snapshot differently:
   just `roomID`, no arguments parsed from the command line. Success logs
   and broadcasts an undo announcement (mirrors the wording pattern
   `PhotosDisplay.js`'s own kill-undo already uses: `` `Undo: ${displayName}'s
-  completion of "${task.title}" was reverted` `` for the GM log and player
+completion of "${task.title}" was reverted` `` for the GM log and player
   chat, both — matching how every other mission-completion event already
   announces to both).
 
