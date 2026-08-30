@@ -15,7 +15,7 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
@@ -25,6 +25,7 @@ import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
 } from '../components/firebase_calls/dbCalls';
+import { leaveGame } from '../components/leaveGame';
 import { writePlayerSession, readPlayerSession } from '../utils/playerSession';
 
 jest.mock('firebase/auth', () => ({
@@ -38,6 +39,7 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
     fetchPlayerReferenceForRoom: jest.fn(),
 }));
+jest.mock('../components/leaveGame', () => ({ leaveGame: jest.fn() }));
 // Stubbed — each has its own thorough test file (MessageFeed.test.jsx,
 // MessageComposer.test.jsx). This file stays focused on PlayerGame's own
 // status-line logic and on wiring MessageFeed's props, not re-testing
@@ -94,6 +96,12 @@ beforeEach(() => {
     fetchRoomReferenceForRoom.mockReturnValue('room-ref');
     fetchPlayerReferenceForRoom.mockReturnValue('player-ref');
     signOut.mockResolvedValue(undefined);
+    leaveGame.mockResolvedValue({
+        removedPlayerName: 'Alice',
+        addedTargets: {},
+        addedAssassins: {},
+        remapLogs: [],
+    });
 });
 
 describe('PlayerGame', () => {
@@ -196,7 +204,7 @@ describe('PlayerGame', () => {
         expect(readPlayerSession()).toBeNull();
     });
 
-    it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
+    it('opens a confirmation dialog instead of leaving immediately', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
             if (ref === 'room-ref') {
@@ -209,9 +217,75 @@ describe('PlayerGame', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
 
+        expect(
+            screen.getByText("Leave the game? You'll be removed and cannot rejoin.")
+        ).toBeInTheDocument();
+        expect(leaveGame).not.toHaveBeenCalled();
+    });
+
+    it('calls leaveGame, signs out, clears the session, and navigates home once confirmed', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+        expect(leaveGame).toHaveBeenCalledWith('Fluffy42317');
+        // handleConfirmLeave chains two real awaits (leaveGame, then signOut)
+        // before clearing the session — userEvent's click doesn't wait for a
+        // fire-and-forget onClick handler's own promise chain to drain, so
+        // the post-click assertions need waitFor here (same pattern as
+        // ChatInput.test.jsx/MessageComposer.test.jsx use for async onClick
+        // handlers), unlike PlayerRemove.test.jsx's single-await handler.
+        await waitFor(() => expect(readPlayerSession()).toBeNull());
         expect(signOut).toHaveBeenCalled();
-        expect(readPlayerSession()).toBeNull();
         expect(await screen.findByText('Home page')).toBeInTheDocument();
+    });
+
+    it('calls neither leaveGame nor signOut when Go Back is clicked', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Go Back' }));
+
+        expect(leaveGame).not.toHaveBeenCalled();
+        expect(signOut).not.toHaveBeenCalled();
+        expect(readPlayerSession()).not.toBeNull();
+    });
+
+    it('shows an error and does not sign out when leaveGame is rejected', async () => {
+        leaveGame.mockRejectedValue(new Error('You have not joined this room.'));
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+        expect(await screen.findByText('You have not joined this room.')).toBeInTheDocument();
+        expect(signOut).not.toHaveBeenCalled();
+        expect(readPlayerSession()).not.toBeNull();
     });
 
     it('subscribes to the player doc once gameStarted is true and shows the target', () => {

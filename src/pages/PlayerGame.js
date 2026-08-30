@@ -1,5 +1,17 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Flex, Heading, Text } from '@chakra-ui/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    AlertDialog,
+    AlertDialogBody,
+    AlertDialogContent,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogOverlay,
+    Button,
+    Flex,
+    Heading,
+    Text,
+    useDisclosure,
+} from '@chakra-ui/react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -8,6 +20,8 @@ import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
 } from '../components/firebase_calls/dbCalls';
+import { leaveGame } from '../components/leaveGame';
+import CreateAlert from '../components/CreateAlert';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 import MessageFeed from '../components/player_messages_components/MessageFeed';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
@@ -27,6 +41,9 @@ const PlayerGame = () => {
     const [pendingMessages, setPendingMessages] = useState([]);
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
+    const { isOpen, onOpen, onClose } = useDisclosure();
+    const cancelRef = useRef();
+    const createAlert = CreateAlert();
 
     useEffect(() => {
         setPendingMessages([]);
@@ -62,11 +79,6 @@ const PlayerGame = () => {
         [navigate]
     );
 
-    // "Leave" (below) only ends this device's local session: it does not
-    // remove the player from the room's roster, touch joinedUids, or
-    // affect their targets/assassins. Actually leaving a game is a
-    // separate, larger feature not addressed here
-    // (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md).
     useEffect(() => {
         if (!roomID) return undefined;
         const roomRef = fetchRoomReferenceForRoom(roomID);
@@ -107,7 +119,20 @@ const PlayerGame = () => {
         return () => unsubscribe();
     }, [roomID, gameStarted, playerName, navigate, handleSubscriptionError]);
 
-    const handleLeave = async () => {
+    const handleLeaveClick = () => {
+        onOpen();
+    };
+
+    const handleConfirmLeave = async () => {
+        try {
+            await leaveGame(roomID);
+        } catch (err) {
+            console.error('Error leaving game:', err);
+            onClose();
+            createAlert('error', 'Error leaving game', err.message, 1500);
+            return;
+        }
+
         try {
             await signOut(auth);
         } catch (err) {
@@ -123,10 +148,27 @@ const PlayerGame = () => {
                 <Heading size="md">
                     {playerName || 'You'} joined {roomID}
                 </Heading>
-                <Button size="sm" colorScheme="red" variant="outline" onClick={handleLeave}>
+                <Button size="sm" colorScheme="red" variant="outline" onClick={handleLeaveClick}>
                     Leave
                 </Button>
             </Flex>
+            <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
+                <AlertDialogOverlay />
+                <AlertDialogContent bg="#202030">
+                    <AlertDialogHeader color="red">WARNING</AlertDialogHeader>
+                    <AlertDialogBody color="#FFFFFF">
+                        Leave the game? You&apos;ll be removed and cannot rejoin.
+                    </AlertDialogBody>
+                    <AlertDialogFooter>
+                        <Button ref={cancelRef} onClick={onClose} colorScheme="red">
+                            Go Back
+                        </Button>
+                        <Button colorScheme="green" onClick={handleConfirmLeave}>
+                            Confirm
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {/* Once the game has ended, the target/status text no longer
                 applies — the "please head back" and final-standings
                 announcements arrive as real chat messages instead
