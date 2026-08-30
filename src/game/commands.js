@@ -10,6 +10,7 @@
 export const KNOWN_COMMANDS = [
     '/add',
     '/broadcast',
+    '/kick',
     '/kill',
     '/leaderboard',
     '/mission',

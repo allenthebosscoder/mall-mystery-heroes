@@ -24,6 +24,7 @@ const OPEN_SEASON_VALUES = ['start', 'end'];
 // so a GM can see the whole command's shape without memorizing it.
 const ARG_LABELS = {
     '/add': ['[player_name]', '[points]'],
+    '/kick': ['[player_name]'],
     '/kill': ['[player_name]', '[assassin_name]'],
     '/openseason': ['[player_name]', 'start/end'],
     '/revive': ['[player_name]'],
@@ -138,6 +139,8 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
 
     switch (command) {
         case '/add':
+            return slotIndex === 1 ? playerNames(players) : null;
+        case '/kick':
             return slotIndex === 1 ? playerNames(players) : null;
         case '/kill': {
             if (slotIndex === 1) return playerNames(players);

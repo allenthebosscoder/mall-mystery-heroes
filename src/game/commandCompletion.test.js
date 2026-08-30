@@ -14,16 +14,24 @@ const missions = [
 
 describe('complete — command word (slot 0)', () => {
     it('completes a unique command word', () => {
-        const result = complete('/ki', {});
+        const result = complete('/kil', {});
         expect(result).toEqual({
             applied: true,
             tokenStart: 0,
-            tokenEnd: 3,
+            tokenEnd: 4,
             commonPrefix: '/kill',
             candidates: ['/kill'],
             suggestionLines: ['/kill [player_name] [assassin_name]'],
             isUnique: true,
         });
+    });
+
+    it('completes to the longest common prefix between /kick and /kill when ambiguous', () => {
+        const result = complete('/ki', {});
+        expect(result.applied).toBe(true);
+        expect(result.isUnique).toBe(false);
+        expect(result.commonPrefix).toBe('/ki');
+        expect(result.candidates.sort()).toEqual(['/kick', '/kill']);
     });
 
     it('completes to the longest common prefix across ambiguous commands', () => {
@@ -163,6 +171,20 @@ describe('complete — /whisper', () => {
     });
 });
 
+describe('complete — /kick', () => {
+    it('completes the player slot', () => {
+        const result = complete('/kick B', { players });
+        expect(result.applied).toBe(true);
+        expect(result.commonPrefix).toBe('Bob');
+    });
+
+    it('offers every player when nothing has been typed yet', () => {
+        const result = complete('/kick ', { players });
+        expect(result.applied).toBe(true);
+        expect(result.candidates).toEqual(['Alice Smith', 'Alex', 'Bob']);
+    });
+});
+
 describe('complete — /broadcast', () => {
     it('does not suggest anything for the message slot — free text', () => {
         const result = complete('/broadcast hel', { players });
@@ -254,7 +276,7 @@ describe('complete — /mission start, /mission view, and /mission undo take no 
 
 describe('complete — suggestionLines show the whole command in context, not just the candidate', () => {
     it('shows the full syntax for each command word, not just its name', () => {
-        const result = complete('/ki', {});
+        const result = complete('/kil', {});
         expect(result.suggestionLines).toEqual(['/kill [player_name] [assassin_name]']);
     });
 
