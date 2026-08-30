@@ -32,6 +32,7 @@ import * as dbCalls from '../firebase_calls/dbCalls';
 import { executeKill } from '../executeKill';
 import { completeMission } from '../completeMission';
 import { undoMissionCommand } from '../undoMissionCommand';
+import { removePlayer } from '../removePlayer';
 
 // An explicit factory, not just `jest.mock('../firebase_calls/dbCalls')` —
 // auto-mocking still loads the real module first to learn its shape, which
@@ -52,6 +53,7 @@ jest.mock('../firebase_calls/dbCalls', () => ({
 jest.mock('../executeKill', () => ({ executeKill: jest.fn() }));
 jest.mock('../completeMission', () => ({ completeMission: jest.fn() }));
 jest.mock('../undoMissionCommand', () => ({ undoMissionCommand: jest.fn() }));
+jest.mock('../removePlayer', () => ({ removePlayer: jest.fn() }));
 // An inspectable double, not a bare arrow function — some tests need to
 // assert on exactly what ChatInput passes as playersNeedingTarget/
 // playersNeedingAssassins (see the revival case-casing regression test
@@ -116,6 +118,12 @@ beforeEach(() => {
     dbCalls.recordLastMissionCommandCompletion.mockResolvedValue(undefined);
     undoMissionCommand.mockResolvedValue(undefined);
     mockRegenerate.mockResolvedValue([{}, {}]);
+    removePlayer.mockResolvedValue({
+        removedPlayerName: 'Bob',
+        addedTargets: {},
+        addedAssassins: {},
+        remapLogs: [],
+    });
 });
 
 describe('/kill (improvements item 4: executeKill is now a Cloud Function call)', () => {
@@ -533,6 +541,87 @@ describe('/mission undo', () => {
         typeAndSubmit(commandInput, '/mission undo');
 
         expect(await screen.findByText(/\/mission failed: nothing to undo/i)).toBeInTheDocument();
+    });
+});
+
+describe('/kick', () => {
+    it('normalizes the name and routes the response to the remap handlers', async () => {
+        removePlayer.mockResolvedValue({
+            removedPlayerName: 'Bob',
+            addedTargets: { alice: ['carol'] },
+            addedAssassins: { carol: ['alice'] },
+            remapLogs: ['New target for alice: carol'],
+        });
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/kick bob');
+
+        await waitFor(() => expect(removePlayer).toHaveBeenCalledWith('bob', 'room-a'));
+        expect(executionHandlers.addLog).toHaveBeenCalledWith(
+            'Bob was removed from the game',
+            'gray.400'
+        );
+        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+            {
+                type: 'broadcast',
+                recipient: null,
+                text: 'Bob was removed from the game',
+                standings: null,
+            },
+            'room-a'
+        );
+        // Waited on directly (rather than asserted synchronously right after
+        // the removePlayer waitFor above, as the task-4 brief's draft had
+        // it) — the /kick case chains three more awaited mock calls
+        // (addLog, addPlayerMessageForRoom, then handleRemapping) after
+        // removePlayer resolves, and in practice that's enough
+        // microtask/macrotask interleaving with RTL's own waitFor polling
+        // that handleRemapping hadn't always run yet by this point,
+        // producing a real (not flaky-random, but deterministic-in-this-
+        // environment) race. Mirrors how the /mission done tests above
+        // wait on handleRemapping itself rather than assuming it's settled.
+        await waitFor(() =>
+            expect(executionHandlers.handleRemapping).toHaveBeenCalledWith(
+                'New target for alice: carol'
+            )
+        );
+        expect(executionHandlers.handleAddNewAssassins).toHaveBeenCalledWith({
+            carol: ['alice'],
+        });
+        expect(executionHandlers.handleAddNewTargets).toHaveBeenCalledWith({ alice: ['carol'] });
+        expect(executionHandlers.handleSetShowMessageToTrue).toHaveBeenCalled();
+    });
+
+    it('rejects a name not on the roster without calling removePlayer', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/kick nobody');
+
+        expect(await screen.findByText(/Player nobody is invalid/)).toBeInTheDocument();
+        expect(removePlayer).not.toHaveBeenCalled();
+    });
+
+    it('normalizes a name with an internal space before calling removePlayer', async () => {
+        const commandInput = mountChatInput([
+            { name: 'Alice Smith', isAlive: true },
+            { name: 'Bob', isAlive: true },
+        ]);
+        // user-event v13's type() treats a bare `[` as special syntax —
+        // `[[` escapes to a literal `[` (see the equivalent /kill test
+        // above). This types the literal string "/kick [Alice Smith]".
+        typeAndSubmit(commandInput, '/kick [[Alice Smith]');
+
+        await waitFor(() => expect(removePlayer).toHaveBeenCalledWith('alicesmith', 'room-a'));
+    });
+});
+
+describe('a rejected removePlayer surfaces as a toast', () => {
+    it('shows the error and never logs or broadcasts', async () => {
+        removePlayer.mockRejectedValue(new Error('Player not found: bob'));
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/kick bob');
+
+        expect(await screen.findByText(/\/kick failed: Player not found: bob/)).toBeInTheDocument();
+        expect(executionHandlers.addLog).not.toHaveBeenCalled();
+        expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
     });
 });
 

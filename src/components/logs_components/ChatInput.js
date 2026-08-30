@@ -20,6 +20,7 @@ import RemapPlayers from '../RemapPlayers';
 import { completeMission } from '../completeMission';
 import { undoMissionCommand } from '../undoMissionCommand';
 import { executeKill } from '../executeKill';
+import { removePlayer } from '../removePlayer';
 import { parseCommand, UNIMPLEMENTED_COMMANDS } from '../../game/commands';
 import { buildLeaderboardStandings } from '../../game/leaderboard';
 import { normalizePlayerName, resolvePlayerDisplayName } from '../../game/playerNames';
@@ -148,6 +149,35 @@ const handleCommandExecution = async (
                     console.error(
                         `One of the following inputs are invalid: Target - "${args[0]}", Assassin - "${args[1]}"`
                     );
+                }
+                break;
+
+            case '/kick':
+                const kickPlayerName = args[0] ? normalizePlayerName(args[0]) : '';
+                if (arrayOfPlayerNames.includes(kickPlayerName)) {
+                    const result = await removePlayer(kickPlayerName, roomID);
+                    const displayName = resolvePlayerDisplayName(kickPlayerName, players);
+
+                    await addLog(`${displayName} was removed from the game`, 'gray.400');
+                    await addPlayerMessageForRoom(
+                        {
+                            type: 'broadcast',
+                            recipient: null,
+                            text: `${displayName} was removed from the game`,
+                            standings: null,
+                        },
+                        roomID
+                    );
+
+                    for (const log of result.remapLogs) {
+                        await handleRemapping(log);
+                    }
+                    handleAddNewAssassins(result.addedAssassins);
+                    handleAddNewTargets(result.addedTargets);
+                    handleSetShowMessageToTrue();
+                } else {
+                    createAlert('error', 'Error', `Player ${args[0]} is invalid`, 1500);
+                    console.error(`Player ${args[0]} is invalid.`);
                 }
                 break;
 
