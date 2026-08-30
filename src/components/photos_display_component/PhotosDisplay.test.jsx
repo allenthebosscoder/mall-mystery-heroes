@@ -50,6 +50,7 @@ const executionHandlers = {
     handleAddNewTargets: jest.fn(),
     handleSetShowMessageToTrue: jest.fn(),
     handlePlayerRevive: jest.fn(),
+    handleOpenSznended: jest.fn(),
 };
 
 // Every assassin used across this file's photo docs has exactly one
@@ -701,6 +702,86 @@ describe('moderator resolves the target (players no longer pick who they killed)
         await userEvent.click(screen.getByAltText('Deny'));
 
         await waitFor(() => expect(dbCalls.updatePhotoStatusForRoom).toHaveBeenCalled());
+    });
+});
+
+describe("an open-season target is a valid kill even off the assassin's own list", () => {
+    it("offers an open-season player in the dropdown alongside the assassin's own target", async () => {
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [
+                { name: 'bob', targets: ['alice'] },
+                { name: 'alice', targets: [] },
+                { name: 'carol', targets: [], openSeason: true, isAlive: true },
+            ]
+        );
+
+        expect(screen.getByLabelText('Select target or mission')).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'alice' })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
+    });
+
+    it('auto-resolves to the open-season player when that is the only option at all', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: true,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [
+                { name: 'bob', targets: [] },
+                { name: 'carol', targets: [], openSeason: true, isAlive: true },
+            ]
+        );
+
+        expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
+        expect(screen.getByText('Target: carol')).toBeInTheDocument();
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('carol', 'bob', 'room-a'));
+    });
+
+    it('announces open season ending when the approved kill was on an open-season target', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: true,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot(
+            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [
+                { name: 'bob', targets: [] },
+                { name: 'carol', targets: [], openSeason: true, isAlive: true },
+            ]
+        );
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() =>
+            expect(executionHandlers.handleOpenSznended).toHaveBeenCalledWith('carol')
+        );
+    });
+
+    it('does not announce open season ending for an ordinary kill', async () => {
+        executeKill.mockResolvedValue({
+            targetWasOpenSzn: false,
+            preKillSnapshot: {},
+            addedTargets: {},
+            addedAssassins: {},
+            remapLogs: [],
+        });
+        mountWithSnapshot([{ status: 'pending', target: 'alice', assassin: 'bob' }]);
+
+        await userEvent.click(screen.getByAltText('Approve'));
+
+        await waitFor(() => expect(dbCalls.approvePhotoForRoom).toHaveBeenCalled());
+        expect(executionHandlers.handleOpenSznended).not.toHaveBeenCalled();
     });
 });
 

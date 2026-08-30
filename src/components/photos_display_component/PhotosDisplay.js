@@ -23,6 +23,7 @@ import CreateAlert from '../CreateAlert';
 import { completeMission } from '../completeMission';
 import { undoMissionPhotoApproval } from '../undoMissionPhotoApproval';
 import { openMissionsForPlayer } from '../../game/missionCompletion';
+import { killTargetsForAssassin } from '../../game/killTargets';
 
 // A player no longer names who they killed when submitting a photo —
 // everyone in the game knows each other, and an ambiguous photo is
@@ -54,6 +55,7 @@ const PhotosDisplay = ({ players = [] }) => {
         handleAddNewTargets,
         handleSetShowMessageToTrue,
         handlePlayerRevive,
+        handleOpenSznended,
     } = useContext(executionContext);
     const createAlert = CreateAlert();
 
@@ -109,18 +111,21 @@ const PhotosDisplay = ({ players = [] }) => {
     );
     const currentPhoto = visibleUnjudgedPhotos[0];
 
-    const currentAssassinTargets = currentPhoto
-        ? (players.find(
-              (player) =>
-                  normalizePlayerName(player.name) === normalizePlayerName(currentPhoto.assassin)
-          )?.targets ?? [])
+    // Includes not just the assassin's own assigned target(s) but anyone
+    // else with open season on themselves — open season makes a player a
+    // valid kill target for anyone, the same rule killPlayer.js already
+    // enforces server-side (src/game/killTargets.js), so the dropdown no
+    // longer silently omits a legitimate open-season kill just because
+    // the target wasn't already on this specific assassin's own list.
+    const currentKillTargets = currentPhoto
+        ? killTargetsForAssassin(players, currentPhoto.assassin)
         : [];
     const currentOpenMissions = currentPhoto
         ? openMissionsForPlayer(missions, normalizePlayerName(currentPhoto.assassin))
         : [];
 
     const combinedOptions = [
-        ...currentAssassinTargets.map((target) => ({ value: `target:${target}`, label: target })),
+        ...currentKillTargets.map((target) => ({ value: `target:${target}`, label: target })),
         ...currentOpenMissions.map((mission) => ({
             value: `mission:${mission.taskIndex}`,
             label: mission.title,
@@ -214,10 +219,24 @@ const PhotosDisplay = ({ players = [] }) => {
                 }
             } else {
                 const target = effectiveSelection.slice('target:'.length);
-                const { preKillSnapshot, addedTargets, addedAssassins, remapLogs } =
-                    await executeKill(target, approvingPhoto.assassin, roomID);
+                const {
+                    targetWasOpenSzn,
+                    preKillSnapshot,
+                    addedTargets,
+                    addedAssassins,
+                    remapLogs,
+                } = await executeKill(target, approvingPhoto.assassin, roomID);
 
                 await approvePhotoForRoom(roomID, approvingPhoto.id, target, preKillSnapshot);
+                // Mirrors handleKillPlayer's own ordering for the typed
+                // /kill command (GameMasterView.js) — open season already
+                // ends server-side inside killPlayer.js's own transaction
+                // regardless of which path triggered the kill; this is
+                // just catching the photo path up on announcing it, which
+                // it never did before.
+                if (targetWasOpenSzn) {
+                    await handleOpenSznended(target);
+                }
                 await addLog(`${target} was killed by ${approvingPhoto.assassin}`, 'red.400');
                 await addPlayerMessageForRoom(
                     {
@@ -396,9 +415,9 @@ const PhotosDisplay = ({ players = [] }) => {
                                 value={effectiveSelection}
                                 onChange={(event) => setSelectedOption(event.target.value)}
                             >
-                                {currentAssassinTargets.length > 0 && (
+                                {currentKillTargets.length > 0 && (
                                     <optgroup label="Kill Target">
-                                        {currentAssassinTargets.map((target) => (
+                                        {currentKillTargets.map((target) => (
                                             <option
                                                 key={`target:${target}`}
                                                 value={`target:${target}`}
@@ -440,7 +459,7 @@ const PhotosDisplay = ({ players = [] }) => {
                             (effectiveSelection.startsWith('mission:') ? (
                                 <Text>Mission: {currentOpenMissions[0]?.title}</Text>
                             ) : (
-                                <Text>Target: {currentAssassinTargets[0]}</Text>
+                                <Text>Target: {currentKillTargets[0]}</Text>
                             ))
                         )}
                     </Box>
