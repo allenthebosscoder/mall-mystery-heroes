@@ -193,7 +193,13 @@ Effects: the player is unmapped from the target graph (whoever was
 hunting them gets a new target; whoever they were hunting gets a new
 assassin, the same remap `/kill` triggers), and their document is deleted
 outright — not marked dead, no trace kept. No score changes hands. This
-cannot be undone, and the removed player cannot rejoin this room.
+cannot be undone, and the removed player won't be able to rejoin once the
+game has started. (`/kick` itself is only reachable once the game has
+already started — the console it lives in doesn't exist before Begin
+Game — so this is unconditional for `/kick`; it's the player-facing
+Leave button, reachable pre-game too, where a player who leaves during
+the Lobby phase can still rejoin under a new identity before Begin Game
+is clicked.)
 
 ### `/whisper <player> <message>`
 

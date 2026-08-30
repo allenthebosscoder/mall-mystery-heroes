@@ -220,7 +220,9 @@ describe('PlayerGame', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
 
         expect(
-            screen.getByText("Leave the game? You'll be removed and cannot rejoin.")
+            screen.getByText(
+                "Leave the game? You'll be removed, and won't be able to rejoin once the game has started."
+            )
         ).toBeInTheDocument();
         expect(leaveGame).not.toHaveBeenCalled();
     });
