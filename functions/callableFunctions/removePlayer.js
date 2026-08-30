@@ -165,6 +165,20 @@ exports.leaveGame = functions.https.onCall(async (data, context) => {
         if (playerSnapshot.empty) {
             throw new functions.https.HttpsError('not-found', 'You have not joined this room.');
         }
+        // Nothing enforces one player doc per uid per room: joinRoom.js
+        // checks only that the *name* is not taken, so the same uid
+        // revisiting /join under a second name owns two player docs here
+        // (docs/improvements.md item 66). Taking docs[0] would silently
+        // remove whichever name sorts first while leaving the other
+        // identity stranded, still mapped into a graph missing its
+        // now-deleted neighbor. Fail loudly instead — the GM can delete
+        // the stray player doc.
+        if (playerSnapshot.size > 1) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'Multiple player identities are linked to your account in this room — ask your GM for help.'
+            );
+        }
         const playerDoc = playerSnapshot.docs[0];
 
         const result = await removeAndRemap(transaction, roomRef, playerDoc);

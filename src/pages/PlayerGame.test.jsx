@@ -5,9 +5,11 @@
  * renders room/player info, updates its status line when gameStarted flips,
  * redirects home when the room stops existing, shows the player's target(s)
  * or a placeholder once the game has started, shows an eliminated state,
- * and Leave signs out + clears the stored session
+ * and Leave opens a confirmation dialog, calls `leaveGame`, then signs out
+ * + clears the stored session
  * (docs/superpowers/specs/2026-08-07-join-flow-ui-and-room-scoping-design.md,
- * docs/superpowers/specs/2026-08-08-player-target-view-design.md).
+ * docs/superpowers/specs/2026-08-08-player-target-view-design.md,
+ * docs/superpowers/specs/2026-08-29-player-leave-and-kick-design.md).
  * Explicit mock factories for 'firebase/auth', 'firebase/firestore', and
  * '../components/firebase_calls/dbCalls' — see RequireAuth.test.jsx and
  * ChatInput.test.jsx for why auto-mocking utils/firebase.js isn't safe here.
