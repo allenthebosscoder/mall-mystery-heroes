@@ -30,5 +30,9 @@ const { undoMissionPhotoApproval, undoMissionCommand } = require("./callableFunc
 exports.undoMissionPhotoApproval = undoMissionPhotoApproval
 exports.undoMissionCommand = undoMissionCommand
 
+const { leaveGame, removePlayer } = require("./callableFunctions/removePlayer")
+exports.leaveGame = leaveGame
+exports.removePlayer = removePlayer
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms
