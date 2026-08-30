@@ -31,11 +31,11 @@ button only exists on the pre-game Lobby screen.
   mirroring `killPlayer.js`'s structure. Two thin `onCall` wrappers front
   it, the same shape `undoMissionCompletion.js` already uses for its two
   entry points:
-  - `leaveGame({roomId})` — self-service. No `playerName` argument; the
-    caller's own `context.auth.uid` resolves which player doc to remove,
-    so a player can only ever remove themselves.
-  - `removePlayer({roomId, playerName})` — host-only, mirrors
-    `killPlayer.js`'s own host check exactly.
+    - `leaveGame({roomId})` — self-service. No `playerName` argument; the
+      caller's own `context.auth.uid` resolves which player doc to remove,
+      so a player can only ever remove themselves.
+    - `removePlayer({roomId, playerName})` — host-only, mirrors
+      `killPlayer.js`'s own host check exactly.
 - **No score redistribution.** Unlike a kill, nobody gains the leaving
   player's points — they simply leave with whatever they had. Only the
   target-graph unmap/remap happens; there is no assassin-side score write
@@ -159,14 +159,15 @@ Confirming calls the new `leaveGame`
 wrapper (which announces the departure itself — see above, this page
 writes nothing to `logs`/`playerMessages` directly, and could not even if
 it wanted to), then runs the existing `signOut(auth)` + `clearPlayerSession()`
-+ `navigate('/')` sequence unchanged. A rejected `leaveGame` call surfaces
-via `createAlert` instead of proceeding to sign out. The existing
-player-doc `onSnapshot` listener (already present — see the "Leave" scope
-comment currently at the top of this file) independently notices the
-deletion and would fire its own `clearPlayerSession()` + `navigate('/',
+
+- `navigate('/')` sequence unchanged. A rejected `leaveGame` call surfaces
+  via `createAlert` instead of proceeding to sign out. The existing
+  player-doc `onSnapshot` listener (already present — see the "Leave" scope
+  comment currently at the top of this file) independently notices the
+  deletion and would fire its own `clearPlayerSession()` + `navigate('/',
 {replace: true})` regardless; both paths converging on the same outcome is
-harmless; `handleLeave`'s explicit call is what makes the redirect happen
-promptly rather than waiting on the listener's round trip.
+  harmless; `handleLeave`'s explicit call is what makes the redirect happen
+  promptly rather than waiting on the listener's round trip.
 
 ### `src/components/logs_components/ChatInput.js` (modified)
 

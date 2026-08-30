@@ -59,26 +59,28 @@ per `jest.config.js`).
 ## Task 1: `removePlayer.js` Cloud Function
 
 **Files:**
+
 - Create: `functions/callableFunctions/removePlayer.js`
 - Create: `src/components/removePlayerCallable.integration.test.js`
 - Modify: `functions/index.js`
 - Modify: `docs/testing.md:67-77` (emulator suite count and enumeration)
 
 **Interfaces:**
+
 - Produces: two `onCall` Cloud Functions, `leaveGame` and `removePlayer`.
-  - `leaveGame({roomId})` → `{removedPlayerName, addedTargets, addedAssassins, remapLogs}`.
-    Resolves which player to remove from `context.auth.uid` — no
-    `playerName` argument. Also writes a `logs` entry and a
-    `playerMessages` (`type: 'broadcast'`) entry inside the same
-    transaction.
-  - `removePlayer({roomId, playerName})` → same return shape, no
-    announcement writes. Host-only.
-  - Both throw `HttpsError`s: `unauthenticated` (no `context.auth`),
-    `invalid-argument` (missing `roomId`, or missing `playerName` for
-    `removePlayer`), `not-found` (room doesn't exist; for `leaveGame`, the
-    caller's uid has no matching player doc; for `removePlayer`, no player
-    matches the given name), `permission-denied` (`removePlayer` called by
-    a non-host).
+    - `leaveGame({roomId})` → `{removedPlayerName, addedTargets, addedAssassins, remapLogs}`.
+      Resolves which player to remove from `context.auth.uid` — no
+      `playerName` argument. Also writes a `logs` entry and a
+      `playerMessages` (`type: 'broadcast'`) entry inside the same
+      transaction.
+    - `removePlayer({roomId, playerName})` → same return shape, no
+      announcement writes. Host-only.
+    - Both throw `HttpsError`s: `unauthenticated` (no `context.auth`),
+      `invalid-argument` (missing `roomId`, or missing `playerName` for
+      `removePlayer`), `not-found` (room doesn't exist; for `leaveGame`, the
+      caller's uid has no matching player doc; for `removePlayer`, no player
+      matches the given name), `permission-denied` (`removePlayer` called by
+      a non-host).
 - Task 2 (the client wrappers) consumes both callable names verbatim.
 
 - [ ] **Step 1: Write the failing emulator test file**
@@ -213,9 +215,9 @@ describe('removePlayer', () => {
         await seedRoom(ROOM, [{ name: 'alice' }]);
         const removePlayerAsNonHost = callableAsNonHost('removePlayer');
 
-        await expect(
-            removePlayerAsNonHost({ roomId: ROOM, playerName: 'alice' })
-        ).rejects.toThrow(/permission-denied|host/i);
+        await expect(removePlayerAsNonHost({ roomId: ROOM, playerName: 'alice' })).rejects.toThrow(
+            /permission-denied|host/i
+        );
         expect((await fetchPlayerForRoom('alice', ROOM)).data()).toBeDefined();
     });
 
@@ -527,9 +529,9 @@ Add, following the file's existing require/exports pattern exactly
 match the surrounding style, not your editor's default):
 
 ```js
-const { leaveGame, removePlayer } = require("./callableFunctions/removePlayer")
-exports.leaveGame = leaveGame
-exports.removePlayer = removePlayer
+const { leaveGame, removePlayer } = require('./callableFunctions/removePlayer');
+exports.leaveGame = leaveGame;
+exports.removePlayer = removePlayer;
 ```
 
 Insert this block after the `completeMission`/`undoMissionCompletion`
@@ -595,10 +597,12 @@ git commit -m "Add leaveGame and removePlayer Cloud Functions"
 ## Task 2: Client wrappers
 
 **Files:**
+
 - Create: `src/components/leaveGame.js`
 - Create: `src/components/removePlayer.js`
 
 **Interfaces:**
+
 - Consumes: the `leaveGame` and `removePlayer` callables from Task 1.
 - Produces: `leaveGame(roomID)` and `removePlayer(playerName, roomID)`,
   both async, resolving to `{removedPlayerName, addedTargets, addedAssassins, remapLogs}`
@@ -685,6 +689,7 @@ logic with no Firebase calls. Can run anytime, in parallel with any other
 task.
 
 **Files:**
+
 - Modify: `src/game/commands.js:10-19` (`KNOWN_COMMANDS`)
 - Modify: `src/game/commandCompletion.js:25-33` (`ARG_LABELS`),
   `src/game/commandCompletion.js:139-180` (`candidatesForSlot`'s `switch`)
@@ -695,6 +700,7 @@ task.
   than assuming its absence)
 
 **Interfaces:**
+
 - Produces: `/kick` is a member of `KNOWN_COMMANDS`, so `parseCommand('/kick alice')`
   returns `{ok: true, command: '/kick', args: ['alice']}`. Tab-completion
   for `/kick`'s first (only) argument slot offers the live player roster,
@@ -718,43 +724,43 @@ to use an unambiguous prefix, and add a new test proving the now-ambiguous
 Replace this existing test:
 
 ```js
-    it('completes a unique command word', () => {
-        const result = complete('/ki', {});
-        expect(result).toEqual({
-            applied: true,
-            tokenStart: 0,
-            tokenEnd: 3,
-            commonPrefix: '/kill',
-            candidates: ['/kill'],
-            suggestionLines: ['/kill [player_name] [assassin_name]'],
-            isUnique: true,
-        });
+it('completes a unique command word', () => {
+    const result = complete('/ki', {});
+    expect(result).toEqual({
+        applied: true,
+        tokenStart: 0,
+        tokenEnd: 3,
+        commonPrefix: '/kill',
+        candidates: ['/kill'],
+        suggestionLines: ['/kill [player_name] [assassin_name]'],
+        isUnique: true,
     });
+});
 ```
 
 with:
 
 ```js
-    it('completes a unique command word', () => {
-        const result = complete('/kil', {});
-        expect(result).toEqual({
-            applied: true,
-            tokenStart: 0,
-            tokenEnd: 4,
-            commonPrefix: '/kill',
-            candidates: ['/kill'],
-            suggestionLines: ['/kill [player_name] [assassin_name]'],
-            isUnique: true,
-        });
+it('completes a unique command word', () => {
+    const result = complete('/kil', {});
+    expect(result).toEqual({
+        applied: true,
+        tokenStart: 0,
+        tokenEnd: 4,
+        commonPrefix: '/kill',
+        candidates: ['/kill'],
+        suggestionLines: ['/kill [player_name] [assassin_name]'],
+        isUnique: true,
     });
+});
 
-    it('completes to the longest common prefix between /kick and /kill when ambiguous', () => {
-        const result = complete('/ki', {});
-        expect(result.applied).toBe(true);
-        expect(result.isUnique).toBe(false);
-        expect(result.commonPrefix).toBe('/ki');
-        expect(result.candidates.sort()).toEqual(['/kick', '/kill']);
-    });
+it('completes to the longest common prefix between /kick and /kill when ambiguous', () => {
+    const result = complete('/ki', {});
+    expect(result.applied).toBe(true);
+    expect(result.isUnique).toBe(false);
+    expect(result.commonPrefix).toBe('/ki');
+    expect(result.candidates.sort()).toEqual(['/kick', '/kill']);
+});
 ```
 
 Then add a new describe block for `/kick`'s own argument slot, mirroring
@@ -865,12 +871,14 @@ git commit -m "Add /kick to command parsing and tab-completion"
 ## Task 4: `/kick` in `ChatInput.js`
 
 **Files:**
+
 - Modify: `src/components/logs_components/ChatInput.js` (add `import { removePlayer } from '../removePlayer';`
   near the other wrapper imports at the top, and a new `case '/kick':`
   in `handleCommandExecution`'s `switch`)
 - Modify: `src/components/logs_components/ChatInput.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `removePlayer(playerName, roomID)` from Task 2 (must exist as
   a real module for the mock in the test file below to have something
   real to mock against, though the test itself only ever sees the mock);
@@ -897,12 +905,12 @@ In the `beforeEach` block, add a default resolution alongside the
 existing `executeKill.mockResolvedValue(...)`:
 
 ```js
-    removePlayer.mockResolvedValue({
-        removedPlayerName: 'Bob',
-        addedTargets: {},
-        addedAssassins: {},
-        remapLogs: [],
-    });
+removePlayer.mockResolvedValue({
+    removedPlayerName: 'Bob',
+    addedTargets: {},
+    addedAssassins: {},
+    remapLogs: [],
+});
 ```
 
 Add a new `describe` block, mirroring the `/kill` describe block's
@@ -1072,10 +1080,12 @@ git commit -m "Add /kick command to the GM command bar"
 ## Task 5: "Leave" confirmation in `PlayerGame.js`
 
 **Files:**
+
 - Modify: `src/pages/PlayerGame.js`
 - Modify: `src/pages/PlayerGame.test.jsx`
 
 **Interfaces:**
+
 - Consumes: `leaveGame(roomID)` from Task 2.
 - Produces: nothing new for later tasks — this is the player-facing side
   of the feature, self-contained.
@@ -1105,116 +1115,116 @@ In the `beforeEach` block (where `signOut.mockResolvedValue(undefined);`
 already lives, around line 96), add:
 
 ```js
-    leaveGame.mockResolvedValue({
-        removedPlayerName: 'Alice',
-        addedTargets: {},
-        addedAssassins: {},
-        remapLogs: [],
-    });
+leaveGame.mockResolvedValue({
+    removedPlayerName: 'Alice',
+    addedTargets: {},
+    addedAssassins: {},
+    remapLogs: [],
+});
 ```
 
 Replace the existing test at line 199:
 
 ```js
-    it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
-            }
-            return () => {};
-        });
-
-        renderWaiting();
-
-        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
-
-        expect(signOut).toHaveBeenCalled();
-        expect(readPlayerSession()).toBeNull();
-        expect(await screen.findByText('Home page')).toBeInTheDocument();
+it('signs out, clears the session, and navigates home when Leave is clicked', async () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+        }
+        return () => {};
     });
+
+    renderWaiting();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+
+    expect(signOut).toHaveBeenCalled();
+    expect(readPlayerSession()).toBeNull();
+    expect(await screen.findByText('Home page')).toBeInTheDocument();
+});
 ```
 
 with:
 
 ```js
-    it('opens a confirmation dialog instead of leaving immediately', async () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
-            }
-            return () => {};
-        });
-
-        renderWaiting();
-
-        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
-
-        expect(
-            screen.getByText("Leave the game? You'll be removed and cannot rejoin.")
-        ).toBeInTheDocument();
-        expect(leaveGame).not.toHaveBeenCalled();
+it('opens a confirmation dialog instead of leaving immediately', async () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+        }
+        return () => {};
     });
 
-    it('calls leaveGame, signs out, clears the session, and navigates home once confirmed', async () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
-            }
-            return () => {};
-        });
+    renderWaiting();
 
-        renderWaiting();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
 
-        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
-        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(
+        screen.getByText("Leave the game? You'll be removed and cannot rejoin.")
+    ).toBeInTheDocument();
+    expect(leaveGame).not.toHaveBeenCalled();
+});
 
-        expect(leaveGame).toHaveBeenCalledWith('Fluffy42317');
-        expect(signOut).toHaveBeenCalled();
-        expect(readPlayerSession()).toBeNull();
-        expect(await screen.findByText('Home page')).toBeInTheDocument();
+it('calls leaveGame, signs out, clears the session, and navigates home once confirmed', async () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+        }
+        return () => {};
     });
 
-    it('calls neither leaveGame nor signOut when Go Back is clicked', async () => {
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
-            }
-            return () => {};
-        });
+    renderWaiting();
 
-        renderWaiting();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
 
-        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
-        await userEvent.click(screen.getByRole('button', { name: 'Go Back' }));
+    expect(leaveGame).toHaveBeenCalledWith('Fluffy42317');
+    expect(signOut).toHaveBeenCalled();
+    expect(readPlayerSession()).toBeNull();
+    expect(await screen.findByText('Home page')).toBeInTheDocument();
+});
 
-        expect(leaveGame).not.toHaveBeenCalled();
-        expect(signOut).not.toHaveBeenCalled();
-        expect(readPlayerSession()).not.toBeNull();
+it('calls neither leaveGame nor signOut when Go Back is clicked', async () => {
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+        }
+        return () => {};
     });
 
-    it('shows an error and does not sign out when leaveGame is rejected', async () => {
-        leaveGame.mockRejectedValue(new Error('You have not joined this room.'));
-        writePlayerSession('Fluffy42317', 'Alice');
-        onSnapshot.mockImplementation((ref, callback) => {
-            if (ref === 'room-ref') {
-                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
-            }
-            return () => {};
-        });
+    renderWaiting();
 
-        renderWaiting();
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Go Back' }));
 
-        await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
-        await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+    expect(leaveGame).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
+    expect(readPlayerSession()).not.toBeNull();
+});
 
-        expect(await screen.findByText('You have not joined this room.')).toBeInTheDocument();
-        expect(signOut).not.toHaveBeenCalled();
-        expect(readPlayerSession()).not.toBeNull();
+it('shows an error and does not sign out when leaveGame is rejected', async () => {
+    leaveGame.mockRejectedValue(new Error('You have not joined this room.'));
+    writePlayerSession('Fluffy42317', 'Alice');
+    onSnapshot.mockImplementation((ref, callback) => {
+        if (ref === 'room-ref') {
+            callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+        }
+        return () => {};
     });
+
+    renderWaiting();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    expect(await screen.findByText('You have not joined this room.')).toBeInTheDocument();
+    expect(signOut).not.toHaveBeenCalled();
+    expect(readPlayerSession()).not.toBeNull();
+});
 ```
 
 The dialog's confirm button is labeled "Confirm," not "Leave" — every
@@ -1271,9 +1281,9 @@ Inside the `PlayerGame` component, add the disclosure hook and a ref,
 mirroring `PlayerRemove.js`'s pattern exactly:
 
 ```js
-    const { isOpen, onOpen, onClose } = useDisclosure();
-    const cancelRef = React.useRef();
-    const createAlert = CreateAlert();
+const { isOpen, onOpen, onClose } = useDisclosure();
+const cancelRef = React.useRef();
+const createAlert = CreateAlert();
 ```
 
 (`React` is already imported as the default import at the top of this
@@ -1288,28 +1298,28 @@ Replace `handleLeave` (currently signs out immediately) with a two-step
 flow — the button opens the dialog, confirming calls `leaveGame` first:
 
 ```js
-    const handleLeaveClick = () => {
-        onOpen();
-    };
+const handleLeaveClick = () => {
+    onOpen();
+};
 
-    const handleConfirmLeave = async () => {
-        try {
-            await leaveGame(roomID);
-        } catch (err) {
-            console.error('Error leaving game:', err);
-            onClose();
-            createAlert('error', 'Error leaving game', err.message, 1500);
-            return;
-        }
+const handleConfirmLeave = async () => {
+    try {
+        await leaveGame(roomID);
+    } catch (err) {
+        console.error('Error leaving game:', err);
+        onClose();
+        createAlert('error', 'Error leaving game', err.message, 1500);
+        return;
+    }
 
-        try {
-            await signOut(auth);
-        } catch (err) {
-            console.error('Error signing out:', err);
-        }
-        clearPlayerSession();
-        navigate('/');
-    };
+    try {
+        await signOut(auth);
+    } catch (err) {
+        console.error('Error signing out:', err);
+    }
+    clearPlayerSession();
+    navigate('/');
+};
 ```
 
 Update the JSX: replace the existing `<Button ... onClick={handleLeave}>Leave</Button>`
@@ -1377,6 +1387,7 @@ depend on Task 1 having landed — safe to do anytime after Task 1, or in
 parallel with Tasks 2-5.
 
 **Files:**
+
 - Modify: `docs/commands.md`
 - Modify: `docs/architecture.md:246-285`
 - Modify: `docs/game-flows.md`
@@ -1398,9 +1409,9 @@ Permanently removes a player from the game — self-service leaving has an
 equivalent player-facing "Leave" button
 (docs/superpowers/specs/2026-08-29-player-leave-and-kick-design.md).
 
-| Check             | Failure                    |
-| ------------------ | --------------------------- |
-| Player in roster  | `Player {name} is invalid` |
+| Check            | Failure                    |
+| ---------------- | -------------------------- |
+| Player in roster | `Player {name} is invalid` |
 
 Effects: the player is unmapped from the target graph (whoever was
 hunting them gets a new target; whoever they were hunting gets a new
@@ -1444,7 +1455,7 @@ exact mermaid sequence-diagram style, then add a new numbered section
 after "## 4. Reviving a player" and before "## Where each flow updates the
 screen":
 
-`````markdown
+````markdown
 ## 5. Leaving or being removed from the game
 
 Two entry points, one shared server-side operation
@@ -1496,7 +1507,7 @@ is meant to be final.
 (still in the Lobby waiting room) has empty `targets`/`assassins` arrays,
 so the remap step is a no-op — the same Cloud Function handles both
 phases without branching.
-`````
+````
 
 - [ ] **Step 4: Run the format check**
 
