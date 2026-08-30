@@ -245,7 +245,7 @@ Gaps that remain, per [improvements.md](./improvements.md):
 
 ## Cloud Functions
 
-`functions/` contains nine callables and one scheduled function:
+`functions/` contains eleven callables and one scheduled function:
 
 - `targetFunction` — a stub that checks `context.auth` and echoes its input
   back. Nothing in the game depends on it; its only caller, a debug button
@@ -283,6 +283,24 @@ Gaps that remain, per [improvements.md](./improvements.md):
   one Firestore transaction. `src/components/completeMission.js` is its
   thin `httpsCallable` wrapper, called by both `ChatInput.js`'s
   `/mission done` and `PhotosDisplay.js`'s photo-approval flow.
+- `leaveGame` (`functions/callableFunctions/removePlayer.js`) — lets a
+  player permanently remove themselves from a room
+  (docs/superpowers/specs/2026-08-29-player-leave-and-kick-design.md).
+  Unmaps them from the target graph and reassigns whoever that leaves
+  short, the same remap step `killPlayer` uses, then deletes their
+  document. Resolves which player to remove from the caller's own uid, so
+  a player can only remove themselves. Also writes its own GM-log and
+  player-broadcast announcement inside the same transaction —
+  `firestore.rules` restricts both collections to the room's host, so a
+  player's own browser cannot write either directly.
+  `src/components/leaveGame.js` is its thin `httpsCallable` wrapper.
+- `removePlayer` (`functions/callableFunctions/removePlayer.js`) — the
+  moderator-initiated counterpart, powering the console's `/kick <player>`
+  command. Shares the same unmap/remap/delete step `leaveGame` uses (both
+  live in the same file), host-only, and writes no announcement of its
+  own — `ChatInput.js` logs and broadcasts after the call succeeds,
+  exactly like `/kill` already does. `src/components/removePlayer.js` is
+  its thin `httpsCallable` wrapper.
 - `undoMissionPhotoApproval` / `undoMissionCommand`
   (`functions/callableFunctions/undoMissionCompletion.js`) — the atomic
   reversal of a mission completion, mirroring `undoKillPlayer`'s replay

@@ -179,6 +179,22 @@ triggered one. Shows an error ("Nothing to undo.") if there is no typed
 completion left to undo, either because none was ever made or because it
 was already undone.
 
+### `/kick <player>`
+
+Permanently removes a player from the game — self-service leaving has an
+equivalent player-facing "Leave" button
+(docs/superpowers/specs/2026-08-29-player-leave-and-kick-design.md).
+
+| Check            | Failure                    |
+| ---------------- | -------------------------- |
+| Player in roster | `Player {name} is invalid` |
+
+Effects: the player is unmapped from the target graph (whoever was
+hunting them gets a new target; whoever they were hunting gets a new
+assassin, the same remap `/kill` triggers), and their document is deleted
+outright — not marked dead, no trace kept. No score changes hands. This
+cannot be undone, and the removed player cannot rejoin this room.
+
 ### `/whisper <player> <message>`
 
 Sends a private, player-facing message — visible only to the named player,

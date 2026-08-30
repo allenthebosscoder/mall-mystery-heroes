@@ -353,6 +353,60 @@ produced no feedback at all; fixed by `docs/improvements.md` item 21.
 
 ---
 
+## 5. Leaving or being removed from the game
+
+Two entry points, one shared server-side operation
+(docs/superpowers/specs/2026-08-29-player-leave-and-kick-design.md):
+a player's own "Leave" button (`PlayerGame.js`), and a moderator's
+`/kick <player>` command (`ChatInput.js`). Both call into
+`functions/callableFunctions/removePlayer.js`'s shared `removeAndRemap`
+step, which mirrors `killPlayer`'s unmap-then-remap section — minus the
+score transfer and `isAlive` reset, since this deletes the player's
+document outright rather than marking them dead.
+
+```mermaid
+sequenceDiagram
+    actor Player
+    actor GM
+    participant PG as PlayerGame
+    participant CI as ChatInput
+    participant LG as leaveGame (client)
+    participant RP as removePlayer (client)
+    participant CF as removePlayer.js (Cloud Function)
+    participant FS as Firestore
+
+    Player->>PG: taps Leave, confirms
+    PG->>LG: leaveGame(roomID)
+    LG->>CF: httpsCallable('leaveGame', {roomId})
+    CF->>FS: runTransaction: find player by uid, unmap, remap, delete
+    CF->>FS: write own logs + playerMessages announcement
+    CF-->>LG: {removedPlayerName, addedTargets, addedAssassins, remapLogs}
+    LG-->>PG: same response
+    PG->>PG: sign out, clear session, navigate home
+
+    GM->>CI: /kick alice
+    CI->>RP: removePlayer(playerName, roomID)
+    RP->>CF: httpsCallable('removePlayer', {roomId, playerName})
+    CF->>FS: runTransaction: host check, find player by name, unmap, remap, delete
+    CF-->>RP: {removedPlayerName, addedTargets, addedAssassins, remapLogs}
+    RP-->>CI: same response
+    CI->>CI: addLog + broadcast "alice was removed from the game"
+    CI->>CI: handleRemapping / handleAddNewTargets / handleAddNewAssassins
+```
+
+**No score changes hands.** Unlike a kill, nobody gains the removed
+player's points.
+
+**No undo.** Neither path has a reversal mechanism, deliberately — this
+is meant to be final.
+
+**Works pre-game too.** A player who hasn't been assigned targets yet
+(still in the Lobby waiting room) has empty `targets`/`assassins` arrays,
+so the remap step is a no-op — the same Cloud Function handles both
+phases without branching.
+
+---
+
 ## Where each flow updates the screen
 
 Because [state lives in three places](./architecture.md#state-management), each
