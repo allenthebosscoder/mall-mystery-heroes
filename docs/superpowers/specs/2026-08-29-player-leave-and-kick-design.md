@@ -152,7 +152,10 @@ shape: `leaveGame(roomID)` and `removePlayer(playerName, roomID)`.
 
 `handleLeave` no longer signs out immediately on click. The "Leave" button
 opens a confirmation `AlertDialog` ("Leave the game? You'll be removed and
-cannot rejoin." / Go Back / Leave). Confirming calls the new `leaveGame`
+cannot rejoin." / Go Back / Confirm — a distinct label from the trigger's
+"Leave", matching `PlayerRemove.js`'s own trigger/confirm naming so the
+two never collide as same-named buttons once the dialog is open).
+Confirming calls the new `leaveGame`
 wrapper (which announces the departure itself — see above, this page
 writes nothing to `logs`/`playerMessages` directly, and could not even if
 it wanted to), then runs the existing `signOut(auth)` + `clearPlayerSession()`
