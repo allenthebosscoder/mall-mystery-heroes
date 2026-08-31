@@ -46,10 +46,10 @@ player reclaiming their own identity.
   reconnect's own validation (does a player with this name actually
   exist?) fully independent.
 - **No new rate limiting.** `submitKillPhoto.js`/`submitChatMessage.js`
-  rate-limit by storing a rolling window on the *submitting* player's own
+  rate-limit by storing a rolling window on the _submitting_ player's own
   document — but a reconnect requester has no player document under their
   new uid (that's the entire premise; they're requesting one). Keying a
-  limit to the *target* name instead would risk a legitimate second
+  limit to the _target_ name instead would risk a legitimate second
   attempt by the real returning player being blocked by an unrelated
   prior request against the same name. Given every request still requires
   explicit GM approval regardless of volume — capping the actual
@@ -74,7 +74,7 @@ matching this codebase's convention:
   confirmed as much, but this function doesn't trust that), and the room
   is still active (`isGameActive !== false && !endedAt`, mirroring
   `joinRoom.js`'s own identical check and its exact `'This room is no
-  longer active.'` wording) — a reconnect request against an already-
+longer active.'` wording) — a reconnect request against an already-
   ended room has nothing to rejoin. Then looks up
   a player document by `normalizePlayerName(playerName)` the same way
   `joinRoom.js` keys its own lookup (`trimmedNameLowerCase` as the doc
@@ -142,7 +142,7 @@ via `onSnapshot`:
 - `status === 'pending'` → "Waiting for the host to approve your
   reconnect…"
 - `status === 'approved'` → calls `writePlayerSession(roomID,
-  playerName)` (the name came back in the request document itself, real
+playerName)` (the name came back in the request document itself, real
   stored casing) and navigates to `/rooms/${roomID}/waiting` — the normal
   `PlayerGame.js` flow, which now succeeds since this device's uid just
   landed in `joinedUids`.

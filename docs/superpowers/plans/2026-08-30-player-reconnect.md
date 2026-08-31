@@ -69,6 +69,7 @@ Jest (`node`/`jsdom`/`integration`/`rules` projects per `jest.config.js`).
 ## Task 1: `reconnectRequest.js` Cloud Function + rules coverage
 
 **Files:**
+
 - Create: `functions/callableFunctions/reconnectRequest.js`
 - Create: `src/components/reconnectRequestCallable.integration.test.js`
 - Modify: `functions/index.js`
@@ -77,18 +78,19 @@ Jest (`node`/`jsdom`/`integration`/`rules` projects per `jest.config.js`).
 - Modify: `docs/testing.md` (emulator suite count and enumeration)
 
 **Interfaces:**
+
 - Produces: three `onCall` Cloud Functions.
-  - `requestReconnect({roomId, playerName})` → `{requestId}`. No host
-    check — callable by anyone signed in.
-  - `approveReconnectRequest({roomId, requestId})` → nothing meaningful.
-    Host-only.
-  - `denyReconnectRequest({roomId, requestId})` → nothing meaningful.
-    Host-only.
-  - All three throw `HttpsError`s: `unauthenticated` (no `context.auth`),
-    `invalid-argument` (missing arguments), `not-found` (room/request/
-    player not found), `failed-precondition` (game not started yet, room
-    no longer active, request already resolved), `permission-denied`
-    (judgment functions called by a non-host).
+    - `requestReconnect({roomId, playerName})` → `{requestId}`. No host
+      check — callable by anyone signed in.
+    - `approveReconnectRequest({roomId, requestId})` → nothing meaningful.
+      Host-only.
+    - `denyReconnectRequest({roomId, requestId})` → nothing meaningful.
+      Host-only.
+    - All three throw `HttpsError`s: `unauthenticated` (no `context.auth`),
+      `invalid-argument` (missing arguments), `not-found` (room/request/
+      player not found), `failed-precondition` (game not started yet, room
+      no longer active, request already resolved), `permission-denied`
+      (judgment functions called by a non-host).
 - Task 2 (the client wrappers) consumes all three callable names and
   argument shapes verbatim.
 
@@ -195,7 +197,9 @@ describe('approveReconnectRequest', () => {
         expect((await fetchPlayerForRoom('alice', ROOM)).data().uid).toBe(auth.currentUser.uid);
         const roomSnapshot = await getDoc(doc(db, 'rooms', ROOM));
         expect(roomSnapshot.data().joinedUids).toContain(auth.currentUser.uid);
-        const requestSnapshot = await getDoc(doc(db, 'rooms', ROOM, 'reconnectRequests', requestId));
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
         expect(requestSnapshot.data().status).toBe('approved');
     });
 
@@ -204,9 +208,9 @@ describe('approveReconnectRequest', () => {
         const { requestId } = await requestReconnect(ROOM, 'alice');
         const approveAsNonHost = callableAsNonHost('approveReconnectRequest');
 
-        await expect(
-            approveAsNonHost({ roomId: ROOM, requestId })
-        ).rejects.toThrow(/permission-denied|host/i);
+        await expect(approveAsNonHost({ roomId: ROOM, requestId })).rejects.toThrow(
+            /permission-denied|host/i
+        );
         expect((await fetchPlayerForRoom('alice', ROOM)).data().uid).toBeUndefined();
     });
 
@@ -229,7 +233,9 @@ describe('approveReconnectRequest', () => {
         await expect(approveReconnectRequest(ROOM, requestId)).rejects.toThrow(
             'The player this request was for no longer exists.'
         );
-        const requestSnapshot = await getDoc(doc(db, 'rooms', ROOM, 'reconnectRequests', requestId));
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
         expect(requestSnapshot.data().status).toBe('pending');
     });
 });
@@ -241,7 +247,9 @@ describe('denyReconnectRequest', () => {
 
         await denyReconnectRequest(ROOM, requestId);
 
-        const requestSnapshot = await getDoc(doc(db, 'rooms', ROOM, 'reconnectRequests', requestId));
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
         expect(requestSnapshot.data().status).toBe('denied');
         expect((await fetchPlayerForRoom('alice', ROOM)).data().uid).toBeUndefined();
     });
@@ -505,10 +513,14 @@ Add, following the file's existing require/exports pattern exactly
 (double-quoted requires, no semicolons after the `exports.X = X` lines):
 
 ```js
-const { requestReconnect, approveReconnectRequest, denyReconnectRequest } = require("./callableFunctions/reconnectRequest")
-exports.requestReconnect = requestReconnect
-exports.approveReconnectRequest = approveReconnectRequest
-exports.denyReconnectRequest = denyReconnectRequest
+const {
+    requestReconnect,
+    approveReconnectRequest,
+    denyReconnectRequest,
+} = require('./callableFunctions/reconnectRequest');
+exports.requestReconnect = requestReconnect;
+exports.approveReconnectRequest = approveReconnectRequest;
+exports.denyReconnectRequest = denyReconnectRequest;
 ```
 
 Insert this block after the `leaveGame`/`removePlayer` block and before
@@ -545,12 +557,12 @@ one new seeded document there, alongside the existing `room-a`/`alice`/
 `bob`/`task-1` seeds:
 
 ```js
-        await setDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'), {
-            playerName: 'alice',
-            trimmedNameLowerCase: 'alice',
-            requestingUid: OTHER_UID,
-            status: 'pending',
-        });
+await setDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'), {
+    playerName: 'alice',
+    trimmedNameLowerCase: 'alice',
+    requestingUid: OTHER_UID,
+    status: 'pending',
+});
 ```
 
 (`OTHER_UID` already exists in this file as "a signed-in stranger who has
@@ -571,16 +583,12 @@ describe('rooms/{roomId}/reconnectRequests/{requestId}', () => {
 
     it('allows the host to read', async () => {
         const db = testEnv.authenticatedContext(HOST_UID).firestore();
-        await assertSucceeds(
-            getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'))
-        );
+        await assertSucceeds(getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1')));
     });
 
     it('allows the requester named on the request to read their own request', async () => {
         const db = testEnv.authenticatedContext(OTHER_UID).firestore();
-        await assertSucceeds(
-            getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'))
-        );
+        await assertSucceeds(getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1')));
     });
 
     it("denies a signed-in stranger who isn't the host or the requester", async () => {
@@ -665,11 +673,13 @@ git commit -m "Add reconnectRequest Cloud Functions and their rules coverage"
 ## Task 2: Client wrappers
 
 **Files:**
+
 - Create: `src/components/requestReconnect.js`
 - Create: `src/components/approveReconnectRequest.js`
 - Create: `src/components/denyReconnectRequest.js`
 
 **Interfaces:**
+
 - Consumes: the three callables from Task 1.
 - Produces: `requestReconnect(roomID, playerName)` → resolves to
   `{requestId}`; `approveReconnectRequest(roomID, requestId)` and
@@ -773,10 +783,12 @@ git commit -m "Add reconnect-request client wrappers"
 Fully independent of every other task — can run anytime.
 
 **Files:**
+
 - Modify: `src/components/firebase_calls/dbCalls.js`
 - Modify: `docs/data-model.md`
 
 **Interfaces:**
+
 - Produces: `fetchReconnectRequestReferenceForRoom(requestId, roomID)` —
   a single doc reference for `onSnapshot`. `fetchPendingReconnectRequestsQueryForRoom(roomID)`
   — a live query filtered to `status === 'pending'`. Task 5 consumes the
@@ -814,8 +826,7 @@ but no new imports should be needed.)
 
 - [ ] **Step 2: Document the new subcollection in `docs/data-model.md`**
 
-Read the existing `rooms/{roomID}/photos/{autoId}` section (around line
-216) fresh for its exact prose-then-table format, then add a new section
+Read the existing `rooms/{roomID}/photos/{autoId}` section (around line 216) fresh for its exact prose-then-table format, then add a new section
 in the same style — insert it after the `playerMessages` section (around
 line 289) and before `## Room cleanup`:
 
@@ -834,13 +845,13 @@ run under the Admin SDK, which bypasses `firestore.rules` entirely —
 `allow create` at all, unlike `photos`/`playerMessages`, which at least
 had one once (see those sections above).
 
-| Field                 | Type                                   | Notes                                                                                                                                                     |
-| ---------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `playerName`           | `string`                                | The existing player's real stored-casing `name`, copied from their player document at request time.                                                     |
-| `trimmedNameLowerCase` | `string`                                | The lookup key — same scheme every player document ID already uses. `approveReconnectRequest` re-reads the player document by this field, not by name.  |
-| `requestingUid`        | `string`                                | The new device's `context.auth.uid`. Written to the player document's own `uid` field, and added to the room's `joinedUids`, only once approved.        |
-| `status`               | `'pending' \| 'approved' \| 'denied'`   | Set once, never reverted — a resolved request cannot be re-judged; a fresh reconnect attempt creates a new request document instead.                    |
-| `timestamp`            | `Timestamp`                             | `serverTimestamp()`, set once at creation.                                                                                                               |
+| Field                  | Type                                  | Notes                                                                                                                                                  |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `playerName`           | `string`                              | The existing player's real stored-casing `name`, copied from their player document at request time.                                                    |
+| `trimmedNameLowerCase` | `string`                              | The lookup key — same scheme every player document ID already uses. `approveReconnectRequest` re-reads the player document by this field, not by name. |
+| `requestingUid`        | `string`                              | The new device's `context.auth.uid`. Written to the player document's own `uid` field, and added to the room's `joinedUids`, only once approved.       |
+| `status`               | `'pending' \| 'approved' \| 'denied'` | Set once, never reverted — a resolved request cannot be re-judged; a fresh reconnect attempt creates a new request document instead.                   |
+| `timestamp`            | `Timestamp`                           | `serverTimestamp()`, set once at creation.                                                                                                             |
 
 `firestore.rules`' `reconnectRequests` `allow read` grant lets the
 requester read their own request (`resource.data.requestingUid ==
@@ -873,12 +884,14 @@ git commit -m "Add dbCalls reads for reconnect requests"
 ## Task 4: `JoinGame.js` reconnect fallback
 
 **Files:**
+
 - Modify: `src/pages/JoinGame.js`
 - Test: `src/pages/JoinGame.test.jsx` (create if it doesn't already
   exist — check first; if it exists, extend it following its own
   established conventions instead of the shape below)
 
 **Interfaces:**
+
 - Consumes: `requestReconnect(roomID, playerName)` from Task 2.
 - Produces: nothing new for later tasks — this is the player-facing entry
   point, self-contained.
@@ -956,9 +969,7 @@ describe('the reconnect fallback', () => {
         renderJoinGame();
         await fillAndSubmit('Fluffy42317', 'Alice');
 
-        await waitFor(() =>
-            expect(requestReconnect).toHaveBeenCalledWith('Fluffy42317', 'Alice')
-        );
+        await waitFor(() => expect(requestReconnect).toHaveBeenCalledWith('Fluffy42317', 'Alice'));
         expect(await screen.findByText('Reconnecting page')).toBeInTheDocument();
     });
 
@@ -981,9 +992,7 @@ describe('the reconnect fallback', () => {
         renderJoinGame();
         await fillAndSubmit('Fluffy42317', 'Alice');
 
-        expect(
-            await screen.findByText('No player named Alice in this room.')
-        ).toBeInTheDocument();
+        expect(await screen.findByText('No player named Alice in this room.')).toBeInTheDocument();
     });
 });
 ```
@@ -1066,11 +1075,13 @@ git commit -m "Fall back to a reconnect request when joining a started game"
 ## Task 5: `ReconnectPending.js` page + route
 
 **Files:**
+
 - Create: `src/pages/ReconnectPending.js`
 - Create: `src/pages/ReconnectPending.test.jsx`
 - Modify: `src/App.js`
 
 **Interfaces:**
+
 - Consumes: `fetchReconnectRequestReferenceForRoom(requestId, roomID)`
   from Task 3.
 - Produces: nothing new for later tasks — this is the requester-facing
@@ -1134,10 +1145,7 @@ it('fetches the request for this room and requestId', () => {
     onSnapshot.mockImplementation(() => () => {});
     renderPending();
 
-    expect(fetchReconnectRequestReferenceForRoom).toHaveBeenCalledWith(
-        'request-1',
-        'Fluffy42317'
-    );
+    expect(fetchReconnectRequestReferenceForRoom).toHaveBeenCalledWith('request-1', 'Fluffy42317');
 });
 
 it('shows a waiting message while the request is pending', () => {
@@ -1148,9 +1156,7 @@ it('shows a waiting message while the request is pending', () => {
 
     renderPending();
 
-    expect(
-        screen.getByText('Waiting for the host to approve your reconnect…')
-    ).toBeInTheDocument();
+    expect(screen.getByText('Waiting for the host to approve your reconnect…')).toBeInTheDocument();
 });
 
 it('writes the session and navigates to the waiting room once approved', async () => {
@@ -1294,14 +1300,14 @@ Add the new route, mirroring the `/rooms/:roomID/waiting` route's exact
 `RequireAuth` wrapping — insert it right after that route:
 
 ```jsx
-                    <Route
-                        path="/rooms/:roomID/reconnecting/:requestId"
-                        element={
-                            <RequireAuth>
-                                <ReconnectPending />
-                            </RequireAuth>
-                        }
-                    />
+<Route
+    path="/rooms/:roomID/reconnecting/:requestId"
+    element={
+        <RequireAuth>
+            <ReconnectPending />
+        </RequireAuth>
+    }
+/>
 ```
 
 - [ ] **Step 5: Run the tests to verify they pass**
@@ -1330,11 +1336,13 @@ git commit -m "Add the reconnect-pending page and its route"
 ## Task 6: `ReconnectRequests.js` GM component + wiring
 
 **Files:**
+
 - Create: `src/components/ReconnectRequests.js`
 - Create: `src/components/ReconnectRequests.test.jsx`
 - Modify: `src/pages/GameMasterView.js`
 
 **Interfaces:**
+
 - Consumes: `approveReconnectRequest`/`denyReconnectRequest` from Task 2;
   `fetchPendingReconnectRequestsQueryForRoom` from Task 3.
 - Produces: nothing new for later tasks — this is the last piece, the
@@ -1450,9 +1458,7 @@ it('shows an error toast when Approve is rejected', async () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
 
-    expect(
-        await screen.findByText('This request has already been denied.')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('This request has already been denied.')).toBeInTheDocument();
 });
 
 it('shows an error toast when Deny is rejected', async () => {
@@ -1461,9 +1467,7 @@ it('shows an error toast when Deny is rejected', async () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
 
-    expect(
-        await screen.findByText('This request has already been approved.')
-    ).toBeInTheDocument();
+    expect(await screen.findByText('This request has already been approved.')).toBeInTheDocument();
 });
 ```
 
@@ -1602,9 +1606,9 @@ still inside the outer `gameContext.Provider` (so `roomID` resolves via
 `useContext(gameContext)`):
 
 ```jsx
-                <executionContext.Provider value={executionContextProviderValues}>
-                    <ReconnectRequests />
-                </executionContext.Provider>
+<executionContext.Provider value={executionContextProviderValues}>
+    <ReconnectRequests />
+</executionContext.Provider>
 ```
 
 - [ ] **Step 4.5: Stub `ReconnectRequests` in `GameMasterView.test.jsx`**
