@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from '../utils/firebase';
 import { joinRoom } from '../components/joinRoom';
+import { requestReconnect } from '../components/requestReconnect';
 import { writePlayerSession } from '../utils/playerSession';
 
 const JoinGame = () => {
@@ -33,8 +34,19 @@ const JoinGame = () => {
             writePlayerSession(trimmedGameId, playerName);
             navigate(`/rooms/${trimmedGameId}/waiting`);
         } catch (err) {
-            setErrorMessage(err.message);
-            console.error('Error joining game:', err);
+            if (err.message !== 'This game has already started.') {
+                setErrorMessage(err.message);
+                console.error('Error joining game:', err);
+                return;
+            }
+
+            try {
+                const { requestId } = await requestReconnect(trimmedGameId, playerName);
+                navigate(`/rooms/${trimmedGameId}/reconnecting/${requestId}`);
+            } catch (reconnectErr) {
+                setErrorMessage(reconnectErr.message);
+                console.error('Error requesting reconnect:', reconnectErr);
+            }
         } finally {
             setIsSubmitting(false);
         }
