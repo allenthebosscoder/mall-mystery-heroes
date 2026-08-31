@@ -413,6 +413,22 @@ export const fetchPlayerReferenceForRoom = (playerName, roomID) => {
     return doc(db, 'rooms', roomID, 'players', normalizePlayerName(playerName));
 };
 
+// A reference to a specific reconnect request, for onSnapshot — lets
+// ReconnectPending.js watch its own request's status live
+// (docs/superpowers/specs/2026-08-30-player-reconnect-design.md).
+export const fetchReconnectRequestReferenceForRoom = (requestId, roomID) => {
+    return doc(db, 'rooms', roomID, 'reconnectRequests', requestId);
+};
+
+// A query of a room's still-pending reconnect requests, for onSnapshot —
+// lets ReconnectRequests.js show the GM a live list to judge, the same
+// role fetchPhotosQueryByAscendingTimestampForRoom plays for kill photos
+// (docs/superpowers/specs/2026-08-30-player-reconnect-design.md).
+export const fetchPendingReconnectRequestsQueryForRoom = (roomID) => {
+    const requestsCollectionRef = collection(db, 'rooms', roomID, 'reconnectRequests');
+    return query(requestsCollectionRef, where('status', '==', 'pending'));
+};
+
 export const setOpenSznOfPlayerToValueForRoom = async (openSeasonPlayer, value, roomID) => {
     const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
     const playerQuery = query(

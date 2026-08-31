@@ -393,6 +393,36 @@ prop `PlayerGame.js` passes through).
 
 ---
 
+## `rooms/{roomID}/reconnectRequests/{autoId}`
+
+Pending requests from a player whose device is signed in under a
+different uid than the one that originally joined, asking to reclaim an
+existing name once the game has started — written by the
+`requestReconnect` Cloud Function
+(`functions/callableFunctions/reconnectRequest.js`), judged by the host
+via `approveReconnectRequest`/`denyReconnectRequest`
+(docs/superpowers/specs/2026-08-30-player-reconnect-design.md). All three
+run under the Admin SDK, which bypasses `firestore.rules` entirely —
+`firestore.rules`' `reconnectRequests` match block has no player-facing
+`allow create` at all, unlike `photos`/`playerMessages`, which at least
+had one once (see those sections above).
+
+| Field                  | Type                                  | Notes                                                                                                                                                  |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `playerName`           | `string`                              | The existing player's real stored-casing `name`, copied from their player document at request time.                                                    |
+| `trimmedNameLowerCase` | `string`                              | The lookup key — same scheme every player document ID already uses. `approveReconnectRequest` re-reads the player document by this field, not by name. |
+| `requestingUid`        | `string`                              | The new device's `context.auth.uid`. Written to the player document's own `uid` field, and added to the room's `joinedUids`, only once approved.       |
+| `status`               | `'pending' \| 'approved' \| 'denied'` | Set once, never reverted — a resolved request cannot be re-judged; a fresh reconnect attempt creates a new request document instead.                   |
+| `timestamp`            | `Timestamp`                           | `serverTimestamp()`, set once at creation.                                                                                                             |
+
+`firestore.rules`' `reconnectRequests` `allow read` grant lets the
+requester read their own request (`resource.data.requestingUid ==
+request.auth.uid`) and lets the host read/list every request for their
+room — nobody else can read this collection at all, and no client write
+is ever permitted (`allow write: if false`).
+
+---
+
 ## Room cleanup
 
 `functions/scheduledFunctions/cleanupEndedRooms.js` runs once every 24
