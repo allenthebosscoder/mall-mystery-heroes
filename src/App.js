@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import NotFound from './pages/NotFound';
 import PasswordReset from './pages/PasswordReset';
 import PlayerGame from './pages/PlayerGame';
+import ReconnectPending from './pages/ReconnectPending';
 import RequireAuth from './components/RequireAuth';
 import SignUp from './pages/SignUp';
 import theme from './theme'; // Import your custom theme
@@ -45,6 +46,14 @@ function App() {
                         element={
                             <RequireAuth>
                                 <PlayerGame />
+                            </RequireAuth>
+                        }
+                    />
+                    <Route
+                        path="/rooms/:roomID/reconnecting/:requestId"
+                        element={
+                            <RequireAuth>
+                                <ReconnectPending />
                             </RequireAuth>
                         }
                     />
