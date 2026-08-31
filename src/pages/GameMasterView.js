@@ -22,6 +22,7 @@ import { gameContext, executionContext } from '../components/Contexts';
 import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
 import GMChatPanel from '../components/player_messages_components/GMChatPanel';
+import ReconnectRequests from '../components/ReconnectRequests';
 
 const GameMasterView = () => {
     const { roomID } = useParams();
@@ -259,6 +260,14 @@ const GameMasterView = () => {
                 <Box h="6%" m="2px" marginX="4px">
                     <HeaderExecution addLog={addLog} arrayOfAlivePlayers={aliveNames} />
                 </Box>
+
+                {/* ReconnectRequests needs addLog from executionContext, but
+                    belongs visually in the header area, which sits outside
+                    both narrower executionContext.Provider scopes below —
+                    same situation as TaskListModal above, same fix. */}
+                <executionContext.Provider value={executionContextProviderValues}>
+                    <ReconnectRequests />
+                </executionContext.Provider>
 
                 <HStack sx={styles.gameDisplayWrapper}>
                     <Box sx={styles.playersListWrapper}>

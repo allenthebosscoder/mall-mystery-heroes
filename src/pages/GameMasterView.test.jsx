@@ -64,6 +64,7 @@ jest.mock('../components/logs_components/ChatInput', () => {
 jest.mock('../components/photos_display_component/PhotosDisplay', () => () => (
     <div>photos-display-stub</div>
 ));
+jest.mock('../components/ReconnectRequests', () => () => <div>reconnect-requests-stub</div>);
 jest.mock('../components/player_messages_components/GMChatPanel', () => (props) => (
     <div>gm-chat-panel-stub roomID={props.roomID}</div>
 ));
