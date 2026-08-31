@@ -65,6 +65,19 @@ exports.requestReconnect = functions.https.onCall(async (data, context) => {
                 'This room is no longer active.'
             );
         }
+        // Mirrors joinRoom.js's identical joinedUids check (docs/improvements.md
+        // item 66) — without it, an already-joined device (or the host,
+        // mis-tapping "Join Game") submitting the join form under someone
+        // else's name after the game has started falls straight through
+        // joinRoom.js's own "already started" rejection into this reconnect
+        // fallback, and approveReconnectRequest would otherwise be willing to
+        // link this uid onto a second player doc.
+        if ((roomSnapshot.data().joinedUids || []).includes(context.auth.uid)) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'This device is already signed in as a player in this room.'
+            );
+        }
 
         const trimmedLowercaseName = normalizePlayerName(playerName);
         const playerSnapshot = await transaction.get(playersRef.doc(trimmedLowercaseName));
@@ -146,6 +159,28 @@ exports.approveReconnectRequest = functions.https.onCall(async (data, context) =
             throw new functions.https.HttpsError(
                 'not-found',
                 'The player this request was for no longer exists.'
+            );
+        }
+
+        // Belt-and-braces version of requestReconnect's own joinedUids check:
+        // a request can sit pending while its requester joins this room by
+        // some other route in the meantime, so re-check right before writing
+        // rather than trusting that nothing changed since the request was
+        // created (docs/improvements.md item 66). Mirrors removePlayer.js's
+        // precedent for running a `.where(...)` query inside a transaction.
+        // Excludes the target player doc itself — re-linking a request to
+        // the SAME player it already targets (e.g. re-approving) must not be
+        // blocked by this guard.
+        const playersAlreadyLinkedToThisUidSnapshot = await transaction.get(
+            roomRef.collection('players').where('uid', '==', requestData.requestingUid)
+        );
+        const linkedToADifferentPlayer = playersAlreadyLinkedToThisUidSnapshot.docs.some(
+            (doc) => doc.id !== playerRef.id
+        );
+        if (linkedToADifferentPlayer) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'This device is already linked to a different player in this room.'
             );
         }
 

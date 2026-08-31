@@ -421,6 +421,17 @@ request.auth.uid`) and lets the host read/list every request for their
 room — nobody else can read this collection at all, and no client write
 is ever permitted (`allow write: if false`).
 
+Approving a reconnect adds the new uid to `joinedUids` but never removes
+the superseded old one — the old device keeps read access to the room (it
+can no longer write anything, since every write path resolves the player
+by a `where('uid', '==', ...)` query that will no longer match it, the old
+uid having been overwritten on the player doc). This matches the same
+accepted behavior `removePlayer.js`'s `removeAndRemap` already has (it
+deletes the player doc without touching `joinedUids` either). Blind
+pruning isn't safe here — the old uid could legitimately still be a
+different, unrelated player in some future scenario — so this is a
+deliberate trade-off, not an oversight.
+
 ---
 
 ## Room cleanup

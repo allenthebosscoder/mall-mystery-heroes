@@ -13,7 +13,7 @@ import { approveReconnectRequest } from './approveReconnectRequest';
 import { denyReconnectRequest } from './denyReconnectRequest';
 import { fetchPlayerForRoom } from './firebase_calls/dbCalls';
 import { auth, db } from '../utils/firebase';
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { callableAsNonHost, clearFirestore, seedRoom, shutdown } from '../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
@@ -84,6 +84,48 @@ describe('requestReconnect', () => {
             'Room not found: nonexistent-room'
         );
     });
+
+    // docs/improvements.md item 66: without this check, an already-joined
+    // caller (or the host, mis-tapping "Join Game") submitting the join
+    // form under someone else's name after the game has started falls
+    // straight through joinRoom.js's own "already started" rejection into
+    // this reconnect fallback — the guard this test covers is what stops
+    // that uid from ending up linked to a second player doc.
+    it('rejects a caller whose uid is already in joinedUids, writing nothing', async () => {
+        await seedRoom(ROOM, [{ name: 'alice' }], {
+            gameStarted: true,
+            joinedUids: [auth.currentUser.uid],
+        });
+
+        await expect(requestReconnect(ROOM, 'alice')).rejects.toThrow(
+            'This device is already signed in as a player in this room.'
+        );
+        const requestsSnapshot = await getDocs(collection(db, 'rooms', ROOM, 'reconnectRequests'));
+        expect(requestsSnapshot.docs).toHaveLength(0);
+    });
+
+    // The stored casing/whitespace round-trip: playerName/trimmedNameLowerCase
+    // on the request must reflect the player document's actual stored
+    // values, not whatever the requester happened to type.
+    it('stores the real stored casing and a normalized lookup key regardless of what was typed', async () => {
+        await seedRoom(ROOM, [{ name: 'Alice Smith' }], { gameStarted: true });
+
+        const result = await requestReconnect(ROOM, '  alice smith ');
+
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', result.requestId)
+        );
+        expect(requestSnapshot.data()).toMatchObject({
+            playerName: 'Alice Smith',
+            trimmedNameLowerCase: 'alicesmith',
+        });
+
+        await approveReconnectRequest(ROOM, result.requestId);
+
+        expect((await fetchPlayerForRoom('Alice Smith', ROOM)).data().uid).toBe(
+            auth.currentUser.uid
+        );
+    });
 });
 
 describe('approveReconnectRequest', () => {
@@ -121,6 +163,34 @@ describe('approveReconnectRequest', () => {
         await expect(approveReconnectRequest(ROOM, requestId)).rejects.toThrow(
             'This request has already been approved.'
         );
+    });
+
+    // Belt-and-braces version of requestReconnect's own joinedUids check
+    // (docs/improvements.md item 66): the request sat pending while its
+    // requester joined the room under a different name by some other route
+    // in the meantime.
+    it("rejects when the requester's uid already owns a different player doc by approval time, mutating nothing", async () => {
+        await seedRoom(ROOM, [{ name: 'alice' }], { gameStarted: true });
+        const { requestId } = await requestReconnect(ROOM, 'alice');
+        await setDoc(doc(db, 'rooms', ROOM, 'players', 'bob'), {
+            name: 'bob',
+            trimmedNameLowerCase: 'bob',
+            uid: auth.currentUser.uid,
+            isAlive: true,
+            score: 10,
+            targets: [],
+            assassins: [],
+            openSeason: false,
+        });
+
+        await expect(approveReconnectRequest(ROOM, requestId)).rejects.toThrow(
+            'This device is already linked to a different player in this room.'
+        );
+        expect((await fetchPlayerForRoom('alice', ROOM)).data().uid).toBeUndefined();
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
+        expect(requestSnapshot.data().status).toBe('pending');
     });
 
     it('rejects a request naming a player who no longer exists, mutating nothing', async () => {

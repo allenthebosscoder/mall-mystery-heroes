@@ -10,6 +10,7 @@ import {
     addDoc,
     orderBy,
     limitToLast,
+    limit,
     deleteDoc,
     arrayUnion,
     runTransaction,
@@ -426,7 +427,7 @@ export const fetchReconnectRequestReferenceForRoom = (requestId, roomID) => {
 // (docs/superpowers/specs/2026-08-30-player-reconnect-design.md).
 export const fetchPendingReconnectRequestsQueryForRoom = (roomID) => {
     const requestsCollectionRef = collection(db, 'rooms', roomID, 'reconnectRequests');
-    return query(requestsCollectionRef, where('status', '==', 'pending'));
+    return query(requestsCollectionRef, where('status', '==', 'pending'), limit(20));
 };
 
 export const setOpenSznOfPlayerToValueForRoom = async (openSeasonPlayer, value, roomID) => {
