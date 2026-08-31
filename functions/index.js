@@ -34,5 +34,10 @@ const { leaveGame, removePlayer } = require("./callableFunctions/removePlayer")
 exports.leaveGame = leaveGame
 exports.removePlayer = removePlayer
 
+const { requestReconnect, approveReconnectRequest, denyReconnectRequest } = require("./callableFunctions/reconnectRequest")
+exports.requestReconnect = requestReconnect
+exports.approveReconnectRequest = approveReconnectRequest
+exports.denyReconnectRequest = denyReconnectRequest
+
 const { cleanupEndedRooms } = require("./scheduledFunctions/cleanupEndedRooms")
 exports.cleanupEndedRooms = cleanupEndedRooms

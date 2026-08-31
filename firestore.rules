@@ -126,6 +126,23 @@ service cloud.firestore {
         // dbCalls.addPlayerMessageForRoom, authorized by `allow write` above —
         // untouched, a fully independent path.
       }
+
+      // No Player-facing `allow create` here at all, unlike photos/
+      // playerMessages above — every write to this collection goes
+      // through the three Cloud Functions in
+      // functions/callableFunctions/reconnectRequest.js (Admin SDK,
+      // bypasses rules entirely)
+      // (docs/superpowers/specs/2026-08-30-player-reconnect-design.md).
+      // The read grant covers both get and list uniformly (unlike the
+      // top-level rooms collection's split grant) — this subcollection's
+      // path is already bound to a known {roomId}, so it doesn't need
+      // the query-shape workaround the rooms-level `allow list` grant
+      // needs.
+      match /reconnectRequests/{requestId} {
+        allow read: if isHostOfExistingRoom(roomId) ||
+          (isSignedIn() && resource.data.requestingUid == request.auth.uid);
+        allow write: if false;
+      }
     }
 
     // Collection-group list, for session recovery (Homepage.js) when

@@ -89,6 +89,12 @@ beforeEach(async () => {
             title: 'Find the fountain',
             isComplete: false,
         });
+        await setDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'), {
+            playerName: 'alice',
+            trimmedNameLowerCase: 'alice',
+            requestingUid: OTHER_UID,
+            status: 'pending',
+        });
     });
 });
 
@@ -286,6 +292,50 @@ describe('rooms/{roomId}/players/{playerId}', () => {
         await assertSucceeds(
             updateDoc(doc(db, 'rooms', 'room-a', 'players', 'alice'), { score: 15 })
         );
+    });
+});
+
+describe('rooms/{roomId}/reconnectRequests/{requestId}', () => {
+    it('denies an unauthenticated read', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertFails(getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1')));
+    });
+
+    it('allows the host to read', async () => {
+        const db = testEnv.authenticatedContext(HOST_UID).firestore();
+        await assertSucceeds(
+            getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'))
+        );
+    });
+
+    it('allows the requester named on the request to read their own request', async () => {
+        const db = testEnv.authenticatedContext(OTHER_UID).firestore();
+        await assertSucceeds(
+            getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'))
+        );
+    });
+
+    it("denies a signed-in stranger who isn't the host or the requester", async () => {
+        const db = testEnv.authenticatedContext(PLAYER_UID).firestore();
+        await assertFails(getDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1')));
+    });
+
+    it('denies any client write, even from the host', async () => {
+        const db = testEnv.authenticatedContext(HOST_UID).firestore();
+        await assertFails(
+            updateDoc(doc(db, 'rooms', 'room-a', 'reconnectRequests', 'request-1'), {
+                status: 'approved',
+            })
+        );
+    });
+
+    it('allows the host to list pending requests', async () => {
+        const db = testEnv.authenticatedContext(HOST_UID).firestore();
+        const requestsQuery = query(
+            collection(db, 'rooms', 'room-a', 'reconnectRequests'),
+            where('status', '==', 'pending')
+        );
+        await assertSucceeds(getDocs(requestsQuery));
     });
 });
 
