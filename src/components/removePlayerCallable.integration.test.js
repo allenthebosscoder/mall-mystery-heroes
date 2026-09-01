@@ -9,9 +9,10 @@
  */
 import { leaveGame } from './leaveGame';
 import { removePlayer } from './removePlayer';
+import { requestReconnect } from './requestReconnect';
 import { fetchPlayerForRoom } from './firebase_calls/dbCalls';
 import { auth, db } from '../utils/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { callableAsNonHost, clearFirestore, seedRoom, shutdown } from '../../test/emulatorHelpers';
 
 const ROOM = 'test-room';
@@ -140,6 +141,25 @@ describe('leaveGame', () => {
             'Room not found: nonexistent-room'
         );
     });
+
+    // A pending reconnect request left dangling after the player it names
+    // is gone would still be approvable by the host into a player doc that
+    // no longer exists — this must be denied inside the same removal
+    // transaction, not left for something else to clean up later.
+    it('auto-denies a pending reconnect request for the player who left', async () => {
+        await seedRoom(ROOM, [], { gameStarted: true });
+        await seedRoom(ROOM, [{ name: 'alice', uid: auth.currentUser.uid }], {
+            gameStarted: true,
+        });
+        const { requestId } = await requestReconnect(ROOM, 'alice');
+
+        await leaveGame(ROOM);
+
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
+        expect(requestSnapshot.data().status).toBe('denied');
+    });
 });
 
 describe('removePlayer', () => {
@@ -195,5 +215,44 @@ describe('removePlayer', () => {
         expect(result.addedAssassins).toEqual({});
         expect(result.remapLogs).toEqual([]);
         await expect(fetchPlayerForRoom('alice', ROOM)).rejects.toThrow('Player not found');
+    });
+
+    // Same gap as leaveGame's equivalent test above — a pending reconnect
+    // request left dangling after the player it names is gone would still
+    // be approvable by the host into a player doc that no longer exists.
+    it('auto-denies a pending reconnect request for the removed player', async () => {
+        await seedRoom(ROOM, [{ name: 'alice' }], { gameStarted: true });
+        const { requestId } = await requestReconnect(ROOM, 'alice');
+
+        await removePlayer('alice', ROOM);
+
+        const requestSnapshot = await getDoc(
+            doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
+        );
+        expect(requestSnapshot.data().status).toBe('denied');
+    });
+
+    // Deliberate, user-approved decision: removal genuinely knows whose
+    // device access to revoke, unlike the reconnect case (where a stale
+    // uid might legitimately belong to someone else later).
+    it("prunes the removed player's uid from the room's joinedUids", async () => {
+        await seedRoom(ROOM, [{ name: 'alice', uid: 'alice-device-uid' }, { name: 'bob' }], {
+            joinedUids: ['alice-device-uid', 'some-other-uid'],
+        });
+
+        await removePlayer('alice', ROOM);
+
+        const roomSnapshot = await getDoc(doc(db, 'rooms', ROOM));
+        expect(roomSnapshot.data().joinedUids).not.toContain('alice-device-uid');
+        expect(roomSnapshot.data().joinedUids).toContain('some-other-uid');
+    });
+
+    it('does not error when removing a player with no uid field at all', async () => {
+        await seedRoom(ROOM, [{ name: 'alice' }], { joinedUids: ['some-other-uid'] });
+
+        await removePlayer('alice', ROOM);
+
+        const roomSnapshot = await getDoc(doc(db, 'rooms', ROOM));
+        expect(roomSnapshot.data().joinedUids).toEqual(['some-other-uid']);
     });
 });

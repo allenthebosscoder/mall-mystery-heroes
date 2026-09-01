@@ -245,12 +245,8 @@ Gaps that remain, per [improvements.md](./improvements.md):
 
 ## Cloud Functions
 
-`functions/` contains eleven callables and one scheduled function:
+`functions/` contains thirteen callables and one scheduled function:
 
-- `targetFunction` — a stub that checks `context.auth` and echoes its input
-  back. Nothing in the game depends on it; its only caller, a debug button
-  component (`cloudFunction.js`) that was never mounted anywhere, was
-  deleted as dead code (`improvements.md` item 14).
 - `killPlayer` (`functions/callableFunctions/killPlayer.js`) — the atomic
   replacement for the client-side kill flow (`improvements.md` item 4).
   Validates the kill, transfers points, marks the victim dead, unmaps them
@@ -300,7 +296,34 @@ Gaps that remain, per [improvements.md](./improvements.md):
   live in the same file), host-only, and writes no announcement of its
   own — `ChatInput.js` logs and broadcasts after the call succeeds,
   exactly like `/kill` already does. `src/components/removePlayer.js` is
-  its thin `httpsCallable` wrapper.
+  its thin `httpsCallable` wrapper. `removeAndRemap`, the shared internal
+  step both callables call, also auto-denies any `pending` reconnect
+  request for the player being removed (in the same transaction) and
+  prunes their `uid` from the room's `joinedUids`, so a removed player's
+  old device loses room access and cannot be approved back in against a
+  now-deleted player doc.
+- `requestReconnect` (`functions/callableFunctions/reconnectRequest.js`) —
+  lets a signed-in caller ask to reclaim an existing player's identity in a
+  room whose game has already started, when their own device's `uid` isn't
+  the one already linked to that player doc. Creates a `pending` document
+  in the player's room under `reconnectRequests`, keyed by nothing more
+  than the requester's own `uid` and the target player's normalized name —
+  no host check, since this is exactly the case where the caller cannot
+  yet prove anything about themselves. `JoinGame.js` falls back to this
+  when `joinRoom` rejects a join attempt as "already started."
+  `src/components/requestReconnect.js` is its thin `httpsCallable`
+  wrapper.
+- `approveReconnectRequest` / `denyReconnectRequest`
+  (`functions/callableFunctions/reconnectRequest.js`) — host-only judgment
+  on a pending reconnect request, powering `ReconnectRequests.js` in the
+  GM console. Denying just marks the request `denied`. Approving re-links
+  the target player document's `uid` to the requester's and adds that uid
+  to the room's `joinedUids`, atomically with marking the request
+  `approved`, all inside one Firestore transaction — so the uid change and
+  the room-access grant land together or not at all.
+  `src/components/approveReconnectRequest.js` and
+  `src/components/denyReconnectRequest.js` are their thin `httpsCallable`
+  wrappers.
 - `undoMissionPhotoApproval` / `undoMissionCommand`
   (`functions/callableFunctions/undoMissionCompletion.js`) — the atomic
   reversal of a mission completion, mirroring `undoKillPlayer`'s replay

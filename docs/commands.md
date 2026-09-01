@@ -73,11 +73,11 @@ Writes via `updatePointsForPlayer`, which is a read-modify-write, not an atomic
 Records a kill. See [game-flows.md](./game-flows.md#2-killing-a-player-kill-target-assassin)
 for the full sequence.
 
-| Check                                                                         | Failure                                                                  |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| At least 2 arguments                                                          | `Missing Arguments`                                                      |
-| Both names in roster                                                          | `Invalid players: …`                                                     |
-| Target is on the assassin's target list **or** the assassin is in open season | `{target} is not a valid taret for {assassin}` _(typo is in the source)_ |
+| Check                                                                                                               | Failure                                                                  |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| At least 2 arguments                                                                                                | `Missing Arguments`                                                      |
+| Both names in roster                                                                                                | `Invalid players: …`                                                     |
+| Target is on the assassin's target list, **or** the target is in open season, **or** the assassin is in open season | `{target} is not a valid taret for {assassin}` _(typo is in the source)_ |
 
 Effects: assassin gains the target's full score (floored at 0); target's score
 is zeroed, `isAlive` set false, `openSeason` cleared; target is unmapped from the

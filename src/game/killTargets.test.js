@@ -49,9 +49,9 @@ describe('killTargetsForAssassin', () => {
         );
     });
 
-    it('still offers active open-season players even if the assassin name matches nobody in the roster', () => {
+    it('returns an empty array when the assassin name matches nobody in the roster, even with open-season players present', () => {
         const result = killTargetsForAssassin(players, 'nobody');
-        expect(result).toEqual(expect.arrayContaining(['Carol', 'Dave']));
+        expect(result).toEqual([]);
     });
 
     it('returns an empty array when there is nothing to offer', () => {

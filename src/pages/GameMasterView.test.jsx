@@ -6,12 +6,14 @@
  * the standing CLAUDE.md note ("don't write component tests asserting
  * game-state outcomes until [item 13 is] fixed") was blocking on.
  *
- * ChatInput and PhotosDisplay are stubbed out (each already has its own
- * thorough test file) so this stays focused on GameMasterView's own logic:
- * deriving the header count and the alive-only roster it hands down.
- * ResetTargetsButton is stubbed too, for the same reason — its own dialog
- * UI is its concern, not GameMasterView's; what GameMasterView is
- * responsible for is computing the right `arrayOfPlayers` prop to give it.
+ * ChatInput, PhotosDisplay, ReconnectRequests, GMChatPanel,
+ * ResetTargetsButton, TaskCreationModal, and TaskListModal are all stubbed
+ * out (each already has its own thorough test file) so this stays focused
+ * on GameMasterView's own logic: deriving the header count and the
+ * alive-only roster it hands down. ResetTargetsButton's stub still renders
+ * enough to assert on — its own dialog UI is its concern, not
+ * GameMasterView's; what GameMasterView is responsible for is computing
+ * the right `arrayOfPlayers` prop to give it.
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';

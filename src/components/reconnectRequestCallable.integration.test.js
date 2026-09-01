@@ -205,19 +205,27 @@ describe('approveReconnectRequest', () => {
         expect(requestSnapshot.data().status).toBe('pending');
     });
 
-    it('rejects a request naming a player who no longer exists, mutating nothing', async () => {
+    // Before removePlayer.js's own removeAndRemap auto-denied a departing
+    // player's pending reconnect requests (final review, cross-feature
+    // player-removal/reconnect seam), this request would still be
+    // "pending" here and approval would fail on the player-doc lookup
+    // instead — that path is effectively unreachable through the public
+    // API now, since removal always resolves the request first, in the
+    // very same transaction that deletes the player.
+    it('rejects a request naming a player who was removed, since removal already denied it', async () => {
         await seedRoom(ROOM, [{ name: 'alice' }], { gameStarted: true });
         const { requestId } = await requestReconnect(ROOM, 'alice');
         const { removePlayer } = await import('./removePlayer');
         await removePlayer('alice', ROOM);
 
-        await expect(approveReconnectRequest(ROOM, requestId)).rejects.toThrow(
-            'The player this request was for no longer exists.'
-        );
         const requestSnapshot = await getDoc(
             doc(db, 'rooms', ROOM, 'reconnectRequests', requestId)
         );
-        expect(requestSnapshot.data().status).toBe('pending');
+        expect(requestSnapshot.data().status).toBe('denied');
+
+        await expect(approveReconnectRequest(ROOM, requestId)).rejects.toThrow(
+            'This request has already been denied.'
+        );
     });
 });
 

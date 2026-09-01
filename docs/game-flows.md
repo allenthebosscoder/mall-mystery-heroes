@@ -217,8 +217,11 @@ sequenceDiagram
         GM->>PD: ✓ (target selected)
         PD->>EK: executeKill(target, assassin, roomID)
         Note over EK: same Cloud Function call as /kill — see flow 2
-        EK-->>PD: {preKillSnapshot, addedTargets, addedAssassins, remapLogs, ...}
+        EK-->>PD: {targetWasOpenSzn, preKillSnapshot, addedTargets, addedAssassins, remapLogs, ...}
         PD->>FS: approvePhotoForRoom(roomID, photoId, target, preKillSnapshot)
+        opt targetWasOpenSzn
+            PD->>FS: handleOpenSznended(target) → addLog + broadcast("open season has ended for target")
+        end
         PD->>FS: addLog("target was killed by assassin")
     else Approve as mission
         GM->>PD: ✓ (mission selected)
@@ -274,6 +277,17 @@ player `killPlayer`'s transaction touched (target, killer, and anyone the
 remap reassigned) — is persisted onto the photo document itself
 (`approvePhotoForRoom`) rather than kept only in React state, which is what
 makes Undo survive a reload (`improvements.md` item 6).
+
+**Open-season-ended announcement.** `killPlayer` always clears
+`openSeason` server-side inside its own transaction when the killed target
+had it set, regardless of which path triggered the kill. `PhotosDisplay`'s
+`handlePass` reads `targetWasOpenSzn` back from `executeKill`'s response
+and, when true, calls `handleOpenSznended(target)` before announcing the
+kill itself — the same GM-console log/broadcast pair
+(`'open season has ended for <target>'`) the typed `/kill` command already
+triggers via `GameMasterView.js`'s own `handleOpenSznended` call. Before
+this, the photo-approval path silently ended open season without ever
+telling anyone.
 
 Approving a photo as a mission instead of a kill calls the exact same
 server-side `completeMission` Cloud Function (and, underneath it, the same
@@ -407,6 +421,97 @@ phases without branching.
 
 ---
 
+## 6. Reconnecting mid-game
+
+A player whose device lost its session (new browser, cleared storage, a
+second device) can reclaim their existing identity once the game has
+started, subject to GM approval
+(docs/superpowers/specs/2026-08-30-player-reconnect-design.md). Two entry
+points on the player side (`JoinGame.js`'s fallback, `ReconnectPending.js`
+watching the outcome) and one on the GM side (`ReconnectRequests.js`), all
+routed through `functions/callableFunctions/reconnectRequest.js`'s three
+callables.
+
+```mermaid
+sequenceDiagram
+    actor Player
+    actor GM
+    participant JG as JoinGame
+    participant JRCF as joinRoom (Cloud Function)
+    participant RR as requestReconnect (client)
+    participant RRCF as requestReconnect (Cloud Function)
+    participant RP as ReconnectPending
+    participant RREQ as ReconnectRequests (GM console)
+    participant JCF as approve/denyReconnectRequest (Cloud Function)
+    participant FS as Firestore
+
+    Player->>JG: submits Game ID + name
+    JG->>JRCF: httpsCallable('joinRoom', {roomId, playerName})
+    JRCF-->>JG: rejected — "This game has already started."
+    Note over JG: only this specific rejection triggers the fallback below —<br/>any other joinRoom error (bad room, duplicate name pre-game)<br/>surfaces as a normal error instead
+    JG->>RR: requestReconnect(gameId, playerName)
+    RR->>RRCF: httpsCallable('requestReconnect', {roomId, playerName})
+    RRCF->>FS: runTransaction: room started & active, name exists,<br/>no pending request from this uid already,<br/>create reconnectRequests doc {status:"pending"}
+    RRCF-->>RR: {requestId}
+    RR-->>JG: same response
+    JG->>RP: navigate(/rooms/{roomID}/reconnecting/{requestId})
+    RP->>FS: onSnapshot(reconnectRequests/{requestId})
+
+    FS-->>RREQ: onSnapshot (all pending reconnectRequests, live)
+    RREQ-->>GM: render "<name> wants to reconnect" row
+
+    alt GM approves
+        GM->>RREQ: Approve
+        RREQ->>JCF: httpsCallable('approveReconnectRequest', {roomId, requestId})
+        JCF->>FS: runTransaction: host check, request still pending,<br/>player doc still exists, requester's uid not already linked<br/>to a different player, re-link player.uid, joinedUids<br/>arrayUnion, request status → "approved"
+        JCF-->>RREQ: (void)
+        RREQ->>FS: addLog("<name> reconnected") + broadcast
+        FS-->>RP: onSnapshot fires, status "approved"
+        RP->>RP: writePlayerSession(roomID, playerName)
+        RP->>RP: navigate(/rooms/{roomID}/waiting)
+    else GM denies
+        GM->>RREQ: Deny
+        RREQ->>JCF: httpsCallable('denyReconnectRequest', {roomId, requestId})
+        JCF->>FS: runTransaction: host check, request still pending,<br/>request status → "denied"
+        JCF-->>RREQ: (void)
+        FS-->>RP: onSnapshot fires, status "denied"
+        RP-->>Player: "Your reconnect request was denied"
+    end
+```
+
+**No host check on the request itself.** `requestReconnect` is callable by
+any signed-in caller — the entire premise is that the caller has just lost
+whatever identity they had before and cannot prove anything about
+themselves yet. `joinRoom`'s own "already started" rejection is what
+routed them here; `requestReconnect` doesn't trust that and re-checks the
+room's `gameStarted`/`isGameActive`/`endedAt` independently.
+
+**One pending request per device per player name.** A second
+`requestReconnect` call for the same player name, from the same uid, while
+an earlier one is still pending, is rejected outright — guards against a
+flaky retry or a double-tapped button, not a determined multi-identity
+flood, which this game's small, in-person, GM-supervised setting doesn't
+need to defend against.
+
+**Approval is one atomic write.** The player document's `uid`, the room's
+`joinedUids`, and the request's own `status` all land inside a single
+transaction — `ReconnectPending.js` only navigates the player back into
+the game once `joinedUids` already contains this device's uid, so there is
+no window where the live-updated request looks approved but the room
+still rejects this device's reads.
+
+**Interplay with player removal (flow 5).** If the player named in a
+still-pending reconnect request is kicked or leaves before the host
+judges it, `removeAndRemap` — the shared step both `leaveGame` and
+`removePlayer` call — finds that pending request and marks it `denied` in
+the very same transaction that deletes the player's document, so it never
+sits dangling, approvable into a player doc that no longer exists.
+`removeAndRemap` also prunes the departing player's own `uid` from the
+room's `joinedUids` in that same transaction, revoking that device's room
+access outright.
+
+---
+
 ## Where each flow updates the screen
 
 Because [state lives in three places](./architecture.md#state-management), each
@@ -416,6 +521,8 @@ flow updates the UI differently:
 | ---------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------- |
 | Player list with scores and targets            | `onSnapshot`                                                                    | No — always live       |
 | Photo queue                                    | `onSnapshot`                                                                    | No — always live       |
+| Reconnect request queue (GM console)           | `onSnapshot`                                                                    | No — always live       |
+| Reconnect status (requester's own screen)      | `onSnapshot` on the single request doc                                          | No — always live       |
 | Log panel                                      | `onSnapshot` (`docs/improvements.md` item 22)                                   | No — always live       |
 | `Players (n)` header count                     | derived from the same live `onSnapshot` roster (item 13)                        | No — always live       |
 | Alive/dead arrays driving `/revive` validation | refetched via `fetchPlayersByStatusForRoom` on every command                    | No — always current    |

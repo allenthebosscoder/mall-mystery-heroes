@@ -74,6 +74,19 @@ const removeAndRemap = async (transaction, roomRef, playerDoc) => {
         needAssassins: playerData.targets || [],
     });
 
+    // Any pending reconnect request for the player being removed must be
+    // auto-denied in this same transaction — left pending, it would dangle
+    // forever and remain approvable by the host into a player doc this
+    // transaction is about to delete. Single `where` query plus in-memory
+    // filtering, not a compound query — same precedent as
+    // requestReconnect.js's own duplicate-request guard.
+    const pendingReconnectRequestsSnapshot = await transaction.get(
+        roomRef.collection('reconnectRequests').where('trimmedNameLowerCase', '==', playerKey)
+    );
+    const pendingReconnectRequestDocs = pendingReconnectRequestsSnapshot.docs.filter(
+        (doc) => doc.data().status === 'pending'
+    );
+
     // --- write phase ---
 
     const pendingUpdates = new Map();
@@ -117,7 +130,22 @@ const removeAndRemap = async (transaction, roomRef, playerDoc) => {
         transaction.update(ref, fields);
     }
 
+    for (const requestDoc of pendingReconnectRequestDocs) {
+        transaction.update(requestDoc.ref, { status: 'denied' });
+    }
+
     transaction.delete(playerDoc.ref);
+
+    // Revoke the departing device's room access — unlike the reconnect
+    // case (where a stale uid might legitimately belong to someone else
+    // later), removal genuinely knows whose access to revoke. Guarded
+    // against a missing uid: FieldValue.arrayRemove(undefined) is not a
+    // valid call.
+    if (playerData.uid) {
+        transaction.update(roomRef, {
+            joinedUids: FieldValue.arrayRemove(playerData.uid),
+        });
+    }
 
     return {
         removedPlayerName: playerData.name,

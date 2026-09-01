@@ -26,7 +26,13 @@ export const killTargetsForAssassin = (players, assassinName) => {
     const assassin = players.find(
         (player) => normalizePlayerName(player.name) === normalizedAssassin
     );
-    const ownTargets = assassin?.targets ?? [];
+    // An assassin who isn't in the roster at all can't have a kill
+    // approved against them — even a legitimately open-season player
+    // shouldn't show up as selectable for a moderator when the assassin
+    // side of the pair no longer exists, since attempting the approval
+    // would just fail server-side with a confusing error instead.
+    if (!assassin) return [];
+    const ownTargets = assassin.targets ?? [];
 
     const openSeasonTargets = players
         .filter(
