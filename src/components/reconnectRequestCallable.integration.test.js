@@ -47,6 +47,18 @@ describe('requestReconnect', () => {
         });
     });
 
+    it('rejects a second request for the same player from the same device while one is already pending', async () => {
+        await seedRoom(ROOM, [{ name: 'alice' }], { gameStarted: true });
+        await requestReconnect(ROOM, 'alice');
+
+        await expect(requestReconnect(ROOM, 'alice')).rejects.toThrow(
+            'You already have a pending reconnect request for this player'
+        );
+
+        const requestsSnapshot = await getDocs(collection(db, 'rooms', ROOM, 'reconnectRequests'));
+        expect(requestsSnapshot.docs).toHaveLength(1);
+    });
+
     it('rejects a name with no matching player, writing nothing', async () => {
         await seedRoom(ROOM, [{ name: 'alice' }], { gameStarted: true });
 

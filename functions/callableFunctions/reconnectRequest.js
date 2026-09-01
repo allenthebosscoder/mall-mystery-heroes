@@ -88,6 +88,28 @@ exports.requestReconnect = functions.https.onCall(async (data, context) => {
             );
         }
 
+        // Blocks the common accidental case (a flaky network causing a
+        // retry, a double-tapped button, re-submitting the join form) —
+        // not a defense against a determined multi-identity flood, which
+        // this game's small, in-person, GM-supervised setting doesn't
+        // need to defend against. A single `where` clause plus an
+        // in-memory filter, not a compound query, so this needs no
+        // composite index.
+        const existingRequestsSnapshot = await transaction.get(
+            roomRef
+                .collection('reconnectRequests')
+                .where('trimmedNameLowerCase', '==', trimmedLowercaseName)
+        );
+        const hasPendingRequestFromThisDevice = existingRequestsSnapshot.docs.some(
+            (doc) => doc.data().requestingUid === context.auth.uid && doc.data().status === 'pending'
+        );
+        if (hasPendingRequestFromThisDevice) {
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'You already have a pending reconnect request for this player — wait for the host to respond.'
+            );
+        }
+
         const requestRef = roomRef.collection('reconnectRequests').doc();
         transaction.create(requestRef, {
             playerName: playerSnapshot.data().name,
