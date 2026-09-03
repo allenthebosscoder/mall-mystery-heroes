@@ -20,6 +20,8 @@ import { auth } from '../utils/firebase';
 import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
+    fetchPlayersQueryByDescendPointsThenIsAliveForRoom,
+    fetchTasksQueryForRoom,
 } from '../components/firebase_calls/dbCalls';
 import { leaveGame } from '../components/leaveGame';
 import CreateAlert from '../components/CreateAlert';
@@ -34,6 +36,8 @@ const PlayerGame = () => {
     const [gameStarted, setGameStarted] = useState(false);
     const [isGameActive, setIsGameActive] = useState(true);
     const [playerData, setPlayerData] = useState(null);
+    const [players, setPlayers] = useState([]);
+    const [missions, setMissions] = useState([]);
     // This player's own chat sends that MessageComposer has fired off but
     // Firestore hasn't confirmed yet — submitChatMessage writes server-side
     // now, so this browser no longer gets an automatic local echo of its
@@ -125,6 +129,32 @@ const PlayerGame = () => {
         );
         return () => unsubscribe();
     }, [roomID, gameStarted, playerName, navigate, handleSubscriptionError]);
+
+    useEffect(() => {
+        if (!roomID || !gameStarted) return undefined;
+        const playersQuery = fetchPlayersQueryByDescendPointsThenIsAliveForRoom(roomID);
+        const unsubscribe = onSnapshot(playersQuery, (snapshot) => {
+            setPlayers(
+                snapshot.docs.map((doc) => ({
+                    name: doc.data().name,
+                    score: doc.data().score,
+                    targets: doc.data().targets,
+                    openSeason: doc.data().openSeason,
+                    isAlive: doc.data().isAlive,
+                }))
+            );
+        });
+        return () => unsubscribe();
+    }, [roomID, gameStarted]);
+
+    useEffect(() => {
+        if (!roomID || !gameStarted) return undefined;
+        const missionsQuery = fetchTasksQueryForRoom(roomID);
+        const unsubscribe = onSnapshot(missionsQuery, (snapshot) => {
+            setMissions(snapshot.docs.map((doc) => doc.data()));
+        });
+        return () => unsubscribe();
+    }, [roomID, gameStarted]);
 
     const handleLeaveClick = () => {
         onOpen();
@@ -231,6 +261,8 @@ const PlayerGame = () => {
                 isGameActive={isGameActive}
                 onOptimisticSend={handleOptimisticSend}
                 onOptimisticSendFailed={handleOptimisticSendFailed}
+                players={players}
+                missions={missions}
             />
         </Flex>
     );

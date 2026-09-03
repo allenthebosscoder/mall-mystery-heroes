@@ -26,6 +26,8 @@ import PlayerGame from './PlayerGame';
 import {
     fetchRoomReferenceForRoom,
     fetchPlayerReferenceForRoom,
+    fetchPlayersQueryByDescendPointsThenIsAliveForRoom,
+    fetchTasksQueryForRoom,
 } from '../components/firebase_calls/dbCalls';
 import { leaveGame } from '../components/leaveGame';
 import { writePlayerSession, readPlayerSession } from '../utils/playerSession';
@@ -40,6 +42,8 @@ jest.mock('../utils/firebase', () => ({ auth: {} }));
 jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchRoomReferenceForRoom: jest.fn(),
     fetchPlayerReferenceForRoom: jest.fn(),
+    fetchPlayersQueryByDescendPointsThenIsAliveForRoom: jest.fn(),
+    fetchTasksQueryForRoom: jest.fn(),
 }));
 jest.mock('../components/leaveGame', () => ({ leaveGame: jest.fn() }));
 // Stubbed — has its own dedicated test file (PlayerTaskListModal.test.jsx).
@@ -73,7 +77,8 @@ jest.mock('../components/player_messages_components/MessageComposer', () => (pro
     <div>
         <div>
             message-composer-stub roomID={props.roomID} playerName={props.playerName} isGameActive=
-            {String(props.isGameActive)}
+            {String(props.isGameActive)} players={JSON.stringify(props.players)} missions=
+            {JSON.stringify(props.missions)}
         </div>
         <button
             onClick={() =>
@@ -345,7 +350,7 @@ describe('PlayerGame', () => {
         expect(screen.getByText('Your target: Bob')).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true players=[] missions=[]'
             )
         ).toBeInTheDocument();
     });
@@ -459,7 +464,7 @@ describe('PlayerGame', () => {
         ).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true players=[] missions=[]'
             )
         ).toBeInTheDocument();
     });
@@ -489,7 +494,70 @@ describe('PlayerGame', () => {
         ).toBeInTheDocument();
         expect(
             screen.getByText(
-                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=false'
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=false players=[] missions=[]'
+            )
+        ).toBeInTheDocument();
+    });
+
+    it('subscribes to the roster and missions once the game has started, and passes both to MessageComposer', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        fetchPlayersQueryByDescendPointsThenIsAliveForRoom.mockReturnValue('players-query');
+        fetchTasksQueryForRoom.mockReturnValue('missions-query');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ exists: () => true, data: () => ({ isAlive: true, targets: ['Bob'] }) });
+            } else if (ref === 'players-query') {
+                callback({
+                    docs: [
+                        {
+                            data: () => ({
+                                name: 'Bob',
+                                score: 0,
+                                targets: [],
+                                openSeason: false,
+                                isAlive: true,
+                            }),
+                        },
+                    ],
+                });
+            } else if (ref === 'missions-query') {
+                callback({
+                    docs: [
+                        {
+                            data: () => ({
+                                taskIndex: 1,
+                                title: 'Find the clue',
+                                taskType: 'Task',
+                                isComplete: false,
+                                completedBy: [],
+                            }),
+                        },
+                    ],
+                });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(
+            screen.getByText(
+                'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=true players=' +
+                    JSON.stringify([
+                        { name: 'Bob', score: 0, targets: [], openSeason: false, isAlive: true },
+                    ]) +
+                    ' missions=' +
+                    JSON.stringify([
+                        {
+                            taskIndex: 1,
+                            title: 'Find the clue',
+                            taskType: 'Task',
+                            isComplete: false,
+                            completedBy: [],
+                        },
+                    ])
             )
         ).toBeInTheDocument();
     });
