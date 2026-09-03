@@ -29,6 +29,8 @@ import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 import MessageFeed from '../components/player_messages_components/MessageFeed';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
 import PlayerTaskListModal from '../components/task_components/PlayerTaskListModal';
+import LeaderboardModal from '../components/game_end_components/LeaderboardModal';
+import { buildLeaderboardStandings } from '../game/leaderboard';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
@@ -52,6 +54,11 @@ const PlayerGame = () => {
         isOpen: isMissionsOpen,
         onOpen: onMissionsOpen,
         onClose: onMissionsClose,
+    } = useDisclosure();
+    const {
+        isOpen: isLeaderboardOpen,
+        onOpen: onLeaderboardOpen,
+        onClose: onLeaderboardClose,
     } = useDisclosure();
     const cancelRef = useRef();
     const createAlert = CreateAlert();
@@ -197,6 +204,9 @@ const PlayerGame = () => {
                     <Button size="sm" variant="outline" onClick={onMissionsOpen}>
                         View Missions
                     </Button>
+                    <Button size="sm" variant="outline" onClick={onLeaderboardOpen}>
+                        View Leaderboard
+                    </Button>
                 </VStack>
             </Flex>
             <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
@@ -221,6 +231,11 @@ const PlayerGame = () => {
                 isOpen={isMissionsOpen}
                 onClose={onMissionsClose}
                 roomID={roomID}
+            />
+            <LeaderboardModal
+                isOpen={isLeaderboardOpen}
+                onClose={onLeaderboardClose}
+                standings={buildLeaderboardStandings(players)}
             />
             {/* Once the game has ended, the target/status text no longer
                 applies — the "please head back" and final-standings

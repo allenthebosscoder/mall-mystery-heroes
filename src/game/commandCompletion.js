@@ -15,6 +15,7 @@ import { KNOWN_COMMANDS, UNIMPLEMENTED_COMMANDS } from './commands';
 const TOKEN = /\/\S+|\[[^\]]+\]|\S+/g;
 
 const MISSION_SUBCOMMANDS = ['done', 'end', 'start', 'undo', 'view'];
+const LEADERBOARD_SUBCOMMANDS = ['send', 'view'];
 const OPEN_SEASON_VALUES = ['start', 'end'];
 
 // Placeholder labels for each command's arguments, in order — used only to
@@ -30,7 +31,7 @@ const ARG_LABELS = {
     '/revive': ['[player_name]'],
     '/whisper': ['[player_name]', '[message]'],
     '/broadcast': ['[message]'],
-    '/leaderboard': ['send'],
+    '/leaderboard': ['send/view'],
 };
 
 // `/mission`'s remaining shape depends on which sub-command was picked, so
@@ -167,7 +168,7 @@ const candidatesForSlot = (command, slotIndex, args, { players, missions }) => {
         case '/revive':
             return slotIndex === 1 ? deadPlayerNames(players) : null;
         case '/leaderboard':
-            return slotIndex === 1 ? ['send'] : null;
+            return slotIndex === 1 ? LEADERBOARD_SUBCOMMANDS : null;
         case '/mission': {
             if (slotIndex === 1) return MISSION_SUBCOMMANDS;
             const sub = (args[0] || '').toLowerCase();

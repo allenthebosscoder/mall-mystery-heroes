@@ -83,6 +83,7 @@ const handleCommandExecution = async (
         handleTaskCompleted,
         handleShowMissionCreation,
         handleShowMissionList,
+        handleShowLeaderboardView,
         addLog,
     } = xecutionContext; // retrieve contexts
 
@@ -439,12 +440,18 @@ const handleCommandExecution = async (
             case '/leaderboard':
                 arg = args[0] ? args[0].toLowerCase() : '';
                 if (arg === 'send') {
-                    const standings = buildLeaderboardStandings(players);
+                    // Top 3 only, not the full roster — a routine reminder
+                    // shouldn't spam the chat feed with everyone's score.
+                    // Mirrors GameEndedLeaderboardBubble.js's own top-3
+                    // slice for the same reason.
+                    const standings = buildLeaderboardStandings(players).slice(0, 3);
                     await addPlayerMessageForRoom(
                         { type: 'leaderboard', recipient: null, text: null, standings },
                         roomID
                     );
                     await addLog('Leaderboard sent to all players', 'teal.400');
+                } else if (arg === 'view') {
+                    handleShowLeaderboardView();
                 } else {
                     createAlert('error', 'Error', `${args[0]} is not a valid input`, 1500);
                     console.error(`${args[0]} is not a valid input`);

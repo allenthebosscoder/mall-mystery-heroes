@@ -70,6 +70,7 @@ const executionHandlers = {
     handleTaskCompleted: jest.fn(),
     handleShowMissionCreation: jest.fn(),
     handleShowMissionList: jest.fn(),
+    handleShowLeaderboardView: jest.fn(),
     handleOpenSznstarted: jest.fn(),
     handleOpenSznended: jest.fn(),
     handlePlayerRevive: jest.fn(),
@@ -939,12 +940,45 @@ describe('/leaderboard (docs/superpowers/specs/2026-08-06-player-messaging-mobil
         );
     });
 
+    it('sends only the top 3 standings, not the full roster', async () => {
+        const commandInput = mountChatInput([
+            { name: 'Alice', isAlive: true, score: 10 },
+            { name: 'Bob', isAlive: true, score: 40 },
+            { name: 'Carol', isAlive: true, score: 30 },
+            { name: 'Dave', isAlive: false, score: 20 },
+        ]);
+        typeAndSubmit(commandInput, '/leaderboard send');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'leaderboard',
+                    recipient: null,
+                    text: null,
+                    standings: [
+                        { name: 'Bob', score: 40, isAlive: true },
+                        { name: 'Carol', score: 30, isAlive: true },
+                        { name: 'Dave', score: 20, isAlive: false },
+                    ],
+                },
+                'room-a'
+            )
+        );
+    });
+
     it('rejects an invalid argument', async () => {
         const commandInput = mountChatInput();
         typeAndSubmit(commandInput, '/leaderboard nonsense');
 
         expect(await screen.findByText(/nonsense is not a valid input/i)).toBeInTheDocument();
         expect(dbCalls.addPlayerMessageForRoom).not.toHaveBeenCalled();
+    });
+
+    it('/leaderboard view calls handleShowLeaderboardView', async () => {
+        const commandInput = mountChatInput();
+        typeAndSubmit(commandInput, '/leaderboard view');
+
+        await waitFor(() => expect(executionHandlers.handleShowLeaderboardView).toHaveBeenCalled());
     });
 });
 

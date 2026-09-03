@@ -314,6 +314,42 @@ describe('PlayerGame', () => {
         expect(screen.queryByText(/player-task-list-modal-stub/)).not.toBeInTheDocument();
     });
 
+    it('opens the leaderboard modal when View Leaderboard is clicked, showing the live standings', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        fetchPlayersQueryByDescendPointsThenIsAliveForRoom.mockReturnValue('players-query');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            } else if (ref === 'player-ref') {
+                callback({ exists: () => true, data: () => ({ isAlive: true, targets: [] }) });
+            } else if (ref === 'players-query') {
+                callback({
+                    docs: [
+                        { data: () => ({ name: 'Bob', score: 40, isAlive: true }) },
+                        { data: () => ({ name: 'Alice', score: 10, isAlive: true }) },
+                    ],
+                });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.queryByText(/Bob — 40/)).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'View Leaderboard' }));
+
+        expect(screen.getByText(/1\. Bob — 40/)).toBeInTheDocument();
+        expect(screen.getByText(/2\. Alice — 10/)).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        // LeaderboardModal is a real Chakra <Modal>, unlike the stubbed
+        // PlayerTaskListModal above — its exit animation means the content
+        // doesn't vanish from the DOM synchronously with the click.
+        await waitFor(() => expect(screen.queryByText(/Bob — 40/)).not.toBeInTheDocument());
+    });
+
     it('shows an error and does not sign out when leaveGame is rejected', async () => {
         leaveGame.mockRejectedValue(new Error('You have not joined this room.'));
         writePlayerSession('Fluffy42317', 'Alice');

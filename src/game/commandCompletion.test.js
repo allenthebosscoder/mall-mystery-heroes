@@ -199,6 +199,19 @@ describe('complete — /leaderboard', () => {
         expect(result.isUnique).toBe(true);
         expect(result.commonPrefix).toBe('send');
     });
+
+    it('completes the literal "view" argument', () => {
+        const result = complete('/leaderboard v', { players });
+        expect(result.applied).toBe(true);
+        expect(result.isUnique).toBe(true);
+        expect(result.commonPrefix).toBe('view');
+    });
+
+    it('offers both sub-commands when nothing has been typed yet', () => {
+        const result = complete('/leaderboard ', { players });
+        expect(result.applied).toBe(true);
+        expect(result.candidates).toEqual(['send', 'view']);
+    });
 });
 
 describe('complete — /mission sub-command completes to the bare word, not a full skeleton', () => {

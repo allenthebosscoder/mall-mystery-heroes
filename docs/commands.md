@@ -231,16 +231,29 @@ Logs: `Broadcast sent: "{message}"`.
 ### `/leaderboard send`
 
 Packages the live roster's current standings (sorted by score descending,
-dead players included) and sends that snapshot as a player-facing message,
-visible to every player as a standings list (not text) in their in-game
-chat feed (`MessageFeed`). Takes no custom text — the second word must be
-the literal `send`.
+dead players included), keeps only the top 3, and sends that snapshot as a
+player-facing message, visible to every player as a standings list (not
+text) in their in-game chat feed (`MessageFeed`) — a quick reminder, not the
+full roster, so a routine send doesn't spam the chat feed with everyone's
+score. Takes no custom text — the second word must be the literal `send`.
 
 | Check                                                  | Failure                      |
 | ------------------------------------------------------ | ---------------------------- |
 | Second argument is literally `send` (case-insensitive) | `{arg} is not a valid input` |
 
 Logs: `Leaderboard sent to all players`.
+
+### `/leaderboard view`
+
+Opens a read-only popup (`LeaderboardModal`) on the moderator's own screen
+showing every player's current score, full roster, sorted highest to
+lowest — nothing is sent to players and nothing is logged. The same popup a
+player can open for themselves via the "View Leaderboard" button on their
+own screen (`PlayerGame.js`).
+
+| Check                                                  | Failure                      |
+| ------------------------------------------------------ | ---------------------------- |
+| Second argument is literally `view` (case-insensitive) | `{arg} is not a valid input` |
 
 ---
 

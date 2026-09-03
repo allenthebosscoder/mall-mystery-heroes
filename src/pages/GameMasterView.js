@@ -6,6 +6,7 @@ import { onSnapshot } from 'firebase/firestore';
 import { HStack, Heading, VStack, Box, Divider } from '@chakra-ui/react';
 import TaskCreationModal from '../components/task_components/TaskCreationModal';
 import TaskListModal from '../components/task_components/TaskListModal';
+import LeaderboardModal from '../components/game_end_components/LeaderboardModal';
 import HeaderExecution from '../components/header_components/HeaderExecution';
 import Log from '../components/logs_components/Log';
 import CreateAlert from '../components/CreateAlert';
@@ -23,6 +24,7 @@ import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
 import GMChatPanel from '../components/player_messages_components/GMChatPanel';
 import ReconnectRequests from '../components/ReconnectRequests';
+import { buildLeaderboardStandings } from '../game/leaderboard';
 
 const GameMasterView = () => {
     const { roomID } = useParams();
@@ -35,6 +37,7 @@ const GameMasterView = () => {
     const [showRemapModal, setShowRemapModal] = useState(false);
     const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
     const [showTaskListModal, setShowTaskListModal] = useState(false);
+    const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
     const [isGameActive, setIsGameActive] = useState(true);
     const aliveNames = players.filter((player) => player.isAlive).map((player) => player.name);
     const logsBoxRef = useRef(null);
@@ -191,6 +194,10 @@ const GameMasterView = () => {
         setShowTaskListModal(true);
     };
 
+    const handleShowLeaderboardView = () => {
+        setShowLeaderboardModal(true);
+    };
+
     //updates completedTasks
     const handleTaskCompleted = async (task) => {
         setCompletedTasks((completedTasks) => [...completedTasks, task]);
@@ -227,6 +234,7 @@ const GameMasterView = () => {
         handleSetShowMessageToTrue,
         handleShowMissionCreation,
         handleShowMissionList,
+        handleShowLeaderboardView,
         handleOpenSznstarted,
         handleOpenSznended,
         addLog,
@@ -254,6 +262,11 @@ const GameMasterView = () => {
                     <TaskListModal
                         isOpen={showTaskListModal}
                         onClose={() => setShowTaskListModal(false)}
+                    />
+                    <LeaderboardModal
+                        isOpen={showLeaderboardModal}
+                        onClose={() => setShowLeaderboardModal(false)}
+                        standings={buildLeaderboardStandings(players)}
                     />
                 </executionContext.Provider>
 
