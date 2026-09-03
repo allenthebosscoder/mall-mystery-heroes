@@ -38,7 +38,7 @@ beforeEach(clearFirestore);
 afterAll(shutdown);
 
 describe('submitKillPhoto', () => {
-    it("writes the photo with the caller's own real name as assassin, never a client-supplied one, and no target yet", async () => {
+    it("writes the photo with the caller's own real name as assassin, never a client-supplied one, carrying their claimed target", async () => {
         const alice = await createIndependentIdentity();
         try {
             // Seeded via the default (host) db, not alice.db: alice is a
@@ -52,13 +52,13 @@ describe('submitKillPhoto', () => {
             await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await call({ roomId: ROOM, url: REALISTIC_URL });
+            await call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' });
 
             const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
             expect(snapshot.docs).toHaveLength(1);
             expect(snapshot.docs[0].data()).toMatchObject({
                 assassin: 'alice',
-                target: null,
+                target: 'bob',
                 mission: null,
                 url: REALISTIC_URL,
                 status: 'pending',
@@ -75,7 +75,7 @@ describe('submitKillPhoto', () => {
             await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await call({ roomId: ROOM, url: REALISTIC_URL });
+            await call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' });
 
             const snapshot = await getDocs(fetchPlayerMessagesQueryForRoom(ROOM));
             expect(snapshot.docs).toHaveLength(1);
@@ -113,7 +113,7 @@ describe('submitKillPhoto', () => {
         await seedRoom(ROOM, [{ name: 'bob' }]);
         const call = callableAsNonHost('submitKillPhoto');
 
-        await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
+        await expect(call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })).rejects.toThrow(
             'You are not a player of this room.'
         );
     });
@@ -133,7 +133,7 @@ describe('submitKillPhoto', () => {
             ]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })).rejects.toThrow(
                 'Multiple player identities are linked to your account in this room'
             );
 
@@ -152,7 +152,7 @@ describe('submitKillPhoto', () => {
             });
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })).rejects.toThrow(
                 'This game has ended.'
             );
         } finally {
@@ -184,10 +184,12 @@ describe('submitKillPhoto', () => {
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
             for (let i = 0; i < 10; i += 1) {
-                await expect(call({ roomId: ROOM, url: REALISTIC_URL })).resolves.toBeDefined();
+                await expect(
+                    call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })
+                ).resolves.toBeDefined();
             }
 
-            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })).rejects.toThrow(
                 'Too many submissions'
             );
         } finally {
@@ -213,7 +215,88 @@ describe('submitKillPhoto', () => {
             ]);
             const call = httpsCallable(alice.functions, 'submitKillPhoto');
 
-            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).resolves.toBeDefined();
+            await expect(
+                call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob' })
+            ).resolves.toBeDefined();
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('persists a valid mission claim onto the photo doc instead of a target', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await call({ roomId: ROOM, url: REALISTIC_URL, mission: 3 });
+
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs[0].data()).toMatchObject({ target: null, mission: 3 });
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a submission with neither a target nor a mission, writing nothing', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL })).rejects.toThrow(
+                'Exactly one of target or mission must be provided.'
+            );
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a submission with both a target and a mission, writing nothing', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await expect(
+                call({ roomId: ROOM, url: REALISTIC_URL, target: 'bob', mission: 3 })
+            ).rejects.toThrow('Exactly one of target or mission must be provided.');
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a blank-string target, writing nothing', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL, target: '   ' })).rejects.toThrow(
+                'Exactly one of target or mission must be provided.'
+            );
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
+        } finally {
+            await terminate(alice.db);
+        }
+    });
+
+    it('rejects a non-integer mission, writing nothing', async () => {
+        const alice = await createIndependentIdentity();
+        try {
+            await seedRoom(ROOM, [{ name: 'alice', uid: alice.uid }, { name: 'bob' }]);
+            const call = httpsCallable(alice.functions, 'submitKillPhoto');
+
+            await expect(call({ roomId: ROOM, url: REALISTIC_URL, mission: 1.5 })).rejects.toThrow(
+                'Exactly one of target or mission must be provided.'
+            );
+            const snapshot = await getDocs(fetchPhotosQueryByAscendingTimestampForRoom(ROOM));
+            expect(snapshot.docs).toHaveLength(0);
         } finally {
             await terminate(alice.db);
         }

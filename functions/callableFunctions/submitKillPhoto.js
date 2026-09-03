@@ -50,12 +50,18 @@ const PHOTO_RATE_LIMIT = { max: 10, windowMs: 60000 };
  * see MessageBubble.js for how it's rendered and PhotosDisplay.js for the
  * matching `killResult` message a moderator's decision posts later.
  *
- * Does not take a `target`: a player no longer names who they killed —
- * everyone in the game knows each other, and an ambiguous photo is
- * already an automatic fail per the game's own rules, so a moderator
- * reviewing the photo resolves the target later, in PhotosDisplay.js.
- * Both the photo doc and the killPhoto chat message land with
- * `target: null` here.
+ * Persists the caller's own claimed target or mission onto the photo doc
+ * at submission time — a player now picks who they're claiming to have
+ * killed, or which mission they're claiming to have completed, before
+ * submitting (docs/superpowers/specs/
+ * 2026-09-02-player-selects-target-mission-design.md). Validates shape
+ * only (exactly one of a non-blank target string or an integer mission
+ * must be present) — it does NOT re-validate that the claim is actually
+ * correct given live game state; that check already exists, unchanged,
+ * in executeKill/killPlayer.js and completeMission/planMissionCompletion
+ * at approval time. The `killPhoto` playerMessages doc below keeps
+ * writing `target: null` regardless of the claim — the public chat feed
+ * never reveals a claim before a moderator has approved it.
  */
 exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
@@ -65,7 +71,7 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         );
     }
 
-    const { roomId, url } = data;
+    const { roomId, url, target, mission } = data;
     if (!roomId || !url) {
         throw new functions.https.HttpsError(
             'invalid-argument',
@@ -76,6 +82,20 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError(
             'invalid-argument',
             "url does not point at this room's own Storage path."
+        );
+    }
+
+    // Shape-only validation — this does NOT re-derive "is this actually a
+    // valid kill target / open mission for this player," which already
+    // happens, unchanged, in executeKill/killPlayer.js and
+    // completeMission/planMissionCompletion at approval time
+    // (docs/superpowers/specs/2026-09-02-player-selects-target-mission-design.md).
+    const hasTarget = typeof target === 'string' && target.trim().length > 0;
+    const hasMission = typeof mission === 'number' && Number.isInteger(mission);
+    if (hasTarget === hasMission) {
+        throw new functions.https.HttpsError(
+            'invalid-argument',
+            'Exactly one of target or mission must be provided.'
         );
     }
 
@@ -146,8 +166,8 @@ exports.submitKillPhoto = functions.https.onCall(async (data, context) => {
         transaction.create(roomRef.collection('photos').doc(), {
             url,
             assassin: assassinData.name,
-            target: null,
-            mission: null,
+            target: hasTarget ? target : null,
+            mission: hasMission ? mission : null,
             timestamp: FieldValue.serverTimestamp(),
             status: 'pending',
             originalPlayerData: null,
