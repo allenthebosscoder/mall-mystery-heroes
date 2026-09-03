@@ -208,13 +208,13 @@ sequenceDiagram
     participant UMPACF as undoMissionPhotoApproval (Cloud Function)
     actor GM
 
-    App->>FS: addDoc(photos, {url, assassin, target, timestamp, status:"pending"})
+    App->>FS: addDoc(photos, {url, assassin, target, mission, timestamp, status:"pending"})
     FS-->>PD: onSnapshot (all photos, ordered by timestamp asc)
     PD->>PD: filter status === "pending" client-side
-    PD-->>GM: render oldest pending photo, with a combined target/mission dropdown
+    PD-->>GM: render oldest pending photo, showing its already-claimed target or mission
 
     alt Approve as kill
-        GM->>PD: ✓ (target selected)
+        GM->>PD: ✓ (approve the claimed target)
         PD->>EK: executeKill(target, assassin, roomID)
         Note over EK: same Cloud Function call as /kill — see flow 2
         EK-->>PD: {targetWasOpenSzn, preKillSnapshot, addedTargets, addedAssassins, remapLogs, ...}
@@ -224,7 +224,7 @@ sequenceDiagram
         end
         PD->>FS: addLog("target was killed by assassin")
     else Approve as mission
-        GM->>PD: ✓ (mission selected)
+        GM->>PD: ✓ (approve the claimed mission)
         PD->>CM: completeMission(missionIndex, assassin, roomID)
         CM->>CMF: httpsCallable('completeMission', {missionIndex, playerName, roomId})
         Note over CMF: one transaction — same planMissionCompletion decision, and the same completedBy/points-or-revival/auto-end writes, /mission done uses — see flow 4
@@ -264,6 +264,18 @@ sequenceDiagram
         PD->>FS: addLog("Undo: denial of assassin's claim on target was reverted.")
     end
 ```
+
+**The target/mission claim now comes from the photo document itself, set
+by the player at submission time, not picked by the GM at approval time**
+(`docs/superpowers/specs/2026-09-02-player-selects-target-mission-design.md`).
+`PhotosDisplay` no longer computes any options or shows a picker — it
+reads `target`/`mission` straight off the current photo and displays them
+("assassin's kill attempt on target" / "assassin's mission attempt:
+title"). Approve calls `executeKill`/`completeMission` with those
+already-known values; both still independently re-validate the claim
+against live game state exactly as they did before, so a claim that's
+gone stale by review time still fails cleanly rather than being approved
+anyway.
 
 `PhotosDisplay` calls the exact same `executeKill` (and therefore the same
 `killPlayer` Cloud Function) `/kill` does — resolved by `improvements.md`

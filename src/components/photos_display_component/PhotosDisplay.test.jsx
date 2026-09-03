@@ -53,11 +53,10 @@ const executionHandlers = {
     handleOpenSznended: jest.fn(),
 };
 
-// Every assassin used across this file's photo docs has exactly one
-// target here, so PhotosDisplay's target dropdown auto-resolves without
-// any test needing to interact with it — only the dedicated "moderator
-// target picker" describe block below overrides this with a
-// multi-target roster to exercise the dropdown itself.
+// Only used for display-name resolution (resolvePlayerDisplayName) in the
+// mission-completion announcement tests below — the claim itself now comes
+// straight off the photo doc's own target/mission fields, not from this
+// roster.
 const defaultPlayers = [
     { name: 'alice', targets: ['bob'] },
     { name: 'bob', targets: ['alice'] },
@@ -584,8 +583,8 @@ describe('optimistic queue advance while a judgment is in flight (making Approve
     });
 });
 
-describe('moderator resolves the target (players no longer pick who they killed)', () => {
-    it('shows no dropdown and lets Approve proceed when the assassin has exactly one target', async () => {
+describe('the player’s own claim, not a moderator pick', () => {
+    it('shows the kill-attempt wording and lets Approve proceed', async () => {
         executeKill.mockResolvedValue({
             targetWasOpenSzn: false,
             preKillSnapshot: {},
@@ -593,111 +592,41 @@ describe('moderator resolves the target (players no longer pick who they killed)
             addedAssassins: {},
             remapLogs: [],
         });
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice'] }]
-        );
+        mountWithSnapshot([{ status: 'pending', target: 'alice', mission: null, assassin: 'bob' }]);
 
+        expect(screen.getByText("bob's kill attempt on alice")).toBeInTheDocument();
         expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
-        // The auto-resolved target must still be visible, even with no
-        // dropdown — otherwise the moderator has no way to catch a target
-        // that drifted (via a remap from an unrelated kill) between when
-        // this photo was submitted and when it's being reviewed now.
-        expect(screen.getByText('Target: alice')).toBeInTheDocument();
 
         await userEvent.click(screen.getByAltText('Approve'));
 
         await waitFor(() => expect(executeKill).toHaveBeenCalledWith('alice', 'bob', 'room-a'));
     });
 
-    it('shows a dropdown listing the assassin’s targets when there is more than one', async () => {
+    it('shows the mission-attempt wording using the claimed mission’s title', async () => {
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice', 'carol'] }]
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
+            defaultPlayers,
+            [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
         );
 
-        expect(screen.getByLabelText('Select target or mission')).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'alice' })).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
+        expect(screen.getByText("bob's mission attempt: Find the clue")).toBeInTheDocument();
     });
 
-    it('uses the picked target for executeKill, approvePhotoForRoom, and the chat announcement', async () => {
-        executeKill.mockResolvedValue({
-            targetWasOpenSzn: false,
-            preKillSnapshot: {},
-            addedTargets: {},
-            addedAssassins: {},
-            remapLogs: [],
-        });
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice', 'carol'] }]
-        );
+    it('does nothing when Approve is clicked on a photo with no claim at all', async () => {
+        mountWithSnapshot([{ status: 'pending', target: null, mission: null, assassin: 'bob' }]);
 
-        await userEvent.selectOptions(screen.getByLabelText('Select target or mission'), 'carol');
-        await userEvent.click(screen.getByAltText('Approve'));
-
-        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('carol', 'bob', 'room-a'));
-        expect(dbCalls.approvePhotoForRoom).toHaveBeenCalledWith('room-a', 'photo-0', 'carol', {});
-        expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
-            expect.objectContaining({ text: 'carol was killed by bob', target: 'carol' }),
-            'room-a'
-        );
-    });
-
-    it('does nothing when Approve is clicked while the target is still unresolved', async () => {
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice', 'carol'] }]
-        );
+        expect(screen.getByText('No target selected.')).toBeInTheDocument();
 
         await userEvent.click(screen.getByAltText('Approve'));
 
         expect(executeKill).not.toHaveBeenCalled();
+        expect(completeMission).not.toHaveBeenCalled();
         expect(dbCalls.approvePhotoForRoom).not.toHaveBeenCalled();
+        expect(dbCalls.approvePhotoAsMissionForRoom).not.toHaveBeenCalled();
     });
 
-    it('resets the picked target when the queue advances to a new photo', async () => {
-        executeKill.mockResolvedValue({
-            targetWasOpenSzn: false,
-            preKillSnapshot: {},
-            addedTargets: {},
-            addedAssassins: {},
-            remapLogs: [],
-        });
-        mountWithSnapshot(
-            [
-                { status: 'pending', target: null, assassin: 'bob' },
-                { status: 'pending', target: null, assassin: 'carol' },
-            ],
-            [
-                { name: 'bob', targets: ['alice', 'dave'] },
-                { name: 'carol', targets: ['eve'] },
-            ]
-        );
-
-        await userEvent.selectOptions(screen.getByLabelText('Select target or mission'), 'dave');
-        await userEvent.click(screen.getByAltText('Approve'));
-
-        // carol (the next photo's assassin) has exactly one target, so no
-        // dropdown should reappear, and it should already be resolved —
-        // not left over from bob's pick (which would incorrectly try to
-        // approve carol's photo against 'dave', a name that isn't even one
-        // of carol's own targets).
-        await waitFor(() =>
-            expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument()
-        );
-
-        await userEvent.click(screen.getByAltText('Approve'));
-
-        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('eve', 'carol', 'room-a'));
-    });
-
-    it('Deny does not require a target to be picked, even when the assassin has more than one', async () => {
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice', 'carol'] }]
-        );
+    it('Deny does not require a claim to be present', async () => {
+        mountWithSnapshot([{ status: 'pending', target: null, mission: null, assassin: 'bob' }]);
 
         await userEvent.click(screen.getByAltText('Deny'));
 
@@ -706,45 +635,6 @@ describe('moderator resolves the target (players no longer pick who they killed)
 });
 
 describe("an open-season target is a valid kill even off the assassin's own list", () => {
-    it("offers an open-season player in the dropdown alongside the assassin's own target", async () => {
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [
-                { name: 'bob', targets: ['alice'] },
-                { name: 'alice', targets: [] },
-                { name: 'carol', targets: [], openSeason: true, isAlive: true },
-            ]
-        );
-
-        expect(screen.getByLabelText('Select target or mission')).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'alice' })).toBeInTheDocument();
-        expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
-    });
-
-    it('auto-resolves to the open-season player when that is the only option at all', async () => {
-        executeKill.mockResolvedValue({
-            targetWasOpenSzn: true,
-            preKillSnapshot: {},
-            addedTargets: {},
-            addedAssassins: {},
-            remapLogs: [],
-        });
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [
-                { name: 'bob', targets: [] },
-                { name: 'carol', targets: [], openSeason: true, isAlive: true },
-            ]
-        );
-
-        expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
-        expect(screen.getByText('Target: carol')).toBeInTheDocument();
-
-        await userEvent.click(screen.getByAltText('Approve'));
-
-        await waitFor(() => expect(executeKill).toHaveBeenCalledWith('carol', 'bob', 'room-a'));
-    });
-
     it('announces open season ending when the approved kill was on an open-season target', async () => {
         executeKill.mockResolvedValue({
             targetWasOpenSzn: true,
@@ -754,7 +644,7 @@ describe("an open-season target is a valid kill even off the assassin's own list
             remapLogs: [],
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: 'carol', mission: null, assassin: 'bob' }],
             [
                 { name: 'bob', targets: [] },
                 { name: 'carol', targets: [], openSeason: true, isAlive: true },
@@ -786,42 +676,6 @@ describe("an open-season target is a valid kill even off the assassin's own list
 });
 
 describe('approving a photo as a mission completion', () => {
-    it('lists open missions grouped separately from kill targets, excluding ended or already-completed ones', async () => {
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: ['alice', 'carol'] }],
-            [
-                { taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] },
-                { taskIndex: 2, title: 'Ended mission', isComplete: true, completedBy: [] },
-                { taskIndex: 3, title: 'Already done', isComplete: false, completedBy: ['bob'] },
-            ]
-        );
-
-        expect(screen.getByRole('option', { name: 'Find the clue' })).toBeInTheDocument();
-        expect(screen.queryByRole('option', { name: 'Ended mission' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
-    });
-
-    it('excludes a mission already completed by this player even when the photo carries their display-cased name', async () => {
-        // currentPhoto.assassin is display-cased (e.g. "Bob"), but
-        // completedBy entries are normalized (lowercase, whitespace
-        // stripped) by completeMission.js — the exclusion check must
-        // normalize the assassin's name before comparing against
-        // completedBy, or an already-completed mission wrongly stays in
-        // the dropdown.
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'Bob' }],
-            [{ name: 'Bob', targets: ['alice', 'carol'] }],
-            [
-                { taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] },
-                { taskIndex: 2, title: 'Already done', isComplete: false, completedBy: ['bob'] },
-            ]
-        );
-
-        expect(screen.getByRole('option', { name: 'Find the clue' })).toBeInTheDocument();
-        expect(screen.queryByRole('option', { name: 'Already done' })).not.toBeInTheDocument();
-    });
-
     it('completes a Task mission and marks the photo approved with the resolved mission index and reversal snapshot', async () => {
         completeMission.mockResolvedValue({
             reversalSnapshot: {
@@ -846,7 +700,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: false,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
         );
@@ -880,7 +734,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: false,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
         );
@@ -920,7 +774,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: false,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
         );
@@ -960,7 +814,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: true,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 2, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 2, title: 'Revival Mission', isComplete: false, completedBy: [] }]
         );
@@ -988,7 +842,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: true,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 1, title: 'Revival Mission', isComplete: false, completedBy: [] }]
         );
@@ -1023,7 +877,7 @@ describe('approving a photo as a mission completion', () => {
             revivesPlayer: false,
         });
         mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
+            [{ status: 'pending', target: null, mission: 1, assassin: 'bob' }],
             [{ name: 'bob', targets: [] }],
             [{ taskIndex: 1, title: 'Find the clue', isComplete: false, completedBy: [] }]
         );
@@ -1035,28 +889,6 @@ describe('approving a photo as a mission completion', () => {
         expect(executionHandlers.handleAddNewTargets).not.toHaveBeenCalled();
         expect(executionHandlers.handleSetShowMessageToTrue).not.toHaveBeenCalled();
         expect(executionHandlers.handlePlayerRevive).not.toHaveBeenCalled();
-    });
-
-    it('shows a message and keeps Approve disabled when the assassin has no open targets or missions', async () => {
-        // Heads-off finding #5: once the zero-targets photo gate is
-        // removed (finding #1), a dead player with no targets and no open
-        // Revival Mission yet can land here with nothing selectable.
-        mountWithSnapshot(
-            [{ status: 'pending', target: null, assassin: 'bob' }],
-            [{ name: 'bob', targets: [] }],
-            []
-        );
-
-        expect(
-            screen.getByText('No open targets or missions for this player.')
-        ).toBeInTheDocument();
-        expect(screen.queryByLabelText('Select target or mission')).not.toBeInTheDocument();
-
-        await userEvent.click(screen.getByAltText('Approve'));
-
-        expect(executeKill).not.toHaveBeenCalled();
-        expect(dbCalls.approvePhotoForRoom).not.toHaveBeenCalled();
-        expect(dbCalls.approvePhotoAsMissionForRoom).not.toHaveBeenCalled();
     });
 
     it('denies a photo with generic wording regardless of category', async () => {
