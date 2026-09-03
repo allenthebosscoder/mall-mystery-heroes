@@ -41,10 +41,10 @@ const planMissionCompletion = (task, playerName, { isPlayerDead }) => {
 
 /**
  * Which of `missions` a given player could still complete: not already
- * ended, and not already completed by this player. Feeds the
- * photo-approval dropdown's mission options directly — a mission that
- * would obviously fail planMissionCompletion is never offered as an
- * option in the first place.
+ * ended, not already completed by this player, and not a Revival Mission
+ * when the player is alive. Feeds the photo-approval dropdown's mission
+ * options directly — a mission that would obviously fail
+ * planMissionCompletion is never offered as an option in the first place.
  */
 const openMissionsForPlayer = (missions, playerName, isPlayerDead) =>
     missions.filter(

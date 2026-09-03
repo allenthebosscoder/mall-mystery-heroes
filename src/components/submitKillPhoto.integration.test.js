@@ -11,10 +11,11 @@
  * executeKill.integration.test.js's approach
  * (docs/superpowers/specs/2026-08-22-identity-verified-player-writes-design.md).
  *
- * A player no longer names who they killed — the target field is resolved
- * later, by a moderator reviewing the photo in PhotosDisplay.js — so
- * `target` is not sent by any of these calls, and every write lands with
- * `target: null`.
+ * Most of these calls pass a `target` or `mission` claim as part of the
+ * submission (matching the real flow from PhotosDisplay.js's target/mission
+ * picker). A few tests checking early-validation paths (argument shape,
+ * URL validity) that fire before the claim check omit both, which is valid
+ * for those test scenarios.
  */
 import { httpsCallable } from 'firebase/functions';
 import { terminate, getDocs, Timestamp } from 'firebase/firestore';
