@@ -46,7 +46,12 @@ const planMissionCompletion = (task, playerName, { isPlayerDead }) => {
  * would obviously fail planMissionCompletion is never offered as an
  * option in the first place.
  */
-const openMissionsForPlayer = (missions, playerName) =>
-    missions.filter((mission) => !mission.isComplete && !mission.completedBy.includes(playerName));
+const openMissionsForPlayer = (missions, playerName, isPlayerDead) =>
+    missions.filter(
+        (mission) =>
+            !mission.isComplete &&
+            !mission.completedBy.includes(playerName) &&
+            (mission.taskType !== 'Revival Mission' || isPlayerDead)
+    );
 
 module.exports = { planMissionCompletion, openMissionsForPlayer };

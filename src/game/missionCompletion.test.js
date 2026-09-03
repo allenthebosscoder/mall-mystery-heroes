@@ -110,4 +110,47 @@ describe('openMissionsForPlayer', () => {
 
         expect(openMissionsForPlayer(missions, 'alice').map((m) => m.taskIndex)).toEqual([4]);
     });
+
+    it('excludes a Revival Mission when the player is alive', () => {
+        const missions = [
+            {
+                taskIndex: 1,
+                title: 'Revive Bob',
+                taskType: 'Revival Mission',
+                isComplete: false,
+                completedBy: [],
+            },
+        ];
+
+        expect(openMissionsForPlayer(missions, 'alice', false)).toEqual([]);
+    });
+
+    it('includes a Revival Mission when the player is dead', () => {
+        const missions = [
+            {
+                taskIndex: 1,
+                title: 'Revive Bob',
+                taskType: 'Revival Mission',
+                isComplete: false,
+                completedBy: [],
+            },
+        ];
+
+        expect(openMissionsForPlayer(missions, 'alice', true)).toEqual(missions);
+    });
+
+    it('includes a Task-type mission regardless of isPlayerDead', () => {
+        const missions = [
+            {
+                taskIndex: 1,
+                title: 'Find the clue',
+                taskType: 'Task',
+                isComplete: false,
+                completedBy: [],
+            },
+        ];
+
+        expect(openMissionsForPlayer(missions, 'alice', false)).toEqual(missions);
+        expect(openMissionsForPlayer(missions, 'alice', true)).toEqual(missions);
+    });
 });
