@@ -4,7 +4,13 @@ describe('buildPhotoClaimOptions', () => {
     it("combines the player's own kill targets and open missions into one array", () => {
         const players = [{ name: 'alice', targets: ['bob'], isAlive: true, openSeason: false }];
         const missions = [
-            { taskIndex: 1, title: 'Find the clue', taskType: 'Task', isComplete: false, completedBy: [] },
+            {
+                taskIndex: 1,
+                title: 'Find the clue',
+                taskType: 'Task',
+                isComplete: false,
+                completedBy: [],
+            },
         ];
 
         const result = buildPhotoClaimOptions(players, missions, 'alice');
