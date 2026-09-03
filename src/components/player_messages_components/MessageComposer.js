@@ -22,6 +22,8 @@ const MessageComposer = ({
     isGameActive = true,
     onOptimisticSend,
     onOptimisticSendFailed,
+    players = [],
+    missions = [],
 }) => {
     const [text, setText] = useState('');
     const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
@@ -124,16 +126,20 @@ const MessageComposer = ({
     // surfaces via a toast instead of the modal's own inline error banner,
     // since the modal (and that banner) are already gone by the time a
     // failure could happen.
-    const handlePhotoSubmit = async () => {
+    const handlePhotoSubmit = async (claimValue) => {
         const blobToSubmit = compressedBlob;
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         setCompressedBlob(null);
         setPreviewUrl(null);
         setPhotoError(null);
         setIsPhotoModalOpen(false);
+        const target = claimValue.startsWith('target:') ? claimValue.slice('target:'.length) : null;
+        const mission = claimValue.startsWith('mission:')
+            ? Number(claimValue.slice('mission:'.length))
+            : null;
         try {
             const url = await uploadKillPhoto(roomID, blobToSubmit);
-            await submitKillPhoto({ roomId: roomID, url });
+            await submitKillPhoto({ roomId: roomID, url, target, mission });
         } catch (submitError) {
             console.error('Error submitting kill photo:', submitError);
             createAlert(
@@ -198,6 +204,9 @@ const MessageComposer = ({
                 previewUrl={previewUrl}
                 error={photoError}
                 onSubmit={handlePhotoSubmit}
+                players={players}
+                missions={missions}
+                playerName={playerName}
             />
         </Flex>
     );

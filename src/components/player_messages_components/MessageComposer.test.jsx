@@ -73,6 +73,8 @@ const mountComposer = (playerName = 'Alice', targets = ['bob'], extraProps = {})
                 roomID="room-a"
                 playerName={playerName}
                 targets={targets}
+                players={[{ name: 'Alice', targets: ['bob'], isAlive: true, openSeason: false }]}
+                missions={[]}
                 {...extraProps}
             />
         </ChakraProvider>
@@ -314,6 +316,8 @@ describe('MessageComposer', () => {
             expect(submitKillPhoto).toHaveBeenCalledWith({
                 roomId: 'room-a',
                 url: 'https://example.com/photo.jpg',
+                target: 'bob',
+                mission: null,
             })
         );
         // The order still genuinely matters: the photo must be uploaded (so
@@ -325,6 +329,67 @@ describe('MessageComposer', () => {
         expect(uploadKillPhoto.mock.invocationCallOrder[0]).toBeLessThan(
             submitKillPhoto.mock.invocationCallOrder[0]
         );
+    });
+
+    it('submits the resolved target claim, split into target/mission fields', async () => {
+        mountComposer();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
+        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+        await waitFor(() =>
+            expect(submitKillPhoto).toHaveBeenCalledWith({
+                roomId: 'room-a',
+                url: 'https://example.com/photo.jpg',
+                target: 'bob',
+                mission: null,
+            })
+        );
+    });
+
+    it('submits a mission claim, split into target/mission fields, when that is the only open option', async () => {
+        mountComposer('Alice', ['bob'], {
+            players: [{ name: 'Alice', targets: [], isAlive: true, openSeason: false }],
+            missions: [
+                {
+                    taskIndex: 3,
+                    title: 'Find the clue',
+                    taskType: 'Task',
+                    isComplete: false,
+                    completedBy: [],
+                },
+            ],
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled());
+        await userEvent.click(screen.getByRole('button', { name: 'Submit' }));
+
+        await waitFor(() =>
+            expect(submitKillPhoto).toHaveBeenCalledWith({
+                roomId: 'room-a',
+                url: 'https://example.com/photo.jpg',
+                target: null,
+                mission: 3,
+            })
+        );
+    });
+
+    it('passes players and missions through to KillPhotoModal’s picker', async () => {
+        mountComposer('Alice', ['bob'], {
+            players: [
+                { name: 'Alice', targets: ['bob', 'carol'], isAlive: true, openSeason: false },
+            ],
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Send photo' }));
+        await userEvent.upload(screen.getByLabelText('Take Photo'), fakeFile);
+
+        expect(await screen.findByLabelText('Select target or mission')).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: 'carol' })).toBeInTheDocument();
     });
 
     it('shows a toast with the failure reason when the upload fails, after the modal has already closed', async () => {

@@ -14,10 +14,11 @@ const submitKillPhotoCallable = httpsCallable(functions, 'submitKillPhoto');
  *
  * @throws if the caller isn't a player of the room, the game has ended,
  *   the url isn't a legitimate photo for this room, the rate limit is
- *   exceeded, or target doesn't exist — surfaces as a rejected promise
- *   carrying `.message`, same as executeKill.js (docs/improvements.md
- *   item 10's error-propagation pattern needs no changes to handle this).
+ *   exceeded, target/mission aren't exactly-one-set, or the given target
+ *   or mission doesn't exist — surfaces as a rejected promise carrying
+ *   `.message`, same as executeKill.js (docs/improvements.md item 10's
+ *   error-propagation pattern needs no changes to handle this).
  */
-export const submitKillPhoto = async ({ roomId, target, url }) => {
-    await submitKillPhotoCallable({ roomId, target, url });
+export const submitKillPhoto = async ({ roomId, target, mission, url }) => {
+    await submitKillPhotoCallable({ roomId, target, mission, url });
 };
