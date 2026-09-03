@@ -10,6 +10,7 @@ import {
     Flex,
     Heading,
     Text,
+    VStack,
     useDisclosure,
 } from '@chakra-ui/react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -25,6 +26,7 @@ import CreateAlert from '../components/CreateAlert';
 import { readPlayerSession, clearPlayerSession } from '../utils/playerSession';
 import MessageFeed from '../components/player_messages_components/MessageFeed';
 import MessageComposer from '../components/player_messages_components/MessageComposer';
+import PlayerTaskListModal from '../components/task_components/PlayerTaskListModal';
 
 const PlayerGame = () => {
     const { roomID } = useParams();
@@ -42,6 +44,11 @@ const PlayerGame = () => {
     const session = readPlayerSession();
     const playerName = session && session.roomID === roomID ? session.playerName : '';
     const { isOpen, onOpen, onClose } = useDisclosure();
+    const {
+        isOpen: isMissionsOpen,
+        onOpen: onMissionsOpen,
+        onClose: onMissionsClose,
+    } = useDisclosure();
     const cancelRef = useRef();
     const createAlert = CreateAlert();
 
@@ -148,9 +155,19 @@ const PlayerGame = () => {
                 <Heading size="md">
                     {playerName || 'You'} joined {roomID}
                 </Heading>
-                <Button size="sm" colorScheme="red" variant="outline" onClick={handleLeaveClick}>
-                    Leave
-                </Button>
+                <VStack spacing={2} align="stretch">
+                    <Button
+                        size="sm"
+                        colorScheme="red"
+                        variant="outline"
+                        onClick={handleLeaveClick}
+                    >
+                        Leave
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={onMissionsOpen}>
+                        View Missions
+                    </Button>
+                </VStack>
             </Flex>
             <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
                 <AlertDialogOverlay />
@@ -170,6 +187,11 @@ const PlayerGame = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <PlayerTaskListModal
+                isOpen={isMissionsOpen}
+                onClose={onMissionsClose}
+                roomID={roomID}
+            />
             {/* Once the game has ended, the target/status text no longer
                 applies — the "please head back" and final-standings
                 announcements arrive as real chat messages instead

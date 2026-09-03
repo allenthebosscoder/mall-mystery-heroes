@@ -49,7 +49,7 @@ deny."
   used to use** (`killTargetsForAssassin` for kill targets — a player's
   own assigned targets plus anyone currently in open season —
   `openMissionsForPlayer` for missions still completable by them),
-  computed for the *submitting* player instead of a resolved photo's
+  computed for the _submitting_ player instead of a resolved photo's
   assassin. Single option → shown, already picked. Multiple → a dropdown,
   grouped the same way ("Kill Target" / "Mission"). None → the submit
   button stays disabled with a plain "nothing available right now"
@@ -57,7 +57,7 @@ deny."
 - **A real bug gets fixed along the way.** `openMissionsForPlayer` today
   doesn't filter out Revival Missions for a living player — attempting to
   complete one always fails validation (`planMissionCompletion` requires
-  the player to be dead), but nothing ever stopped it from being *offered*.
+  the player to be dead), but nothing ever stopped it from being _offered_.
   This was a latent gap the moderator never really hit (a moderator
   reviewing a photo already knows whether the submitter is alive). Now
   that a living player would see this option directly in their own
@@ -86,8 +86,8 @@ deny."
   button simply stays disabled when a photo has neither `target` nor
   `mission` set — correct behavior, no dedicated messaging needed.
 - **The moderator's display wording:** `"{assassin}'s kill attempt on
-  {target}"` for a kill claim, `"{assassin}'s mission attempt: {mission
-  title}"` for a mission claim — parallel phrasing, "who, doing what," at
+{target}"` for a kill claim, `"{assassin}'s mission attempt: {mission
+title}"` for a mission claim — parallel phrasing, "who, doing what," at
   a glance.
 
 ## Components
@@ -103,17 +103,17 @@ deny."
   local to this page. Both get passed down as `players`/`missions` props
   to `MessageComposer`.
 - `src/game/photoClaimOptions.js` (new) — `buildPhotoClaimOptions(players,
-  missions, playerName)`, a pure function: finds the player's own roster
+missions, playerName)`, a pure function: finds the player's own roster
   row to determine `isPlayerDead`, then combines
   `killTargetsForAssassin(players, playerName)` and
   `openMissionsForPlayer(missions, normalizedName, isPlayerDead)` into one
   array of `{ value: 'target:<name>' | 'mission:<index>', label, group:
-  'Kill Target' | 'Mission' }` entries — the exact shape
+'Kill Target' | 'Mission' }` entries — the exact shape
   `PhotosDisplay.js`'s dropdown used to build inline, now reusable and
   independently unit-testable.
 - `src/game/missionCompletion.js` — `openMissionsForPlayer` gains a third
   parameter, `isPlayerDead`, and excludes any mission with `taskType ===
-  'Revival Mission'` when it's `false`.
+'Revival Mission'` when it's `false`.
 - `src/components/player_messages_components/KillPhotoModal.js` — gains
   `players`, `missions`, `playerName` props. Computes
   `buildPhotoClaimOptions` internally, tracks the in-progress pick in
@@ -127,7 +127,7 @@ deny."
 - `src/components/player_messages_components/MessageComposer.js` —
   receives and forwards `players`/`missions` to `KillPhotoModal`.
   `handlePhotoSubmit` now takes the claim value, splits it into `{target,
-  mission}` (mirroring `PhotosDisplay.js`'s existing
+mission}` (mirroring `PhotosDisplay.js`'s existing
   `effectiveSelection.startsWith('target:'/'mission:')` parsing), and
   passes both through to `submitKillPhoto`.
 - `src/components/submitKillPhoto.js` — thin wrapper, gains `target`/

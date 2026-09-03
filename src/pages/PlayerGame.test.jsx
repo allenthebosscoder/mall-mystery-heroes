@@ -42,6 +42,19 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
     fetchPlayerReferenceForRoom: jest.fn(),
 }));
 jest.mock('../components/leaveGame', () => ({ leaveGame: jest.fn() }));
+// Stubbed — has its own dedicated test file (PlayerTaskListModal.test.jsx).
+// This file only checks that the button opens/closes it and passes roomID
+// through, same reasoning as the MessageFeed/MessageComposer stubs below.
+jest.mock(
+    '../components/task_components/PlayerTaskListModal',
+    () => (props) =>
+        props.isOpen ? (
+            <div>
+                player-task-list-modal-stub roomID={props.roomID}
+                <button onClick={props.onClose}>close-missions-modal</button>
+            </div>
+        ) : null
+);
 // Stubbed — each has its own thorough test file (MessageFeed.test.jsx,
 // MessageComposer.test.jsx). This file stays focused on PlayerGame's own
 // status-line logic and on wiring MessageFeed's props, not re-testing
@@ -270,6 +283,30 @@ describe('PlayerGame', () => {
         expect(leaveGame).not.toHaveBeenCalled();
         expect(signOut).not.toHaveBeenCalled();
         expect(readPlayerSession()).not.toBeNull();
+    });
+
+    it('opens the missions modal when View Missions is clicked, and closes it again', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: false }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.queryByText(/player-task-list-modal-stub/)).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'View Missions' }));
+
+        expect(
+            screen.getByText('player-task-list-modal-stub roomID=Fluffy42317')
+        ).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'close-missions-modal' }));
+
+        expect(screen.queryByText(/player-task-list-modal-stub/)).not.toBeInTheDocument();
     });
 
     it('shows an error and does not sign out when leaveGame is rejected', async () => {
