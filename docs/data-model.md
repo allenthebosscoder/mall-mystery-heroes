@@ -483,20 +483,29 @@ part of its scheduled cleanup pass — see the Room cleanup section above.
 
 ## Room ID generation
 
-`DashBoard.handleHostRoom` builds an ID with `unique-names-generator`:
+Jackbox-style: 4 random uppercase letters (e.g. `WXKR`), via
+`src/game/roomId.js`'s `generateRoomCode` — a pure function, `Math.random`
+injectable as `rng` for deterministic tests, matching
+`remapPlan.js`/`targetGraph.js`'s own convention. Replaced the old
+`unique-names-generator` word+number scheme (`Fluffy42317`), whose
+mixed-case shape silently failed to match if a player typed it back in any
+other case; the new scheme sidesteps that entirely by staying uppercase
+everywhere it's generated, stored, displayed, and typed (`JoinGame.js`
+uppercases the input live, as the player types).
 
-```js
-uniqueNamesGenerator({
-    dictionaries: [adjectives, [randomRoomNumber.toString()]], // 10000–99999
-    separator: '',
-    style: 'capital',
-});
-```
+`DashBoard.js`'s room-creation effect retries on two conditions before
+writing: `isBlockedRoomCode` (a short, hand-curated list of offensive
+4-letter words, checked case-insensitively, also in `roomId.js`) and
+`checkForRoomIDDupes` (existence check against Firestore) — up to 300
+attempts before giving up with a toast. The check-then-write is not atomic,
+so two simultaneous hosts can in principle claim the same ID.
 
-producing IDs like `Fluffy42317`. It retries on collision (checked with
-`checkForRoomIDDupes`) up to 300 attempts before giving up with a toast. The
-check-then-write is not atomic, so two simultaneous hosts can in principle claim
-the same ID.
+No letters are excluded from the alphabet — the code is letters only, never
+mixed with digits, so `O`/`0` confusion never arises, and capital `I` is
+disambiguated by rendering the code in a serif font (`Georgia, 'Times New
+Roman', serif`) wherever a person actually reads it off a screen
+(`Lobby.js`'s "Game ID:" heading, `PlayerGame.js`'s "joined" heading,
+`JoinGame.js`'s own input field), not by shrinking the alphabet.
 
 ---
 

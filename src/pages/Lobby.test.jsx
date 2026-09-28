@@ -123,7 +123,11 @@ describe('the simplified layout', () => {
 
         mountLobby();
 
-        expect(screen.getByText('Game ID: room-a')).toBeInTheDocument();
+        // The code itself is a separate <Text> node (a serif font, so
+        // capital I reads unambiguously) — getByText's default matching
+        // only checks one node's own text, not text split across
+        // children, so this checks the heading's combined text instead.
+        expect(screen.getByRole('heading', { name: 'Game ID: room-a' })).toBeInTheDocument();
         expect(screen.queryByText(/Lobby ID/)).not.toBeInTheDocument();
     });
 

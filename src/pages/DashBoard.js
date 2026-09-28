@@ -3,8 +3,8 @@ import { auth, db } from '../utils/firebase';
 import { setDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Center, Spinner } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { adjectives, uniqueNamesGenerator } from 'unique-names-generator';
 import { checkForRoomIDDupes, fetchActiveRoomForHost } from '../components/firebase_calls/dbCalls';
+import { generateRoomCode, isBlockedRoomCode } from '../game/roomId';
 import CreateAlert from '../components/CreateAlert';
 
 // No visible UI: resolves where a logged-in GM belongs and redirects there
@@ -33,7 +33,6 @@ const DashBoard = () => {
                     return;
                 }
 
-                let randomRoomNumber;
                 let roomID;
                 let check = false;
                 let runningTime = 0;
@@ -44,13 +43,8 @@ const DashBoard = () => {
                         createAlert('error', 'Timed Out', 'No Available Room Found', 1500);
                         return;
                     }
-                    randomRoomNumber = Math.floor(Math.random() * 90000) + 10000;
-                    roomID = uniqueNamesGenerator({
-                        dictionaries: [adjectives, [randomRoomNumber.toString()]],
-                        separator: '',
-                        style: 'capital',
-                    });
-                    check = await checkForRoomIDDupes(roomID);
+                    roomID = generateRoomCode();
+                    check = !isBlockedRoomCode(roomID) && (await checkForRoomIDDupes(roomID));
                 }
 
                 const roomRef = doc(db, 'rooms', roomID);

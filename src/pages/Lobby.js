@@ -1,4 +1,4 @@
-import { Button, Divider, Flex, Heading, Image } from '@chakra-ui/react';
+import { Button, Divider, Flex, Heading, Image, Text } from '@chakra-ui/react';
 import { signOut } from 'firebase/auth';
 import { onSnapshot } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
@@ -101,7 +101,10 @@ const Lobby = () => {
 
             <Flex direction="column" w="100%" flex="1" bg="black" align="center" overflow="auto">
                 <Heading as="h2" size="md" mt="4%">
-                    Game ID: {roomID}
+                    Game ID:{' '}
+                    <Text as="span" fontFamily="Georgia, 'Times New Roman', serif">
+                        {roomID}
+                    </Text>
                 </Heading>
                 <Heading mt="4%" mb="1%">
                     Players ({arrayOfPlayers.length})

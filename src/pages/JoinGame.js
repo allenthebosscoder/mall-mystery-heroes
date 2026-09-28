@@ -67,8 +67,13 @@ const JoinGame = () => {
                 <Input
                     placeholder="Game ID"
                     value={gameId}
-                    onChange={(e) => setGameId(e.target.value)}
+                    // Uppercase as you type (Jackbox-style) rather than
+                    // only at submit — room codes are stored/matched
+                    // uppercase, so this also means it never matters
+                    // which case a player actually typed.
+                    onChange={(e) => setGameId(e.target.value.toUpperCase())}
                     borderWidth="3px"
+                    fontFamily="Georgia, 'Times New Roman', serif"
                 />
                 <Input
                     placeholder="Your name"

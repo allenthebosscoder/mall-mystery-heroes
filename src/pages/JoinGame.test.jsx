@@ -71,8 +71,8 @@ describe('JoinGame', () => {
         await fillAndSubmit('Fluffy42317', 'Alice');
 
         expect(await screen.findByText('Waiting page')).toBeInTheDocument();
-        expect(joinRoom).toHaveBeenCalledWith('Fluffy42317', 'Alice');
-        expect(readPlayerSession()).toEqual({ roomID: 'Fluffy42317', playerName: 'Alice' });
+        expect(joinRoom).toHaveBeenCalledWith('FLUFFY42317', 'Alice');
+        expect(readPlayerSession()).toEqual({ roomID: 'FLUFFY42317', playerName: 'Alice' });
     });
 
     it('does not call signInAnonymously when a GM is already signed in, but still joins', async () => {
@@ -84,7 +84,7 @@ describe('JoinGame', () => {
 
         expect(await screen.findByText('Waiting page')).toBeInTheDocument();
         expect(signInAnonymously).not.toHaveBeenCalled();
-        expect(joinRoom).toHaveBeenCalledWith('Fluffy42317', 'Alice');
+        expect(joinRoom).toHaveBeenCalledWith('FLUFFY42317', 'Alice');
     });
 
     it('trims whitespace from the game ID before joining', async () => {
@@ -94,7 +94,7 @@ describe('JoinGame', () => {
         await fillAndSubmit('  Fluffy42317  ', 'Alice');
 
         await screen.findByText('Waiting page');
-        expect(joinRoom).toHaveBeenCalledWith('Fluffy42317', 'Alice');
+        expect(joinRoom).toHaveBeenCalledWith('FLUFFY42317', 'Alice');
     });
 
     it('shows an inline error and does not navigate when the room does not exist', async () => {
@@ -130,6 +130,14 @@ describe('JoinGame', () => {
 
         expect(screen.getByPlaceholderText('Your name')).toHaveAttribute('maxlength', '40');
     });
+
+    it('shows the game ID in uppercase as it is typed, not just at submit', async () => {
+        renderJoinGame();
+
+        await userEvent.type(screen.getByPlaceholderText('Game ID'), 'wxkr');
+
+        expect(screen.getByPlaceholderText('Game ID')).toHaveValue('WXKR');
+    });
 });
 
 describe('the reconnect fallback', () => {
@@ -140,7 +148,7 @@ describe('the reconnect fallback', () => {
 
         await fillAndSubmit('Fluffy42317', 'Alice');
 
-        await waitFor(() => expect(requestReconnect).toHaveBeenCalledWith('Fluffy42317', 'Alice'));
+        await waitFor(() => expect(requestReconnect).toHaveBeenCalledWith('FLUFFY42317', 'Alice'));
         expect(await screen.findByText('Reconnecting page')).toBeInTheDocument();
     });
 

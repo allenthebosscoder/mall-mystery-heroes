@@ -25,8 +25,9 @@ sequenceDiagram
     else active room exists, not yet started
         DB->>Lobby: navigate(/rooms/{roomID}/lobby)
     else no active room for this host
-        loop until unique, max 300 tries
-            DB->>DB: uniqueNamesGenerator() → "Fluffy42317"
+        loop until unique and unblocked, max 300 tries
+            DB->>DB: generateRoomCode() → "WXKR"
+            DB->>DB: isBlockedRoomCode(roomID)
             DB->>FS: checkForRoomIDDupes(roomID)
         end
         DB->>FS: setDoc(rooms/{roomID}, {hostId, isGameActive, gameStarted, joinedUids:[], taskIndex:1, storageReference:[], createdAt})

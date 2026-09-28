@@ -136,7 +136,12 @@ describe('PlayerGame', () => {
 
         renderWaiting();
 
-        expect(screen.getByText('Alice joined Fluffy42317')).toBeInTheDocument();
+        // The room ID is a separate <Text> node (a serif font, so capital
+        // I reads unambiguously) — checked via the heading's combined
+        // accessible name rather than a single-node text match.
+        expect(
+            screen.getByRole('heading', { name: 'Alice joined Fluffy42317' })
+        ).toBeInTheDocument();
         expect(screen.getByText('Waiting for the host to start...')).toBeInTheDocument();
     });
 
