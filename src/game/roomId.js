@@ -10,9 +10,8 @@
  *
  * No letters are excluded from the alphabet: the code is letters only,
  * never mixed with digits, so O/0 confusion never arises, and capital I
- * is disambiguated by rendering the code in a serif font wherever a
- * person actually reads it off a screen (Lobby.js, PlayerGame.js), not
- * by shrinking the alphabet.
+ * reads unambiguously on its own since the code is always shown in all
+ * caps — there's no lowercase L for it to be confused with.
  */
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const CODE_LENGTH = 4;

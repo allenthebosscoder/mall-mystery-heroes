@@ -73,7 +73,6 @@ const JoinGame = () => {
                     // which case a player actually typed.
                     onChange={(e) => setGameId(e.target.value.toUpperCase())}
                     borderWidth="3px"
-                    fontFamily="Georgia, 'Times New Roman', serif"
                 />
                 <Input
                     placeholder="Your name"

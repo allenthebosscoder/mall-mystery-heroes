@@ -219,10 +219,7 @@ const PlayerGame = () => {
         >
             <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2} mb={2}>
                 <Heading size="md">
-                    {playerName || 'You'} joined{' '}
-                    <Text as="span" fontFamily="Georgia, 'Times New Roman', serif">
-                        {roomID}
-                    </Text>
+                    {playerName || 'You'} joined {roomID}
                 </Heading>
                 <HStack spacing={2}>
                     <Button

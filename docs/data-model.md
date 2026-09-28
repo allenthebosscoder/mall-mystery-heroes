@@ -501,11 +501,9 @@ attempts before giving up with a toast. The check-then-write is not atomic,
 so two simultaneous hosts can in principle claim the same ID.
 
 No letters are excluded from the alphabet — the code is letters only, never
-mixed with digits, so `O`/`0` confusion never arises, and capital `I` is
-disambiguated by rendering the code in a serif font (`Georgia, 'Times New
-Roman', serif`) wherever a person actually reads it off a screen
-(`Lobby.js`'s "Game ID:" heading, `PlayerGame.js`'s "joined" heading,
-`JoinGame.js`'s own input field), not by shrinking the alphabet.
+mixed with digits, so `O`/`0` confusion never arises, and capital `I` reads
+unambiguously on its own since the code is always shown in all caps —
+there's no lowercase `l` for it to be confused with.
 
 ---
 
