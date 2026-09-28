@@ -18,7 +18,6 @@ import {
     addPlayerMessageForRoom,
     updateIsAliveForPlayer,
 } from '../components/firebase_calls/dbCalls';
-import RemapPlayerModal from '../components/RemapPlayerModal';
 import { gameContext, executionContext } from '../components/Contexts';
 import ChatInput from '../components/logs_components/ChatInput';
 import PhotosDisplay from '../components/photos_display_component/PhotosDisplay';
@@ -32,9 +31,6 @@ const GameMasterView = () => {
     const [, setCompletedTasks] = useState([]);
     const [logList, setLogList] = useState([]);
     const createAlert = CreateAlert();
-    const [newTargets, setNewTargets] = useState({});
-    const [newAssassins, setNewAssassins] = useState({});
-    const [showRemapModal, setShowRemapModal] = useState(false);
     const [showTaskCreationModal, setShowTaskCreationModal] = useState(false);
     const [showTaskListModal, setShowTaskListModal] = useState(false);
     const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
@@ -210,17 +206,18 @@ const GameMasterView = () => {
         await addLog(log, 'blue.500');
     };
 
-    //updates newTargets and newAssassins, and shows RemapPlayerModal
-    const handleAddNewTargets = (targets) => {
-        setNewTargets(targets);
-    };
-    const handleAddNewAssassins = (assassins) => {
-        setNewAssassins(assassins);
-    };
-    const handleSetShowMessageToTrue = () => {
-        setShowRemapModal(true);
-        console.log('set show message to true');
-    };
+    // All three below used to feed RemapPlayerModal — a blocking popup
+    // that fired on every kill/revive/mission completion that reassigned
+    // targets, which the GM found "very annoying, not necessary" since
+    // every remap it announces is already logged to the GM log
+    // (handleRemapping, above). The popup and the state it displayed are
+    // gone; these three stay as no-ops rather than being removed outright,
+    // since ChatInput.js and PhotosDisplay.js still call all three from
+    // several call sites each — a deeper cleanup, not needed to fix this
+    // bug.
+    const handleAddNewTargets = () => {};
+    const handleAddNewAssassins = () => {};
+    const handleSetShowMessageToTrue = () => {};
 
     // values for executionContext Provider
     const executionContextProviderValues = {
@@ -243,12 +240,6 @@ const GameMasterView = () => {
     return (
         <gameContext.Provider value={{ roomID, players, isGameActive }}>
             <Box sx={styles.container}>
-                <RemapPlayerModal
-                    showRemapModal={showRemapModal}
-                    newTargets={newTargets}
-                    newAssassins={newAssassins}
-                    onClose={() => setShowRemapModal(false)}
-                />
                 <TaskCreationModal
                     isOpen={showTaskCreationModal}
                     onClose={() => setShowTaskCreationModal(false)}
@@ -393,7 +384,15 @@ const styles = {
     },
     chatPanelWrapper: {
         w: '100%',
-        h: '35%',
+        // flex:1, not a fixed h — photosBox's 58% plus the old fixed 35%
+        // plus the 8px margin between them never quite summed to
+        // rightHandStack's own 95%, leaving a gap below this box that
+        // logsWrapper (a plain 95%, filling its column completely) didn't
+        // have — so this box's bottom border ended noticeably higher than
+        // the logs panel's. flex:1 makes it claim all the height
+        // photosBox doesn't, right down to rightHandStack's own bottom
+        // edge, which is the same edge logsWrapper's border sits on.
+        flex: '1',
         mt: '8px',
         borderWidth: '2px',
         borderRadius: '2xl',
