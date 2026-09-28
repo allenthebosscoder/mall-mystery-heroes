@@ -413,7 +413,14 @@ const styles = {
     },
     photosBox: {
         w: '94%',
-        h: '75%',
+        // Fixed h:'75%' used to fight with flexGrow:1 here — a long
+        // caption (e.g. "assassin's mission attempt: <long title>") could
+        // need more than the remaining 25%, and nothing was reserving room
+        // for it, so the button row got squeezed up into the caption text.
+        // flexGrow alone lets this box take only what's left over *after*
+        // targetPickerBox/buttonsBox below have claimed the room their own
+        // content actually needs.
+        minH: 0,
         textAlign: 'center',
         flexGrow: 1,
         display: 'flex',
@@ -433,6 +440,7 @@ const styles = {
         w: '100%',
         justifyContent: 'center',
         alignItems: 'center',
+        mt: '10px',
     },
     buttonImage: {
         w: '10%',
