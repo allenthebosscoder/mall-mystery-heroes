@@ -40,6 +40,13 @@ sequenceDiagram
         Lobby->>FS: removePlayerForRoom
     end
 
+    opt abandon instead of starting
+        GM->>Lobby: "Abandon Room"
+        Lobby->>FS: endGame(roomID) — isGameActive: false, endedAt
+        Lobby->>DB: navigate(/dashboard)
+        Note over DB: re-runs fetchActiveRoomForHost, finds none now, generates a fresh room
+    end
+
     GM->>TG: "Begin Game"
     TG->>TG: buildTargetGraph(players) — pure client-side graph build
     TG-->>GM: preview dialog of every player's targets
@@ -61,6 +68,13 @@ Two things to note:
 - `GameMasterView` no longer receives the roster via router state — it
   subscribes live via `onSnapshot` (`docs/improvements.md` item 13), so a
   reload no longer loses it.
+- Before `AbandonRoomButton`, the only way to leave a Lobby-phase room was
+  Start Game then End Game — `Endgamebutton.js` (the latter) only renders
+  once `GameMasterView` is reached, since it lives in `HeaderExecution.js`.
+  `AbandonRoomButton` calls the exact same `endGame` write, just without
+  `Endgamebutton.js`'s player-facing "please head back"/leaderboard
+  announcements, which would be nonsensical for a room nobody has actually
+  played in yet.
 
 ### The target assignment algorithm
 

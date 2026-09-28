@@ -42,6 +42,7 @@ jest.mock('../components/firebase_calls/dbCalls', () => ({
     markGameAsStarted: jest.fn(),
     updateAssassinsForPlayer: jest.fn(),
     updateTargetsForPlayer: jest.fn(),
+    endGame: jest.fn(),
 }));
 
 const asPlayerDocs = (names) => names.map((name) => ({ data: () => ({ name }) }));
@@ -149,6 +150,17 @@ describe('the simplified layout', () => {
 
         expect(screen.getByRole('button', { name: 'Begin Game' })).toBeInTheDocument();
         expect(screen.getByText('Select player to remove')).toBeInTheDocument();
+    });
+
+    it('always shows Abandon Room, even with no players joined yet', () => {
+        onSnapshot.mockImplementation((query, onNext) => {
+            onNext({ docs: [] });
+            return () => {};
+        });
+
+        mountLobby();
+
+        expect(screen.getByRole('button', { name: 'Abandon Room' })).toBeInTheDocument();
     });
 
     it('logs out when Log Out is clicked', async () => {

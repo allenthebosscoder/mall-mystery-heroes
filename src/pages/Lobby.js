@@ -7,6 +7,7 @@ import mallLogo from '../assets/mall-logo-black-green.png';
 import CreateAlert from '../components/CreateAlert';
 import PlayerList from '../components/lobby_components/PlayerList';
 import PlayerRemove from '../components/lobby_components/PlayerRemove';
+import AbandonRoomButton from '../components/lobby_components/AbandonRoomButton';
 import TargetGenerator from '../components/TargetGenerator';
 import { fetchAllPlayersQueryForRoom } from '../components/firebase_calls/dbCalls';
 import { auth } from '../utils/firebase';
@@ -118,12 +119,13 @@ const Lobby = () => {
                     )}
                 </Flex>
 
-                <Flex mb="4%">
+                <Flex mb="4%" gap="12px" align="center">
                     <TargetGenerator
                         roomID={roomID}
                         arrayOfPlayers={arrayOfPlayers}
                         handleLobbyRoom={handleLobbyRoom}
                     />
+                    <AbandonRoomButton roomID={roomID} />
                 </Flex>
             </Flex>
         </Flex>
