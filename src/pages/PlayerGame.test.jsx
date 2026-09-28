@@ -290,7 +290,7 @@ describe('PlayerGame', () => {
         expect(readPlayerSession()).not.toBeNull();
     });
 
-    it('opens the missions modal when View Missions is clicked, and closes it again', async () => {
+    it('opens the missions modal when Missions is clicked, and closes it again', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         onSnapshot.mockImplementation((ref, callback) => {
             if (ref === 'room-ref') {
@@ -303,7 +303,7 @@ describe('PlayerGame', () => {
 
         expect(screen.queryByText(/player-task-list-modal-stub/)).not.toBeInTheDocument();
 
-        await userEvent.click(screen.getByRole('button', { name: 'View Missions' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Missions' }));
 
         expect(
             screen.getByText('player-task-list-modal-stub roomID=Fluffy42317')
@@ -314,7 +314,7 @@ describe('PlayerGame', () => {
         expect(screen.queryByText(/player-task-list-modal-stub/)).not.toBeInTheDocument();
     });
 
-    it('opens the leaderboard modal when View Leaderboard is clicked, showing the live standings', async () => {
+    it('opens the leaderboard modal when Leaderboard is clicked, showing the live standings', async () => {
         writePlayerSession('Fluffy42317', 'Alice');
         fetchPlayersQueryByDescendPointsThenIsAliveForRoom.mockReturnValue('players-query');
         onSnapshot.mockImplementation((ref, callback) => {
@@ -337,7 +337,7 @@ describe('PlayerGame', () => {
 
         expect(screen.queryByText(/Bob — 40/)).not.toBeInTheDocument();
 
-        await userEvent.click(screen.getByRole('button', { name: 'View Leaderboard' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Leaderboard' }));
 
         expect(screen.getByText(/1\. Bob — 40/)).toBeInTheDocument();
         expect(screen.getByText(/2\. Alice — 10/)).toBeInTheDocument();
@@ -533,6 +533,49 @@ describe('PlayerGame', () => {
                 'message-composer-stub roomID=Fluffy42317 playerName=Alice isGameActive=false players=[] missions=[]'
             )
         ).toBeInTheDocument();
+    });
+
+    it('shows the game-ended popup and a pinned banner once the game has ended, and closing the popup keeps the banner', async () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({
+                    exists: () => true,
+                    data: () => ({ gameStarted: true, isGameActive: false }),
+                });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        // The popup opens via a useEffect keyed on isGameActive, which
+        // runs after the initial synchronous render.
+        expect(await screen.findByText('GAME ENDED')).toBeInTheDocument();
+        expect(screen.getAllByText(/PLEASE HEAD BACK TO THE STARTING AREA/).length).toBeGreaterThan(
+            0
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+        await waitFor(() => expect(screen.queryByText('GAME ENDED')).not.toBeInTheDocument());
+        // The pinned banner (not the popup) is what should remain.
+        expect(screen.getByText(/PLEASE HEAD BACK TO THE STARTING AREA/)).toBeInTheDocument();
+    });
+
+    it('does not show the game-ended popup or banner while the game is still active', () => {
+        writePlayerSession('Fluffy42317', 'Alice');
+        onSnapshot.mockImplementation((ref, callback) => {
+            if (ref === 'room-ref') {
+                callback({ exists: () => true, data: () => ({ gameStarted: true }) });
+            }
+            return () => {};
+        });
+
+        renderWaiting();
+
+        expect(screen.queryByText('GAME ENDED')).not.toBeInTheDocument();
+        expect(screen.queryByText(/PLEASE HEAD BACK TO THE STARTING AREA/)).not.toBeInTheDocument();
     });
 
     it('subscribes to the roster and missions once the game has started, and passes both to MessageComposer', () => {

@@ -6,11 +6,19 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogOverlay,
+    Box,
     Button,
     Flex,
     Heading,
+    HStack,
+    Modal,
+    ModalBody,
+    ModalCloseButton,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalOverlay,
     Text,
-    VStack,
     useDisclosure,
 } from '@chakra-ui/react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -59,6 +67,11 @@ const PlayerGame = () => {
         isOpen: isLeaderboardOpen,
         onOpen: onLeaderboardOpen,
         onClose: onLeaderboardClose,
+    } = useDisclosure();
+    const {
+        isOpen: isGameEndedOpen,
+        onOpen: onGameEndedOpen,
+        onClose: onGameEndedClose,
     } = useDisclosure();
     const cancelRef = useRef();
     const createAlert = CreateAlert();
@@ -115,6 +128,14 @@ const PlayerGame = () => {
         );
         return () => unsubscribe();
     }, [roomID, navigate, handleSubscriptionError]);
+
+    // Fires once per mount/transition to inactive — not on every re-render,
+    // since it only runs when isGameActive itself changes. A player
+    // loading the page after the game already ended sees it once too, not
+    // just a player who was watching live when it happened.
+    useEffect(() => {
+        if (!isGameActive) onGameEndedOpen();
+    }, [isGameActive, onGameEndedOpen]);
 
     // Only starts once the game has actually begun — no need to read the
     // player's own doc while still in the waiting room, and it keeps the
@@ -187,12 +208,20 @@ const PlayerGame = () => {
     };
 
     return (
-        <Flex height="100vh" direction="column" p={4}>
-            <Flex justifyContent="space-between" alignItems="center" mb={2}>
+        <Flex
+            height="100vh"
+            direction="column"
+            p={4}
+            // Dark red, and it stays — closing the "game ended" popup below
+            // dismisses the popup, not this. Player-facing only; the GM
+            // console (GameMasterView.js) is untouched.
+            bg={!isGameActive ? 'red.900' : undefined}
+        >
+            <Flex justifyContent="space-between" alignItems="center" wrap="wrap" gap={2} mb={2}>
                 <Heading size="md">
                     {playerName || 'You'} joined {roomID}
                 </Heading>
-                <VStack spacing={2} align="stretch">
+                <HStack spacing={2}>
                     <Button
                         size="sm"
                         colorScheme="red"
@@ -201,13 +230,18 @@ const PlayerGame = () => {
                     >
                         Leave
                     </Button>
-                    <Button size="sm" variant="outline" onClick={onMissionsOpen}>
-                        View Missions
+                    <Button size="sm" colorScheme="teal" variant="outline" onClick={onMissionsOpen}>
+                        Missions
                     </Button>
-                    <Button size="sm" variant="outline" onClick={onLeaderboardOpen}>
-                        View Leaderboard
+                    <Button
+                        size="sm"
+                        colorScheme="teal"
+                        variant="outline"
+                        onClick={onLeaderboardOpen}
+                    >
+                        Leaderboard
                     </Button>
-                </VStack>
+                </HStack>
             </Flex>
             <AlertDialog isOpen={isOpen} leastDestructiveRef={cancelRef} onClose={onClose}>
                 <AlertDialogOverlay />
@@ -264,6 +298,33 @@ const PlayerGame = () => {
                     )}
                 </>
             )}
+            {/* Pinned above the chat feed for as long as the game stays
+                inactive — closing the popup below only dismisses the
+                popup, not this. */}
+            {!isGameActive && (
+                <Box bg="red.700" color="white" borderRadius="md" p={2} mb={2} textAlign="center">
+                    <Text fontWeight="bold">
+                        GAME ENDED. PLEASE HEAD BACK TO THE STARTING AREA.
+                    </Text>
+                </Box>
+            )}
+            <Modal isOpen={isGameEndedOpen} onClose={onGameEndedClose} size="xl" isCentered>
+                <ModalOverlay />
+                <ModalContent bg="red.900" color="white">
+                    <ModalHeader textAlign="center" fontSize="2xl" fontWeight="bold">
+                        GAME ENDED
+                    </ModalHeader>
+                    <ModalCloseButton aria-label="Close modal" />
+                    <ModalBody textAlign="center">
+                        <Text fontSize="lg" fontWeight="bold">
+                            PLEASE HEAD BACK TO THE STARTING AREA.
+                        </Text>
+                    </ModalBody>
+                    <ModalFooter justifyContent="center">
+                        <Button onClick={onGameEndedClose}>Close</Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
             <MessageFeed
                 roomID={roomID}
                 playerName={playerName}
