@@ -824,9 +824,15 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
         await waitFor(() =>
             expect(dbCalls.updateIsAliveForPlayer).toHaveBeenCalledWith('alice', true, 'room-a')
         );
-        expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
-            'Alice',
-            expect.any(Function)
+        // handlePlayerRevive is further down the same async chain (roster
+        // fetch, then target regeneration, then the handlers) — its own
+        // waitFor, not an assumption that it's already settled just
+        // because the earlier updateIsAliveForPlayer call was observed.
+        await waitFor(() =>
+            expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
+                'Alice',
+                expect.any(Function)
+            )
         );
     });
 
@@ -1042,5 +1048,52 @@ describe('a room whose game has ended stops accepting commands (docs/improvement
         await userEvent.click(screen.getByAltText('Send'));
 
         expect(dbCalls.updatePointsForPlayer).not.toHaveBeenCalled();
+    });
+});
+
+describe('lag-mashed Enter does not resubmit the same command (bug report: "/add player 1" x5 Enters added points 5 times)', () => {
+    // The command bar previously only cleared once the whole async command
+    // chain finished (handleCommandExecution's own setValue('') at the very
+    // end). Under lag, a GM pressing Enter again before that happened saw
+    // the same typed text still sitting in the box — nothing stopped a
+    // second onKeyDown from reading and resubmitting that same text, so
+    // every extra Enter fired its own full command execution. Applies to
+    // every command uniformly, since they all funnel through this one
+    // dispatcher — /add is just the reported case.
+    it('only calls the backend once no matter how many Enters land before it resolves', async () => {
+        let resolveUpdate;
+        dbCalls.updatePointsForPlayer.mockReturnValue(
+            new Promise((resolve) => {
+                resolveUpdate = resolve;
+            })
+        );
+
+        const commandInput = mountChatInput();
+        await userEvent.type(commandInput, '/add Alice 5');
+
+        // Five rapid Enters, all landing before updatePointsForPlayer's
+        // promise ever resolves — exactly the reported lag scenario.
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+
+        resolveUpdate();
+        await waitFor(() => expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1));
+        // Give any stray extra call a chance to land before the final check.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1);
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('alice', 5, 'room-a');
+    });
+
+    it('clears the input the instant Enter is pressed, not once the command finishes, so the GM sees it was received', async () => {
+        dbCalls.updatePointsForPlayer.mockReturnValue(new Promise(() => {})); // never resolves
+        const commandInput = mountChatInput();
+        await userEvent.type(commandInput, '/add Alice 5');
+
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+
+        expect(commandInput).toHaveValue('');
     });
 });

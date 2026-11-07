@@ -38,14 +38,7 @@ const { pingEntry } = require('../../game/powerUpEffects');
 // subscription (docs/superpowers/specs/2026-08-05-shell-style-command-
 // completion-design.md) — rather than a fresh `fetchAllPlayersForRoom` call
 // on every submission. One live source of truth instead of two.
-const handleCommandExecution = async (
-    value,
-    setValue,
-    roomID,
-    players,
-    xecutionContext,
-    createAlert
-) => {
+const handleCommandExecution = async (value, roomID, players, xecutionContext, createAlert) => {
     // Parsing lives in src/game/commands.js and is unit tested there.
     const parsed = parseCommand(value);
 
@@ -59,7 +52,6 @@ const handleCommandExecution = async (
             );
             console.error(`Error executing command. Not a legal command: ${parsed.command}`);
         }
-        setValue('');
         return null;
     }
 
@@ -72,7 +64,6 @@ const handleCommandExecution = async (
     // none of these commands need it.
     if (UNIMPLEMENTED_COMMANDS.includes(commandLine)) {
         createAlert('info', 'Not implemented', `${commandLine} is not implemented yet`, 1500);
-        setValue('');
         return;
     }
 
@@ -526,8 +517,6 @@ const handleCommandExecution = async (
         console.error(`Error executing ${commandLine}: `, error);
         createAlert('error', 'Error', `${commandLine} failed: ${error.message}`, 1500);
     }
-
-    setValue('');
 };
 
 export default function ChatInput() {
@@ -642,14 +631,21 @@ export default function ChatInput() {
         // send icon next to it isn't a native <input> — nothing stops a
         // click on it otherwise.
         if (!isGameActive) return;
-        await handleCommandExecution(
-            value,
-            setValue,
-            roomID,
-            players,
-            xecutionContext,
-            createAlert
-        );
+        const submittedValue = value;
+        // Cleared immediately, before handleCommandExecution's own await
+        // chain even starts — not at the end of it, which is where this
+        // used to happen. Under lag, a GM pressing Enter again before the
+        // first command finished saw the same typed text still sitting in
+        // the box, which both looked broken and let a second onKeyDown
+        // resubmit that exact same text as its own full command execution
+        // (bug report: "/add player 1", Enter x5 under lag, added points
+        // 5 times). Clearing first means a second Enter has nothing left
+        // to submit — parseCommand's own EMPTY case already handles that
+        // as a silent no-op, so no extra guard is needed here — and the GM
+        // sees their command was received right away while the actual
+        // Firestore/Cloud Function work finishes in the background.
+        setValue('');
+        await handleCommandExecution(submittedValue, roomID, players, xecutionContext, createAlert);
         // The command bar just cleared — the mission cache is scoped to one
         // typing session, not the whole time the console is open.
         setActiveMissions([]);
