@@ -217,6 +217,23 @@ const freehandLineGeoJson = (points) => ({
     properties: {},
 });
 
+// How close (in screen pixels, not meters) the cursor needs to get to the
+// freehand stroke's own first point before a click closes the shape
+// instead of adding another vertex — mirrors how Google Drawings and most
+// vector-drawing tools "magnet" a stroke shut once the cursor nears its
+// start. Pixel space rather than a meters threshold (the convention this
+// file otherwise uses for distance checks) on purpose: it has to feel the
+// same regardless of how far the moderator has zoomed in or out, and a
+// fixed real-world distance would be unreachable zoomed way out and
+// oversized zoomed way in.
+const FREEHAND_SNAP_RADIUS_PX = 15;
+
+const isNearFirstPoint = (map, point, firstPoint) => {
+    const a = map.project(point);
+    const b = map.project(firstPoint);
+    return Math.hypot(a.x - b.x, a.y - b.y) <= FREEHAND_SNAP_RADIUS_PX;
+};
+
 // --- rotation ---------------------------------------------------------
 //
 // Rectangle and Oval carry an optional `rotationDegrees` in their
@@ -461,6 +478,14 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
     const activeToolRef = useRef(null);
     const [freehandPoints, setFreehandPoints] = useState([]);
     const freehandPointsRef = useRef([]);
+    // The live cursor position while a freehand stroke is in progress, for
+    // the rubber-band preview segment — null until the first mousemove
+    // after a point is placed, and snapped to the first point's own
+    // coordinates (not the raw cursor) whenever isFreehandSnapped is true,
+    // so the preview line visibly jumps to the start point rather than
+    // just stopping near it.
+    const [freehandCursorPoint, setFreehandCursorPoint] = useState(null);
+    const [isFreehandSnapped, setIsFreehandSnapped] = useState(false);
     // GameMap already renders its own full-screen "Map failed to load" /
     // Retry UI internally on error (see GameMap.js), but this modal still
     // needs to know about it: there is nothing to draw on, so every
@@ -491,6 +516,8 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
         activeToolRef.current = null;
         setFreehandPoints([]);
         freehandPointsRef.current = [];
+        setFreehandCursorPoint(null);
+        setIsFreehandSnapped(false);
     };
 
     // Reopening always starts from the latest published state, never a
@@ -594,6 +621,13 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
                         point.lng - moveStart.lng
                     )
                 );
+            } else if (activeToolRef.current === 'freehand') {
+                const points = freehandPointsRef.current;
+                if (points.length === 0) return;
+                const cursor = toPoint(event.lngLat);
+                const snapped = points.length >= 3 && isNearFirstPoint(map, cursor, points[0]);
+                setIsFreehandSnapped(snapped);
+                setFreehandCursorPoint(snapped ? points[0] : cursor);
             }
         };
 
@@ -620,7 +654,19 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
 
         const handleClick = (event) => {
             if (activeToolRef.current !== 'freehand') return;
-            const nextPoints = [...freehandPointsRef.current, toPoint(event.lngLat)];
+            const points = freehandPointsRef.current;
+            const clickPoint = toPoint(event.lngLat);
+            // Closes the shape instead of adding a 4th+ vertex once the
+            // click itself lands within the snap radius of the first
+            // point — computed fresh from this click's own coordinates,
+            // not read back from isFreehandSnapped state, so it can never
+            // lag a render behind the cursor's actual position.
+            if (points.length >= 3 && isNearFirstPoint(map, clickPoint, points[0])) {
+                commitDraft(draftFromFreehand(points));
+                resetToolState();
+                return;
+            }
+            const nextPoints = [...points, clickPoint];
             freehandPointsRef.current = nextPoints;
             setFreehandPoints(nextPoints);
         };
@@ -652,6 +698,8 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
         activeToolRef.current = next;
         setFreehandPoints([]);
         freehandPointsRef.current = [];
+        setFreehandCursorPoint(null);
+        setIsFreehandSnapped(false);
     };
 
     const handleFinishFreehand = () => {
@@ -858,37 +906,70 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
                                 />
                             </Marker>
                         )}
-                        {activeTool === 'freehand' && freehandPoints.length >= 2 && (
-                            <Source
-                                id="freehand-in-progress"
-                                type="geojson"
-                                data={freehandLineGeoJson(freehandPoints)}
-                            >
-                                <Layer
-                                    id="freehand-in-progress-line"
-                                    type="line"
-                                    paint={{ 'line-color': 'orange', 'line-width': 2 }}
-                                />
-                            </Source>
-                        )}
                         {activeTool === 'freehand' &&
-                            freehandPoints.map((point, index) => (
-                                <Marker
-                                    key={`in-progress-${index}`}
-                                    longitude={point.lng}
-                                    latitude={point.lat}
-                                >
-                                    <div
-                                        data-testid="freehand-point"
-                                        style={{
-                                            width: '8px',
-                                            height: '8px',
-                                            borderRadius: '50%',
-                                            background: 'orange',
-                                        }}
-                                    />
-                                </Marker>
-                            ))}
+                            (() => {
+                                // Appends the live cursor position as one
+                                // more vertex, so the rendered line always
+                                // includes the rubber-band segment that
+                                // hasn't been clicked yet — snapped to the
+                                // first point's own coordinates while
+                                // isFreehandSnapped is true, which is what
+                                // makes the close visibly "magnetic" before
+                                // the closing click actually lands. Falls
+                                // back to just the placed points with no
+                                // extra segment when there's no cursor
+                                // position yet (nothing has moved over the
+                                // map since a point was placed).
+                                const previewPoints = freehandCursorPoint
+                                    ? [...freehandPoints, freehandCursorPoint]
+                                    : freehandPoints;
+                                if (previewPoints.length < 2) return null;
+                                return (
+                                    <Source
+                                        id="freehand-in-progress"
+                                        type="geojson"
+                                        data={freehandLineGeoJson(previewPoints)}
+                                    >
+                                        <Layer
+                                            id="freehand-in-progress-line"
+                                            type="line"
+                                            paint={{
+                                                'line-color': isFreehandSnapped ? 'teal' : 'orange',
+                                                'line-width': 2,
+                                            }}
+                                        />
+                                    </Source>
+                                );
+                            })()}
+                        {activeTool === 'freehand' &&
+                            freehandPoints.map((point, index) => {
+                                // The first point grows and changes color
+                                // once the cursor is within snapping range,
+                                // so the moderator sees the magnet take
+                                // hold before they click to close the shape.
+                                const isSnapTarget = index === 0 && isFreehandSnapped;
+                                return (
+                                    <Marker
+                                        key={`in-progress-${index}`}
+                                        longitude={point.lng}
+                                        latitude={point.lat}
+                                    >
+                                        <div
+                                            data-testid={
+                                                isSnapTarget
+                                                    ? 'freehand-point-snapped'
+                                                    : 'freehand-point'
+                                            }
+                                            style={{
+                                                width: isSnapTarget ? '16px' : '8px',
+                                                height: isSnapTarget ? '16px' : '8px',
+                                                borderRadius: '50%',
+                                                background: isSnapTarget ? 'teal' : 'orange',
+                                            }}
+                                        />
+                                    </Marker>
+                                );
+                            })}
                     </GameMap>
                 </ModalBody>
                 <ModalFooter>
