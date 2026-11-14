@@ -1,5 +1,5 @@
 import { Box, Image } from '@chakra-ui/react';
-import { useContext, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import Autosuggest from 'react-autosuggest';
 import enter from '../../assets/enter-green.png';
 import { executionContext, gameContext } from '../Contexts';
@@ -32,6 +32,15 @@ import CreateAlert from '../CreateAlert';
 // power-up location pings so command pings use the same snapshot shape.
 const { pingEntry } = require('../../game/powerUpEffects');
 
+// /whisper and /broadcast are exempt from the isGameActive gate below —
+// restores the behavior docs/improvements.md item 51 deliberately
+// established ("GameMasterView.js's command bar... keeps working" after End
+// Game) which a later, unrelated fix for item 15 accidentally reverted by
+// disabling the whole command bar on isGameActive=false. Everything else
+// (kill, add, revive, kick, missions, open season, ping) stays blocked —
+// those mutate game state that no longer exists to mutate.
+const COMMANDS_ALLOWED_AFTER_GAME_END = ['/whisper', '/broadcast'];
+
 // handling for command execution
 //
 // `players` comes from `gameContext` — GameMasterView's own live roster
@@ -40,11 +49,11 @@ const { pingEntry } = require('../../game/powerUpEffects');
 // on every submission. One live source of truth instead of two.
 const handleCommandExecution = async (
     value,
-    setValue,
     roomID,
     players,
     xecutionContext,
-    createAlert
+    createAlert,
+    isGameActive
 ) => {
     // Parsing lives in src/game/commands.js and is unit tested there.
     const parsed = parseCommand(value);
@@ -59,12 +68,21 @@ const handleCommandExecution = async (
             );
             console.error(`Error executing command. Not a legal command: ${parsed.command}`);
         }
-        setValue('');
         return null;
     }
 
     const commandLine = parsed.command;
     const args = parsed.args;
+
+    if (!isGameActive && !COMMANDS_ALLOWED_AFTER_GAME_END.includes(commandLine)) {
+        createAlert(
+            'error',
+            'Game has ended',
+            'Only /whisper and /broadcast work once the game has ended',
+            1500
+        );
+        return;
+    }
 
     // Whitelisted but not implemented — previously these passed the
     // whitelist, cleared the input, and did nothing with zero feedback
@@ -72,7 +90,6 @@ const handleCommandExecution = async (
     // none of these commands need it.
     if (UNIMPLEMENTED_COMMANDS.includes(commandLine)) {
         createAlert('info', 'Not implemented', `${commandLine} is not implemented yet`, 1500);
-        setValue('');
         return;
     }
 
@@ -526,8 +543,6 @@ const handleCommandExecution = async (
         console.error(`Error executing ${commandLine}: `, error);
         createAlert('error', 'Error', `${commandLine} failed: ${error.message}`, 1500);
     }
-
-    setValue('');
 };
 
 export default function ChatInput() {
@@ -544,6 +559,17 @@ export default function ChatInput() {
     const [missionsFetchedForSession, setMissionsFetchedForSession] = useState(false);
     const xecutionContext = useContext(executionContext);
     const createAlert = CreateAlert();
+    // A ref, not state: state updates aren't visible to an event handler's
+    // already-captured closure until React re-renders, and two native
+    // keydown events fired back-to-back under lag can both be dispatched
+    // before that re-render happens — both then read the same pre-clear
+    // `value` from the same stale closure, so clearing `value` alone (the
+    // previous fix) didn't stop a second submission. A ref's `.current`
+    // mutation is visible immediately to every closure holding the same
+    // ref object, independent of when — or whether — a render has
+    // happened in between (bug report: the previous fix didn't hold up in
+    // real testing).
+    const isSubmittingRef = useRef(false);
 
     // Single source of truth for "what completes the slot being typed right
     // now" — used by both the autosuggest dropdown and Tab, so they can
@@ -638,18 +664,32 @@ export default function ChatInput() {
     };
 
     const submitCommand = async () => {
-        // The text input is disabled once the game has ended, but the
-        // send icon next to it isn't a native <input> — nothing stops a
-        // click on it otherwise.
-        if (!isGameActive) return;
-        await handleCommandExecution(
-            value,
-            setValue,
-            roomID,
-            players,
-            xecutionContext,
-            createAlert
-        );
+        // Checked synchronously, independent of render timing — see the
+        // ref's own comment above. This is what actually stops a second
+        // Enter firing before the first command resolves; clearing `value`
+        // below is just the visual feedback that the GM's command was
+        // received.
+        if (isSubmittingRef.current) return;
+        const submittedValue = value;
+        isSubmittingRef.current = true;
+        // Cleared immediately, before handleCommandExecution's own await
+        // chain even starts — not at the end of it, which is where this
+        // used to happen, so the GM sees their command was received right
+        // away while the actual Firestore/Cloud Function work finishes in
+        // the background.
+        setValue('');
+        try {
+            await handleCommandExecution(
+                submittedValue,
+                roomID,
+                players,
+                xecutionContext,
+                createAlert,
+                isGameActive
+            );
+        } finally {
+            isSubmittingRef.current = false;
+        }
         // The command bar just cleared — the mission cache is scoped to one
         // typing session, not the whole time the console is open.
         setActiveMissions([]);
@@ -657,9 +697,13 @@ export default function ChatInput() {
     };
 
     const inputProps = {
-        placeholder: isGameActive ? 'Input Texts/Commands Here ' : 'This game has ended',
+        // Not disabled once the game has ended — /whisper and /broadcast
+        // still work (docs/improvements.md item 51), so the GM still needs
+        // to be able to type.
+        placeholder: isGameActive
+            ? 'Input Texts/Commands Here '
+            : 'Game ended — /whisper or /broadcast still work',
         value,
-        disabled: !isGameActive,
         onChange,
         onKeyDown: async (event) => {
             if (event.key === 'Enter') {

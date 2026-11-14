@@ -24,7 +24,7 @@
  */
 import React from 'react';
 import { ChakraProvider } from '@chakra-ui/react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatInput from './ChatInput';
 import { executionContext, gameContext } from '../Contexts';
@@ -824,9 +824,15 @@ describe("chat log messages show a player's actual stored casing, not the lowerc
         await waitFor(() =>
             expect(dbCalls.updateIsAliveForPlayer).toHaveBeenCalledWith('alice', true, 'room-a')
         );
-        expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
-            'Alice',
-            expect.any(Function)
+        // handlePlayerRevive is further down the same async chain (roster
+        // fetch, then target regeneration, then the handlers) — its own
+        // waitFor, not an assumption that it's already settled just
+        // because the earlier updateIsAliveForPlayer call was observed.
+        await waitFor(() =>
+            expect(executionHandlers.handlePlayerRevive).toHaveBeenCalledWith(
+                'Alice',
+                expect.any(Function)
+            )
         );
     });
 
@@ -1018,29 +1024,154 @@ describe('a thrown dbCalls error surfaces to the GM (improvements item 10)', () 
     });
 });
 
-describe('a room whose game has ended stops accepting commands (docs/improvements.md item 15 — isGameActive was written but never read)', () => {
-    it('disables the input and swaps the placeholder once isGameActive is false', () => {
+describe('a room whose game has ended blocks game-state commands but keeps messaging alive (docs/improvements.md item 51: GM broadcasts should keep working after End Game)', () => {
+    it('keeps the input enabled and swaps the placeholder once isGameActive is false', () => {
         const commandInput = mountChatInput(defaultPlayers, false);
 
-        expect(commandInput).toBeDisabled();
-        expect(commandInput).toHaveAttribute('placeholder', 'This game has ended');
+        expect(commandInput).not.toBeDisabled();
+        expect(commandInput).toHaveAttribute(
+            'placeholder',
+            'Game ended — /whisper or /broadcast still work'
+        );
     });
 
-    it('does not disable the input while the game is still active', () => {
+    it('does not change the placeholder while the game is still active', () => {
         const commandInput = mountChatInput(defaultPlayers, true);
 
         expect(commandInput).not.toBeDisabled();
         expect(commandInput).toHaveAttribute('placeholder', 'Input Texts/Commands Here ');
     });
 
-    it('ignores a click on the send icon once the game has ended', async () => {
-        // The text input's own `disabled` attribute doesn't cover this
-        // separate clickable icon — submitCommand itself has to check too.
+    it('rejects a game-state command like /add once the game has ended', async () => {
         const commandInput = mountChatInput(defaultPlayers, false);
-        fireEvent.change(commandInput, { target: { value: '/add Alice 5' } });
+        typeAndSubmit(commandInput, '/add Alice 5');
 
-        await userEvent.click(screen.getByAltText('Send'));
-
+        expect(await screen.findByText(/only \/whisper and \/broadcast work/i)).toBeInTheDocument();
         expect(dbCalls.updatePointsForPlayer).not.toHaveBeenCalled();
+    });
+
+    it('still allows /broadcast once the game has ended', async () => {
+        const commandInput = mountChatInput(defaultPlayers, false);
+        typeAndSubmit(commandInput, '/broadcast meet at the food court, not the entrance');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'broadcast',
+                    recipient: null,
+                    text: 'meet at the food court, not the entrance',
+                    standings: null,
+                },
+                'room-a'
+            )
+        );
+    });
+
+    it('still allows /whisper once the game has ended', async () => {
+        const commandInput = mountChatInput([{ name: 'Alice', isAlive: true }], false);
+        typeAndSubmit(commandInput, '/whisper alice nice work tonight');
+
+        await waitFor(() =>
+            expect(dbCalls.addPlayerMessageForRoom).toHaveBeenCalledWith(
+                {
+                    type: 'whisper',
+                    recipient: 'Alice',
+                    text: 'nice work tonight',
+                    standings: null,
+                },
+                'room-a'
+            )
+        );
+    });
+});
+
+describe('lag-mashed Enter does not resubmit the same command (bug report: "/add player 1" x5 Enters added points 5 times)', () => {
+    // The command bar previously only cleared once the whole async command
+    // chain finished (handleCommandExecution's own setValue('') at the very
+    // end). Under lag, a GM pressing Enter again before that happened saw
+    // the same typed text still sitting in the box — nothing stopped a
+    // second onKeyDown from reading and resubmitting that same text, so
+    // every extra Enter fired its own full command execution. Applies to
+    // every command uniformly, since they all funnel through this one
+    // dispatcher — /add is just the reported case.
+    it('only calls the backend once no matter how many Enters land before it resolves', async () => {
+        let resolveUpdate;
+        dbCalls.updatePointsForPlayer.mockReturnValue(
+            new Promise((resolve) => {
+                resolveUpdate = resolve;
+            })
+        );
+
+        const commandInput = mountChatInput();
+        await userEvent.type(commandInput, '/add Alice 5');
+
+        // Five rapid Enters, all landing before updatePointsForPlayer's
+        // promise ever resolves — exactly the reported lag scenario.
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+
+        resolveUpdate();
+        await waitFor(() => expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1));
+        // Give any stray extra call a chance to land before the final check.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1);
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('alice', 5, 'room-a');
+    });
+
+    it('still only calls the backend once when all five Enters are dispatched before React gets a chance to re-render (the real-world race a previous fix missed)', async () => {
+        // The test above fires five `fireEvent.keyDown` calls back-to-back,
+        // but each one is individually wrapped in its own act() by RTL,
+        // which flushes the pending setValue('') synchronously before the
+        // next line runs — so by the second keydown, the component had
+        // already re-rendered with the cleared value, and a fix that only
+        // cleared `value` (no ref) passed this test while still failing in
+        // real use. Nesting all five inside one outer act() defers that
+        // flush until the whole block finishes, so all five keydown
+        // handlers run against the SAME stale, pre-clear `value` closure —
+        // the actual worst case a GM mashing Enter under lag can hit.
+        let resolveUpdate;
+        dbCalls.updatePointsForPlayer.mockReturnValue(
+            new Promise((resolve) => {
+                resolveUpdate = resolve;
+            })
+        );
+
+        const commandInput = mountChatInput();
+        await userEvent.type(commandInput, '/add Alice 5');
+
+        // Intentional: nesting all five keydowns in one outer act() defers
+        // React's flush until the whole block finishes, which is the whole
+        // point here — each fireEvent.keyDown call's own internal act()
+        // would otherwise flush the setValue('') from the previous call
+        // before the next one runs, masking the race this test exists to
+        // catch (verified: removing this outer act() makes this test pass
+        // even against a build with the ref guard removed).
+        // eslint-disable-next-line testing-library/no-unnecessary-act
+        act(() => {
+            fireEvent.keyDown(commandInput, { key: 'Enter' });
+            fireEvent.keyDown(commandInput, { key: 'Enter' });
+            fireEvent.keyDown(commandInput, { key: 'Enter' });
+            fireEvent.keyDown(commandInput, { key: 'Enter' });
+            fireEvent.keyDown(commandInput, { key: 'Enter' });
+        });
+
+        resolveUpdate();
+        await waitFor(() => expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledTimes(1);
+        expect(dbCalls.updatePointsForPlayer).toHaveBeenCalledWith('alice', 5, 'room-a');
+    });
+
+    it('clears the input the instant Enter is pressed, not once the command finishes, so the GM sees it was received', async () => {
+        dbCalls.updatePointsForPlayer.mockReturnValue(new Promise(() => {})); // never resolves
+        const commandInput = mountChatInput();
+        await userEvent.type(commandInput, '/add Alice 5');
+
+        fireEvent.keyDown(commandInput, { key: 'Enter' });
+
+        expect(commandInput).toHaveValue('');
     });
 });

@@ -12,22 +12,24 @@ import React, { useContext } from 'react';
 import { addPlayerMessageForRoom, fetchAllPlayersDataForRoom } from '../firebase_calls/dbCalls';
 import { endGame } from '../endGame';
 import { buildLeaderboardStandings } from '../../game/leaderboard';
-import { useNavigate } from 'react-router-dom';
 import CreateAlert from '../CreateAlert';
 import { gameContext } from '../Contexts';
 
 const Endgamebutton = () => {
     const { roomID } = useContext(gameContext);
     const cancelRef = React.useRef();
-    const navigate = useNavigate();
     const createAlert = CreateAlert();
 
     const { isOpen, onOpen, onClose } = useDisclosure();
 
     // endGame throws on failure rather than swallowing (docs/improvements.md
-    // item 10) — previously this fired-and-forgot the write and navigated
-    // away immediately regardless, so a failure was invisible and the GM
-    // would land on /dashboard believing the game had ended when it hadn't.
+    // item 10) — this used to fire-and-forget the write and navigate away
+    // immediately regardless, so a failure was invisible and the GM would
+    // land on /dashboard believing the game had ended when it hadn't. It no
+    // longer navigates away at all even on success — the GM stays on this
+    // room's GameMasterView so they can keep watching the chat feed and
+    // still send a /whisper or /broadcast afterward (bug report: ending the
+    // game used to kick the GM out of the room entirely).
     const onYesEnd = async () => {
         onClose();
         try {
@@ -73,8 +75,6 @@ const Endgamebutton = () => {
                 1500
             );
         }
-
-        navigate('/dashboard');
     };
 
     const handleClick = () => {

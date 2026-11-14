@@ -33,6 +33,13 @@ import BoundaryEditorModal from './BoundaryEditorModal';
 import { publishGameBoundary } from '../publishGameBoundary';
 import { disableGameBoundary } from '../disableGameBoundary';
 
+// Fake lng/lat -> pixel mapping, just distinct enough per point that
+// nothing relying on pixel distance gets confused. Declared before
+// fakeMap (which needs it for its own `project`), not down by `dragMap`
+// below where it was originally used only for the mousemove/mouseup
+// payloads' own `point` field.
+const pointFor = (lat, lng) => ({ x: (lng + 74) * 100000, y: (lat - 40) * 100000 });
+
 let lastProps;
 const mapEventHandlers = {};
 const fakeMap = {
@@ -46,6 +53,12 @@ const fakeMap = {
             (registered) => registered !== handler
         );
     },
+    // Real mapbox-gl's Map#project(lngLat) converts to screen pixels —
+    // BoundaryEditorModal's freehand snap-to-close check needs this.
+    // Mirrors the same fake projection `pointFor` already provides for
+    // dragMap's mousemove/mouseup payloads, so a lat/lng delta that reads
+    // as "close" there reads as "close" here too.
+    project: (lngLat) => pointFor(lngLat.lat, lngLat.lng),
 };
 // Fires every handler currently registered for `event`, in registration
 // order — exactly like the real map's `fire()`. Every real mapbox-gl
@@ -118,10 +131,6 @@ beforeEach(() => {
     Object.keys(markerRegistry).forEach((key) => delete markerRegistry[key]);
 });
 
-// Fake lng/lat -> pixel mapping, just distinct enough per point that
-// nothing relying on pixel distance gets confused.
-const pointFor = (lat, lng) => ({ x: (lng + 74) * 100000, y: (lat - 40) * 100000 });
-
 const dragMap = (from, to) => {
     act(() => {
         triggerMapEvent('mousedown', { lngLat: from, point: pointFor(from.lat, from.lng) });
@@ -133,6 +142,15 @@ const dragMap = (from, to) => {
 const click = (lngLat) => {
     act(() => {
         triggerMapEvent('click', { lngLat });
+    });
+};
+
+// A plain hover, not a drag — freehand places points on click alone
+// (handleDown explicitly no-ops for it), so there's no mousedown to pair
+// this with.
+const move = (lngLat) => {
+    act(() => {
+        triggerMapEvent('mousemove', { lngLat });
     });
 };
 
@@ -276,6 +294,75 @@ describe('BoundaryEditorModal — creating a shape', () => {
             [-74, 40.001],
             [-73.999, 40.001],
         ]);
+    });
+
+    it('clicking near the first point closes the shape without needing Finish (magnet-close)', () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Freehand' }));
+        click({ lat: 40, lng: -74 });
+        click({ lat: 40.001, lng: -74 });
+        click({ lat: 40.001, lng: -73.999 });
+        expect(screen.getAllByTestId('freehand-point')).toHaveLength(3);
+
+        // Within FREEHAND_SNAP_RADIUS_PX (15px) of the first point: the
+        // fake projection maps 0.00001 degrees to 1 pixel per axis here.
+        click({ lat: 40.00001, lng: -74.00001 });
+
+        expect(lastProps.boundaryVertices).toHaveLength(4); // 3 distinct + closing duplicate
+        // The tool disarmed itself — same as a real Finish — so nothing
+        // freehand-specific is left rendered.
+        expect(screen.queryByTestId('freehand-point')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Finish' })).not.toBeInTheDocument();
+    });
+
+    it('a click far from the first point still just adds a 4th vertex, not a close', () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Freehand' }));
+        click({ lat: 40, lng: -74 });
+        click({ lat: 40.001, lng: -74 });
+        click({ lat: 40.001, lng: -73.999 });
+
+        click({ lat: 40.002, lng: -73.998 }); // nowhere near the first point
+
+        expect(screen.getAllByTestId('freehand-point')).toHaveLength(4);
+        expect(lastProps.boundaryVertices).toBeNull();
+    });
+
+    it('hovering near the first point highlights it and snaps the preview line to it (the "magnet" feedback)', () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Freehand' }));
+        click({ lat: 40, lng: -74 });
+        click({ lat: 40.001, lng: -74 });
+        click({ lat: 40.001, lng: -73.999 });
+
+        move({ lat: 40.002, lng: -73.998 }); // far away — no snap yet
+        expect(screen.queryByTestId('freehand-point-snapped')).not.toBeInTheDocument();
+
+        move({ lat: 40.00001, lng: -74.00001 }); // within snap radius
+        expect(screen.getByTestId('freehand-point-snapped')).toBeInTheDocument();
+        const source = screen.getByTestId('source-freehand-in-progress');
+        const geojson = JSON.parse(source.getAttribute('data-geojson'));
+        // The rubber-band segment's end snaps to the first point's exact
+        // coordinates, not the raw (slightly off) cursor position.
+        expect(geojson.geometry.coordinates[geojson.geometry.coordinates.length - 1]).toEqual([
+            -74, 40,
+        ]);
+
+        // Moving back away releases the magnet.
+        move({ lat: 40.002, lng: -73.998 });
+        expect(screen.queryByTestId('freehand-point-snapped')).not.toBeInTheDocument();
+    });
+
+    it('does not snap-close with fewer than 3 points placed, even when clicking exactly on the first point', () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Freehand' }));
+        click({ lat: 40, lng: -74 });
+        click({ lat: 40.001, lng: -74 });
+
+        click({ lat: 40, lng: -74 }); // exactly the first point again
+
+        expect(screen.getAllByTestId('freehand-point')).toHaveLength(3);
+        expect(lastProps.boundaryVertices).toBeNull();
     });
 
     it('the Finish button only appears once at least 3 freehand points are placed', () => {
