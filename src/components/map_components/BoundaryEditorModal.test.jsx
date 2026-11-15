@@ -339,7 +339,15 @@ describe('BoundaryEditorModal — creating a shape', () => {
         expect(screen.queryByTestId('freehand-point-snapped')).not.toBeInTheDocument();
 
         move({ lat: 40.00001, lng: -74.00001 }); // within snap radius
-        expect(screen.getByTestId('freehand-point-snapped')).toBeInTheDocument();
+        const snappedMarker = screen.getByTestId('freehand-point-snapped');
+        expect(snappedMarker).toBeInTheDocument();
+        // Regression guard: this marker is a real DOM overlay sitting on
+        // top of the map canvas, enlarged right where the moderator needs
+        // to click next. Without pointer-events: none, that click lands on
+        // this div instead of reaching mapbox-gl's own 'click' listener —
+        // the highlight shows but closing the shape silently never fires
+        // (bug report: "it autolocks but doesn't auto finish the shape").
+        expect(snappedMarker).toHaveStyle({ pointerEvents: 'none' });
         const source = screen.getByTestId('source-freehand-in-progress');
         const geojson = JSON.parse(source.getAttribute('data-geojson'));
         // The rubber-band segment's end snaps to the first point's exact

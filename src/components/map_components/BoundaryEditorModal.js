@@ -965,6 +965,22 @@ const BoundaryEditorModal = ({ isOpen, onClose, currentBoundary, roomID }) => {
                                                 height: isSnapTarget ? '16px' : '8px',
                                                 borderRadius: '50%',
                                                 background: isSnapTarget ? 'teal' : 'orange',
+                                                // These are purely visual —
+                                                // the map canvas underneath
+                                                // is what actually owns
+                                                // click/move handling. Without
+                                                // this, a click aimed at the
+                                                // (now-enlarged) first point
+                                                // while snapped lands on this
+                                                // div instead of reaching
+                                                // mapbox-gl's own 'click'
+                                                // listener, so the magnet
+                                                // highlight shows but the
+                                                // close-the-shape click never
+                                                // fires (bug report: "it
+                                                // autolocks but doesn't auto
+                                                // finish the shape").
+                                                pointerEvents: 'none',
                                             }}
                                         />
                                     </Marker>
