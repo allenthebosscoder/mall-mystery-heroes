@@ -27,30 +27,18 @@ const removeAndRemap = async (transaction, roomRef, playerDoc) => {
     const playerData = playerDoc.data();
     const playerKey = normalizePlayerName(playerData.name);
 
-    // The removed player's former hunters and prey — these need
-    // unmapping. Deduped by normalized name, same reasoning as
-    // killPlayer.js: a stale reference to a since-deleted player
-    // shouldn't block this removal, so it's skipped, not thrown.
-    const neighborNames = [...(playerData.assassins || []), ...(playerData.targets || [])];
-    const neighborDocsByName = new Map();
-    for (const name of neighborNames) {
-        const key = normalizePlayerName(name);
-        if (neighborDocsByName.has(key)) continue;
-        const neighborSnapshot = await transaction.get(
-            playersRef.where('trimmedNameLowerCase', '==', key)
-        );
-        if (neighborSnapshot.empty) {
-            console.warn(`removePlayer: neighbor not found, skipping unmap: ${name}`);
-            continue;
-        }
-        neighborDocsByName.set(key, neighborSnapshot.docs[0]);
-    }
-
     // The alive roster for the remap step, as planRemap expects it: the
     // removed player excluded (their deletion write hasn't landed yet
     // within this transaction) and scrubbed from every neighbor's own
     // targets/assassins arrays (their unmap write hasn't landed yet
     // either) — identical reasoning to killPlayer.js's own roster read.
+    //
+    // Read BEFORE the neighbor-unmapping lookup below, not after: every
+    // neighbor is, by game design, always an alive player, so this same
+    // roster read already contains their documents too — resolving
+    // neighbors from this map instead of a second query per neighbor
+    // avoids reading those same documents twice (identical reasoning to
+    // killPlayer.js's own fix for this).
     const rosterSnapshot = await transaction.get(playersRef.where('isAlive', '==', true));
     const rosterDocsByName = new Map();
     const roster = [];
@@ -67,6 +55,33 @@ const removeAndRemap = async (transaction, roomRef, playerDoc) => {
                 (name) => normalizePlayerName(name) !== playerKey
             ),
         });
+    }
+
+    // The removed player's former hunters and prey — these need
+    // unmapping. Deduped by normalized name, same reasoning as
+    // killPlayer.js: almost always already present in rosterDocsByName
+    // above (fast path, no extra read); the individual query below is a
+    // fallback only for the rare case a neighbor doesn't resolve to a
+    // currently-alive player — a stale reference to a since-deleted
+    // player shouldn't block this removal, so it's skipped, not thrown.
+    const neighborNames = [...(playerData.assassins || []), ...(playerData.targets || [])];
+    const neighborDocsByName = new Map();
+    for (const name of neighborNames) {
+        const key = normalizePlayerName(name);
+        if (neighborDocsByName.has(key)) continue;
+        const fromRoster = rosterDocsByName.get(key);
+        if (fromRoster) {
+            neighborDocsByName.set(key, fromRoster);
+            continue;
+        }
+        const neighborSnapshot = await transaction.get(
+            playersRef.where('trimmedNameLowerCase', '==', key)
+        );
+        if (neighborSnapshot.empty) {
+            console.warn(`removePlayer: neighbor not found, skipping unmap: ${name}`);
+            continue;
+        }
+        neighborDocsByName.set(key, neighborSnapshot.docs[0]);
     }
 
     const plan = planRemap(roster, {

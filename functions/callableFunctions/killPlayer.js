@@ -183,28 +183,6 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
             return { blockedByHorcrux: true, targetName: targetData.name };
         }
 
-        // The target's former hunters and prey — these need unmapping.
-        // Deduped by normalized name: a player could in principle appear in
-        // both arrays. A name that doesn't resolve to a document is a
-        // stale reference (shouldn't happen — item 36's pre-fix bug caused
-        // exactly this for months — but an unrelated data anomaly
-        // shouldn't block a kill, so it's skipped, not thrown).
-        const neighborNames = [...(targetData.assassins || []), ...(targetData.targets || [])];
-        const neighborDocsByName = new Map();
-        for (const name of neighborNames) {
-            const key = normalizePlayerName(name);
-            if (neighborDocsByName.has(key)) continue;
-            const neighborSnapshot = await transaction.get(
-                playersRef.where('trimmedNameLowerCase', '==', key)
-            );
-            if (neighborSnapshot.empty) {
-                console.warn(`killPlayer: neighbor not found, skipping unmap: ${name}`);
-                continue;
-            }
-            neighborDocsByName.set(key, neighborSnapshot.docs[0]);
-            captureSnapshot(name, neighborSnapshot.docs[0].data());
-        }
-
         // The alive roster for the remap step, as planRemap expects it:
         // the target excluded (their isAlive:false write hasn't landed
         // yet within this transaction, so the query would otherwise still
@@ -213,6 +191,12 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
         // hasn't landed yet either — planRemap needs to reason about the
         // post-unmap state, the same state it would see if this were the
         // separate, later read the client's old sequential version used).
+        //
+        // Read BEFORE the neighbor-unmapping lookup below, not after:
+        // every neighbor is, by game design, always an alive player, so
+        // this same roster read already contains their documents too —
+        // resolving neighbors from this map instead of a second query per
+        // neighbor avoids reading those same documents twice.
         const rosterSnapshot = await transaction.get(playersRef.where('isAlive', '==', true));
         const rosterDocsByName = new Map();
         const roster = [];
@@ -230,6 +214,36 @@ exports.killPlayer = functions.https.onCall(async (data, context) => {
                     (name) => normalizePlayerName(name) !== targetKey
                 ),
             });
+        }
+
+        // The target's former hunters and prey — these need unmapping.
+        // Deduped by normalized name: a player could in principle appear in
+        // both arrays. Almost always already present in rosterDocsByName
+        // above (fast path, no extra read); the individual query below is
+        // a fallback only for the rare case a neighbor doesn't resolve to
+        // a currently-alive player — a stale reference (shouldn't happen —
+        // item 36's pre-fix bug caused exactly this for months — but an
+        // unrelated data anomaly shouldn't block a kill, so it's skipped,
+        // not thrown).
+        const neighborNames = [...(targetData.assassins || []), ...(targetData.targets || [])];
+        const neighborDocsByName = new Map();
+        for (const name of neighborNames) {
+            const key = normalizePlayerName(name);
+            if (neighborDocsByName.has(key)) continue;
+            const fromRoster = rosterDocsByName.get(key);
+            if (fromRoster) {
+                neighborDocsByName.set(key, fromRoster);
+                continue;
+            }
+            const neighborSnapshot = await transaction.get(
+                playersRef.where('trimmedNameLowerCase', '==', key)
+            );
+            if (neighborSnapshot.empty) {
+                console.warn(`killPlayer: neighbor not found, skipping unmap: ${name}`);
+                continue;
+            }
+            neighborDocsByName.set(key, neighborSnapshot.docs[0]);
+            captureSnapshot(name, neighborSnapshot.docs[0].data());
         }
 
         const plan = planRemap(roster, {

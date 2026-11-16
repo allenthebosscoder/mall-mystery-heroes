@@ -147,27 +147,29 @@ const readPickedPlayer = async (transaction, roomRef, buyerDoc, targetName) => {
 
 // One ping entry per name, from each player's boundaryStatuses doc — the
 // GPS system's latest stored position. A snapshot: copied once, now.
+// getAll fetches every ref in one round-trip instead of reading them
+// one-by-one — each ref is a direct doc ID lookup already, so there's no
+// query to batch, just the sequential awaits.
 const readPings = async (transaction, roomRef, names, nowMs) => {
-    const pings = [];
-    for (const name of names) {
-        const statusSnapshot = await transaction.get(
-            roomRef.collection('boundaryStatuses').doc(normalizePlayerName(name))
-        );
+    if (names.length === 0) return [];
+    const refs = names.map((name) =>
+        roomRef.collection('boundaryStatuses').doc(normalizePlayerName(name))
+    );
+    const statusSnapshots = await transaction.getAll(...refs);
+    return names.map((name, index) => {
+        const statusSnapshot = statusSnapshots[index];
         const status = statusSnapshot.exists ? statusSnapshot.data() : null;
-        pings.push(
-            pingEntry({
-                name,
-                status: status && {
-                    lat: status.lat,
-                    lng: status.lng,
-                    accuracyMeters: status.accuracyMeters,
-                    lastUsableMs: toMs(status.lastUsableReceivedAt),
-                },
-                nowMs,
-            })
-        );
-    }
-    return pings;
+        return pingEntry({
+            name,
+            status: status && {
+                lat: status.lat,
+                lng: status.lng,
+                accuracyMeters: status.accuracyMeters,
+                lastUsableMs: toMs(status.lastUsableReceivedAt),
+            },
+            nowMs,
+        });
+    });
 };
 
 /**

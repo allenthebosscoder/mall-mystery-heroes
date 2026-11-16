@@ -45,10 +45,14 @@ const buildClearedExposureFields = (reason) => ({
  *   'boundary_disabled' or 'game_ended'
  */
 const clearExposureForRoom = async (transaction, roomRef, reason) => {
-    const statusesSnapshot = await transaction.get(roomRef.collection('boundaryStatuses'));
+    // Filtered server-side rather than reading every status doc in the
+    // room and skipping the ones that don't qualify — 'inside'/
+    // 'unavailable' docs (the common case once a game's been running a
+    // while) never needed to cross the wire at all.
+    const statusesSnapshot = await transaction.get(
+        roomRef.collection('boundaryStatuses').where('status', 'in', ['outside', 'near'])
+    );
     statusesSnapshot.docs.forEach((doc) => {
-        const data = doc.data();
-        if (data.status !== 'outside' && data.status !== 'near') return;
         transaction.update(doc.ref, buildClearedExposureFields(reason));
     });
 };

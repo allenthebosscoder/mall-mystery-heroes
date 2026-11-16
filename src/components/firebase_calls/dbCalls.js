@@ -121,27 +121,21 @@ export const fetchTaskByIndexForRoom = async (index, roomID) => {
 // Uses Firestore's increment() so concurrent calls (two GMs, or a GM plus a
 // task completion) add up instead of racing on a read-then-write and
 // silently dropping one of the increments (docs/improvements.md item 7).
+//
+// Writes straight to the player's doc ID (fetchPlayerReferenceForRoom,
+// below — same normalized-name scheme joinRoom.js uses when creating the
+// doc) instead of a query-then-update — this fires on nearly every GM
+// action, so the query round-trip this used to pay for on top of the
+// write itself was the single most common source of avoidable Firestore
+// reads in the app. Safe because every call site already validates the
+// player exists against the live roster before calling this.
 export const updatePointsForPlayer = async (player, points, roomID) => {
-    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
-    const playerQuery = query(
-        playerCollectionRef,
-        where('trimmedNameLowerCase', '==', normalizePlayerName(player))
-    );
-    const playerSnapshot = await getDocs(playerQuery);
-    const playerdoc = playerSnapshot.docs[0].ref;
-    await updateDoc(playerdoc, { score: increment(points) });
+    await updateDoc(fetchPlayerReferenceForRoom(player, roomID), { score: increment(points) });
 };
 
 //updates the 'isAlive' field of a player
 export const updateIsAliveForPlayer = async (player, isAlive, roomID) => {
-    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
-    const playerQuery = query(
-        playerCollectionRef,
-        where('trimmedNameLowerCase', '==', normalizePlayerName(player))
-    );
-    const playerSnapshot = await getDocs(playerQuery);
-    const playerdoc = playerSnapshot.docs[0].ref;
-    await updateDoc(playerdoc, { isAlive: isAlive });
+    await updateDoc(fetchPlayerReferenceForRoom(player, roomID), { isAlive: isAlive });
 };
 
 //marks task as completed by index
@@ -265,29 +259,22 @@ export const removePlayerForRoom = async (player, roomID) => {
     await deleteDoc(docRef);
 };
 
-//dupates assassins of player in database
+//updates assassins of player in database
+//
+// Direct doc-ID write, same reasoning as updatePointsForPlayer above —
+// this is called once per affected player every time targets are
+// (re)generated (TargetGenerator.js at game start, ResetTargetsButton.js,
+// RemapPlayers.js after every revive), so the saved query read multiplies
+// by however many players a given remap touches.
 export const updateAssassinsForPlayer = async (player, assassins, roomID) => {
-    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
-    const playerQuery = query(
-        playerCollectionRef,
-        where('trimmedNameLowerCase', '==', normalizePlayerName(player))
-    );
-    const playerSnapshot = await getDocs(playerQuery);
-    const playerdoc = playerSnapshot.docs[0].ref;
-    await updateDoc(playerdoc, {
+    await updateDoc(fetchPlayerReferenceForRoom(player, roomID), {
         assassins: assassins,
     });
 };
 
 //updates targets of player in database
 export const updateTargetsForPlayer = async (player, targets, roomID) => {
-    const playerCollectionRef = collection(db, 'rooms', roomID, 'players');
-    const playerQuery = query(
-        playerCollectionRef,
-        where('trimmedNameLowerCase', '==', normalizePlayerName(player))
-    );
-    const playerSnapshot = await getDocs(playerQuery);
-    const playerdoc = playerSnapshot.docs[0].ref;
+    const playerdoc = fetchPlayerReferenceForRoom(player, roomID);
     await updateDoc(playerdoc, {
         targets: targets,
     });
