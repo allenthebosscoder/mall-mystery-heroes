@@ -117,6 +117,72 @@ const boxFromHandleDrag = (box, key, point) => {
     return box;
 };
 
+// The handle whose position must stay exactly fixed in world space while
+// `key` is the one being dragged — used by boxFromRotatedHandleDrag below.
+const OPPOSITE_HANDLE_KEY = {
+    n: 's',
+    s: 'n',
+    e: 'w',
+    w: 'e',
+    sw: 'ne',
+    se: 'nw',
+    nw: 'se',
+    ne: 'sw',
+};
+
+// boxFromHandleDrag alone is only correct for an UNROTATED box: it edits
+// the box in its own local frame, but rendering always re-derives the
+// rotation pivot as the box's own current center — and any edit that
+// changes the box's extent moves that center too, even an edge-only
+// drag (the center shift is invisible at rotationDegrees=0, since
+// rotating by nothing is a no-op, but it is not invisible at any other
+// angle). Rotating the untouched opposite corner/edge's own unchanged
+// local position around a DIFFERENT pivot swings it to a new world
+// position even though nothing about it actually changed — which is why
+// resizing one side of a rotated shape dragged every other side along
+// with it (bug report: "i change one side and the center changes along
+// with all 4 edges, not just the one i'm trying to stretch").
+//
+// Fix: compute the naive box exactly as before, then translate the
+// WHOLE box by whatever constant offset makes the OPPOSITE handle (the
+// one that must stay fixed) land back exactly where it was before this
+// drag. Since the naive box is already the right size and orientation —
+// only mis-positioned by a uniform offset — that one translation brings
+// every corner back to its correct world position, not just the
+// opposite one (verified numerically: every untouched corner lands
+// within floating-point noise of its pre-drag position). Anchoring on
+// the OPPOSITE handle rather than the dragged one matters for edge
+// handles specifically: the opposite edge's local position is
+// unaffected by the drag's own off-axis component, so this doesn't
+// reintroduce the one-axis constraint boxFromHandleDrag already enforces.
+const boxFromRotatedHandleDrag = (box, center, rotationDegrees, key, point) => {
+    const localPoint = rotatePoint(point, center, -(rotationDegrees || 0));
+    const naiveBox = boxFromHandleDrag(box, key, localPoint);
+    const naiveCenter = {
+        lat: (naiveBox.minLat + naiveBox.maxLat) / 2,
+        lng: (naiveBox.minLng + naiveBox.maxLng) / 2,
+    };
+    const anchorKey = OPPOSITE_HANDLE_KEY[key];
+    const anchorWorldBefore = rotatePoint(
+        boxHandlePositions(box)[anchorKey],
+        center,
+        rotationDegrees || 0
+    );
+    const anchorWorldNaive = rotatePoint(
+        boxHandlePositions(naiveBox)[anchorKey],
+        naiveCenter,
+        rotationDegrees || 0
+    );
+    const errorLat = anchorWorldBefore.lat - anchorWorldNaive.lat;
+    const errorLng = anchorWorldBefore.lng - anchorWorldNaive.lng;
+    return {
+        minLat: naiveBox.minLat + errorLat,
+        maxLat: naiveBox.maxLat + errorLat,
+        minLng: naiveBox.minLng + errorLng,
+        maxLng: naiveBox.maxLng + errorLng,
+    };
+};
+
 // Oval's shapeParameters are {center, radiusXMeters, radiusYMeters}, not a
 // box — these two convert between that and the same box the handle UI
 // shares with Rectangle.
@@ -366,17 +432,15 @@ const handlesForDraft = (draft, { onLiveUpdate, onCommit }) => {
         const center = { lat: (box.minLat + box.maxLat) / 2, lng: (box.minLng + box.maxLng) / 2 };
         const positions = boxHandlePositions(box);
         // A handle's RENDERED position is its local (unrotated) spot,
-        // rotated to match the shape — but a DRAG must go the other way
-        // first: the absolute point the moderator dragged to is rotated
-        // BACK into the box's own local frame before boxFromHandleDrag
-        // (which only knows how to resize an axis-aligned box) ever sees
-        // it, then the resulting box is kept in that same local frame —
-        // rotationDegrees is carried through unchanged, applied once at
-        // render/shapeToPolygon time, not baked into the stored corners.
+        // rotated to match the shape. Resizing it needs
+        // boxFromRotatedHandleDrag, not boxFromHandleDrag directly — see
+        // that function's own comment for why a plain unrotate-resize-
+        // rerotate round trip drags every other side along with the one
+        // being stretched once the shape is actually rotated.
         const applyDrag = (key, point) => {
-            const localPoint = rotatePoint(point, center, -(rotationDegrees || 0));
+            const fixedBox = boxFromRotatedHandleDrag(box, center, rotationDegrees, key, point);
             return draftFromParameters('rectangle', {
-                corners: boxToCorners(boxFromHandleDrag(box, key, localPoint)),
+                corners: boxToCorners(fixedBox),
                 rotationDegrees,
             });
         };
@@ -393,9 +457,9 @@ const handlesForDraft = (draft, { onLiveUpdate, onCommit }) => {
         const box = boxFromOvalParams(center, radiusXMeters, radiusYMeters);
         const positions = boxHandlePositions(box);
         const applyDrag = (key, point) => {
-            const localPoint = rotatePoint(point, center, -(rotationDegrees || 0));
+            const fixedBox = boxFromRotatedHandleDrag(box, center, rotationDegrees, key, point);
             return draftFromParameters('oval', {
-                ...ovalParamsFromBox(boxFromHandleDrag(box, key, localPoint)),
+                ...ovalParamsFromBox(fixedBox),
                 rotationDegrees,
             });
         };

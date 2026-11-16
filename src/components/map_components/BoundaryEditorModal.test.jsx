@@ -620,6 +620,43 @@ describe('BoundaryEditorModal — rotating a shape', () => {
         expect(screen.getByTestId('handle-rotate')).toBeInTheDocument();
     });
 
+    it('resizing one side of a rotated rectangle leaves the opposite side exactly where it was (bug report: stretching one side moved all four)', () => {
+        renderModal();
+        fireEvent.click(screen.getByRole('button', { name: 'Rectangle' }));
+        dragMap({ lat: 40, lng: -74 }, { lat: 40.01, lng: -73.99 });
+
+        // A non-90-multiple angle on purpose: at a clean 90/180/270
+        // rotation, the box's own axes still line up with lat/lng, which
+        // hides this exact bug (the center-shift cancels out). 35-ish
+        // degrees (drag target north-and-a-bit-east of center) is where
+        // it actually shows up.
+        const center = centroid(lastProps.boundaryVertices);
+        simulateMarkerDrag('handle-rotate', {
+            lat: center.lat + 0.02,
+            lng: center.lng + 0.012,
+        });
+        const beforeResize = lastProps.boundaryVertices.slice(0, -1); // drop closing dup
+
+        // Drag any one edge-midpoint handle outward — which specific one
+        // doesn't matter, the invariant is the same for all four: exactly
+        // two of the four corners (the ones NOT on the dragged edge)
+        // must stay exactly where they were.
+        const nw = beforeResize.reduce((a, b) => (a.lat > b.lat ? a : b)); // roughest corner as a drag anchor point
+        simulateMarkerDrag('handle-n', {
+            lat: nw.lat + 0.01,
+            lng: nw.lng + 0.01,
+        });
+        const afterResize = lastProps.boundaryVertices.slice(0, -1);
+
+        const dist = (a, b) => Math.hypot(a.lat - b.lat, a.lng - b.lng);
+        const unchangedCount = beforeResize.filter((beforeVertex) =>
+            afterResize.some((afterVertex) => dist(beforeVertex, afterVertex) < 1e-4)
+        ).length;
+        // If the bug were still present, the center-shift would carry
+        // every corner to a new position and this would be 0.
+        expect(unchangedCount).toBe(2);
+    });
+
     it('rotating a Freehand shape stays Freehand and rotates around its own centroid', () => {
         renderModal();
         fireEvent.click(screen.getByRole('button', { name: 'Freehand' }));
