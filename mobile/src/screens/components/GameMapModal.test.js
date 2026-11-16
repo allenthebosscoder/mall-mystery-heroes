@@ -226,6 +226,27 @@ describe('GameMapModal', () => {
         expect(screen.getByTestId('game-map-view')).toBeTruthy();
     });
 
+    it('does not mount the real native MapView while this page is not active, to avoid continuous GPU/battery work off-screen', async () => {
+        // GameScreen's PagerView keeps every page mounted, so without a
+        // placeholder swap, the real MapView (tiles, markers, its own
+        // render loop) kept running the whole time a player was on a
+        // different tab.
+        await renderModal({ isActive: false });
+        expect(screen.queryByTestId('game-map-view')).toBeNull();
+        expect(screen.getByTestId('game-map-placeholder')).toBeTruthy();
+    });
+
+    it('mounts the real MapView again once the page becomes active', async () => {
+        const { rerender } = await renderModal({ isActive: false });
+        expect(screen.queryByTestId('game-map-view')).toBeNull();
+
+        await rerender(
+            <GameMapModal isActive boundaryVertices={RING} ownPosition={null} otherPositions={[]} />
+        );
+        expect(screen.getByTestId('game-map-view')).toBeTruthy();
+        expect(screen.queryByTestId('game-map-placeholder')).toBeNull();
+    });
+
     // Parity with the web/old isMapAvailable, which hid the map in these
     // same two cases — not just UI tidiness: an eliminated player relaying
     // exposed players' live positions out of band to a still-alive friend

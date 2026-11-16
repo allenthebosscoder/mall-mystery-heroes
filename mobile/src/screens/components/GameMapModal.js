@@ -164,34 +164,44 @@ const GameMapModal = ({
             >
                 <Text style={styles.recenterText}>Recenter on Me</Text>
             </Pressable>
-            <MapView ref={mapRef} style={styles.map} testID="game-map-view">
-                {polygonCoordinates.length > 0 && (
-                    <Polygon
-                        testID="boundary-polygon"
-                        coordinates={polygonCoordinates}
-                        fillColor="rgba(56, 178, 172, 0.2)"
-                        strokeColor="#38B2AC"
-                        strokeWidth={3}
-                    />
-                )}
-                {ownPosition && (
-                    <Marker
-                        testID="own-position-marker"
-                        coordinate={{ latitude: ownPosition.lat, longitude: ownPosition.lng }}
-                    >
-                        <PositionDot />
-                    </Marker>
-                )}
-                {otherPositions.map((position) => (
-                    <Marker
-                        key={position.id}
-                        testID="other-position-marker"
-                        coordinate={{ latitude: position.lat, longitude: position.lng }}
-                    >
-                        <PositionDot label={position.label} />
-                    </Marker>
-                ))}
-            </MapView>
+            {isActive ? (
+                <MapView ref={mapRef} style={styles.map} testID="game-map-view">
+                    {polygonCoordinates.length > 0 && (
+                        <Polygon
+                            testID="boundary-polygon"
+                            coordinates={polygonCoordinates}
+                            fillColor="rgba(56, 178, 172, 0.2)"
+                            strokeColor="#38B2AC"
+                            strokeWidth={3}
+                        />
+                    )}
+                    {ownPosition && (
+                        <Marker
+                            testID="own-position-marker"
+                            coordinate={{ latitude: ownPosition.lat, longitude: ownPosition.lng }}
+                        >
+                            <PositionDot />
+                        </Marker>
+                    )}
+                    {otherPositions.map((position) => (
+                        <Marker
+                            key={position.id}
+                            testID="other-position-marker"
+                            coordinate={{ latitude: position.lat, longitude: position.lng }}
+                        >
+                            <PositionDot label={position.label} />
+                        </Marker>
+                    ))}
+                </MapView>
+            ) : (
+                // GameScreen's PagerView keeps every page mounted, so without
+                // this, the real native MapView — tiles, markers, its own
+                // render loop — kept doing GPU/battery work the whole time
+                // the player was looking at Shop/Missions/Chat/Leaderboard
+                // instead. Same size as the real map so swiping back to this
+                // page doesn't cause a layout jump.
+                <View style={styles.map} testID="game-map-placeholder" />
+            )}
         </View>
     );
 };

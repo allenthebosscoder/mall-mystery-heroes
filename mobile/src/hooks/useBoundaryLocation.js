@@ -31,6 +31,18 @@ import { shouldSendFix, isPollDue } from '../../../src/game/locationReportCadenc
 // locationReportCadence.js).
 const POLL_CHECK_INTERVAL_MS = 2000;
 
+// How often the local ownPosition state — and so GameScreen's own
+// re-render cascade (viewer, freshOtherOutsidePositions, the map's
+// own-position marker) — is allowed to update from a raw GPS callback.
+// Deliberately separate from locationReportCadence.js's
+// MIN_SEND_INTERVAL_MS, which throttles the Firestore WRITE: this
+// throttles the LOCAL state update, which otherwise fires on every
+// single OS-delivered position (WATCH_OPTIONS asks for every one via
+// timeInterval: 0) — several times a second on some devices while
+// moving. A full second is still fast enough that the own-position dot
+// reads as continuously tracking, not jumpy.
+const LOCAL_POSITION_UPDATE_INTERVAL_MS = 1000;
+
 // timeInterval/distanceInterval 0: deliver every update the OS produces,
 // the equivalent of the browser's maximumAge: 0 watch. Throttling outgoing
 // reports is shouldSendFix's job, not the watch's.
@@ -114,6 +126,8 @@ const useBoundaryLocation = ({
     }, [roomID, boundaryRevision]);
 
     const lastSentMsRef = useRef(null);
+    // Separate from lastSentMsRef — see LOCAL_POSITION_UPDATE_INTERVAL_MS.
+    const lastPositionUpdateMsRef = useRef(null);
     // Whether a one-shot call (requestFreshFix) is pending, so the backstop's
     // 2 s ticks and foreground events never pile up concurrent calls while a
     // fix is still on its way (or never coming).
@@ -153,12 +167,18 @@ const useBoundaryLocation = ({
         (position) => {
             setPermissionState('granted');
             const nowMs = Date.now();
-            setOwnPosition({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                accuracyM: position.coords.accuracy,
-                acquiredAtMs: nowMs,
-            });
+            if (
+                lastPositionUpdateMsRef.current === null ||
+                nowMs - lastPositionUpdateMsRef.current >= LOCAL_POSITION_UPDATE_INTERVAL_MS
+            ) {
+                lastPositionUpdateMsRef.current = nowMs;
+                setOwnPosition({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    accuracyM: position.coords.accuracy,
+                    acquiredAtMs: nowMs,
+                });
+            }
             if (!shouldSendFix(lastSentMsRef.current, nowMs)) return;
             lastSentMsRef.current = nowMs;
             const current = contextRef.current;
@@ -261,6 +281,7 @@ const useBoundaryLocation = ({
         // away this restart's own immediate check, and a stale in-flight flag
         // could block it outright.
         lastSentMsRef.current = null;
+        lastPositionUpdateMsRef.current = null;
         oneShotInFlightRef.current = false;
         oneShotTokenRef.current = null;
 

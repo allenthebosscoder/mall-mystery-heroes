@@ -213,7 +213,7 @@ describe('useBoundaryLocation', () => {
         expect(result.current.permissionState).toBe('granted');
     });
 
-    it('throttles outgoing reports to at most one per 5 seconds, but still updates ownPosition every time', async () => {
+    it('throttles outgoing reports to at most one per 5 seconds, and throttles the local ownPosition update separately to once per second', async () => {
         const { result } = await renderWith();
         await requestPermission(result);
         const watchId = latestWatchId();
@@ -222,12 +222,27 @@ describe('useBoundaryLocation', () => {
         await firePosition(watchId, makePosition({ coords: { latitude: 2 } }));
 
         expect(callables.reportPlayerLocation).toHaveBeenCalledTimes(1);
-        expect(result.current.ownPosition.lat).toBe(2);
+        // The second position landed within the same 1s window as the
+        // first — ownPosition (and so GameScreen's own re-render cascade)
+        // keeps the first one instead of updating on every single GPS
+        // callback, which on some devices can fire several times a second.
+        expect(result.current.ownPosition.lat).toBe(1);
 
         await act(async () => {
-            jest.advanceTimersByTime(5000);
+            jest.advanceTimersByTime(1000);
         });
         await firePosition(watchId, makePosition({ coords: { latitude: 3 } }));
+        // A full second has passed since the last local update, so this one
+        // goes through locally even though the 5s report throttle is still
+        // active (report throttling and local-update throttling are
+        // independent).
+        expect(result.current.ownPosition.lat).toBe(3);
+        expect(callables.reportPlayerLocation).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            jest.advanceTimersByTime(4000);
+        });
+        await firePosition(watchId, makePosition({ coords: { latitude: 4 } }));
         expect(callables.reportPlayerLocation).toHaveBeenCalledTimes(2);
     });
 
