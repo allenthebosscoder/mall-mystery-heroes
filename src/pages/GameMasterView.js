@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PlayersList from '../components/player_listing/PlayersList';
 import { useParams } from 'react-router-dom';
 import { onSnapshot } from 'firebase/firestore';
@@ -37,6 +37,13 @@ import GMChatPanel from '../components/player_messages_components/GMChatPanel';
 import ReconnectRequests from '../components/ReconnectRequests';
 import { buildLeaderboardStandings } from '../game/leaderboard';
 
+// Truly stable — module scope, not recreated per render or per instance.
+// Previously `() => {}` defined inside the component, which (despite doing
+// nothing) still got a brand new function identity every render, which
+// would have defeated executionContextProviderValues' own memoization
+// below if it had been added as a dependency.
+const noop = () => {};
+
 const GameMasterView = () => {
     const { roomID } = useParams();
     const [players, setPlayers] = useState([]);
@@ -48,12 +55,24 @@ const GameMasterView = () => {
     const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
     const [isGameActive, setIsGameActive] = useState(true);
     const [gameBoundary, setGameBoundary] = useState(undefined);
-    const aliveNames = players.filter((player) => player.isAlive).map((player) => player.name);
+    // Memoized on `players` — these three (plus the context value built
+    // from the callbacks below) used to get a brand new array/object
+    // identity every render regardless of whether `players` actually
+    // changed, which cascaded into every consumer (ChatInput,
+    // PhotosDisplay, TaskList, ReconnectRequests, HeaderExecution,
+    // LeaderboardModal) re-rendering on every GameMasterView render —
+    // including on every unrelated state change (opening a modal,
+    // logList ticking), not just when something relevant to them changed.
+    const aliveNames = useMemo(
+        () => players.filter((player) => player.isAlive).map((player) => player.name),
+        [players]
+    );
     // Every player's name, alive or not — HeaderExecution threads this to
     // LivePlayerMapButton (unlike aliveNames, which the live map must NOT
     // use: an eliminated player's status doc needs its real name resolved
     // too, not a fallback to the raw normalized id).
-    const allPlayerNames = players.map((player) => player.name);
+    const allPlayerNames = useMemo(() => players.map((player) => player.name), [players]);
+    const leaderboardStandings = useMemo(() => buildLeaderboardStandings(players), [players]);
     const logsBoxRef = useRef(null);
 
     // Players and logs are both live subscriptions now, not fetched once and
@@ -118,71 +137,92 @@ const GameMasterView = () => {
     // letting them propagate: addLog is called from many places (kills,
     // revives, open season toggles, photo judgments), and a failed log write
     // shouldn't block or appear to fail the primary action that triggered it.
-    const addLog = async (newLog, color) => {
-        try {
-            await addLogForRoom(newLog, color, roomID);
-        } catch (error) {
-            console.error('Error adding log: ', error);
-            createAlert('warning', 'Log not saved', error.message, 1500);
-        }
-    };
+    const addLog = useCallback(
+        async (newLog, color) => {
+            try {
+                await addLogForRoom(newLog, color, roomID);
+            } catch (error) {
+                console.error('Error adding log: ', error);
+                createAlert('warning', 'Log not saved', error.message, 1500);
+            }
+        },
+        [roomID, createAlert]
+    );
 
     // Mirrors addLog's error isolation (docs/improvements.md item 10) — a
     // failed player-facing broadcast shouldn't block or appear to fail the
     // primary action that triggered it, same reasoning as addLog itself.
-    const broadcast = async (text) => {
-        try {
-            await addPlayerMessageForRoom(
-                { type: 'broadcast', recipient: null, text, standings: null },
-                roomID
-            );
-        } catch (error) {
-            console.error('Error broadcasting to players: ', error);
-        }
-    };
+    const broadcast = useCallback(
+        async (text) => {
+            try {
+                await addPlayerMessageForRoom(
+                    { type: 'broadcast', recipient: null, text, standings: null },
+                    roomID
+                );
+            } catch (error) {
+                console.error('Error broadcasting to players: ', error);
+            }
+        },
+        [roomID]
+    );
 
     // Sibling to broadcast(text) above, same error-isolation reasoning — this
     // one carries structured mission data instead of free text (see the
     // 'mission' render branch in MessageFeed.js).
-    const broadcastMission = async (mission) => {
-        try {
-            await addPlayerMessageForRoom(
-                { type: 'mission', recipient: null, text: null, standings: null, mission },
-                roomID
-            );
-        } catch (error) {
-            console.error('Error broadcasting mission to players: ', error);
-        }
-    };
+    const broadcastMission = useCallback(
+        async (mission) => {
+            try {
+                await addPlayerMessageForRoom(
+                    { type: 'mission', recipient: null, text: null, standings: null, mission },
+                    roomID
+                );
+            } catch (error) {
+                console.error('Error broadcasting mission to players: ', error);
+            }
+        },
+        [roomID]
+    );
+
+    const handleOpenSznstarted = useCallback(
+        async (openSznplayer) => {
+            await addLog(openSznplayer + ' has open season on them', 'lightblue');
+            await broadcast(openSznplayer + ' has open season on them');
+        },
+        [addLog, broadcast]
+    );
+
+    const handleOpenSznended = useCallback(
+        async (openSznplayer) => {
+            await addLog('open season has ended for ' + openSznplayer, 'pink.400');
+            await broadcast('open season has ended for ' + openSznplayer);
+        },
+        [addLog, broadcast]
+    );
 
     // The players subscription above picks up the kill once executeKill's
     // write lands — no local array mutation needed.
-    const handleKillPlayer = async (killedPlayerName, assassinName, openSznstatus) => {
-        if (openSznstatus === true) {
-            await handleOpenSznended(killedPlayerName);
-            await addLog('open season has ended for ' + killedPlayerName, 'pink.400');
-        }
-        await addLog(killedPlayerName + ' was killed by ' + assassinName, 'red.400');
-        await broadcast(killedPlayerName + ' was killed by ' + assassinName);
-    };
-
-    const handleOpenSznstarted = async (openSznplayer) => {
-        await addLog(openSznplayer + ' has open season on them', 'lightblue');
-        await broadcast(openSznplayer + ' has open season on them');
-    };
-
-    const handleOpenSznended = async (openSznplayer) => {
-        await addLog('open season has ended for ' + openSznplayer, 'pink.400');
-        await broadcast('open season has ended for ' + openSznplayer);
-    };
+    const handleKillPlayer = useCallback(
+        async (killedPlayerName, assassinName, openSznstatus) => {
+            if (openSznstatus === true) {
+                await handleOpenSznended(killedPlayerName);
+                await addLog('open season has ended for ' + killedPlayerName, 'pink.400');
+            }
+            await addLog(killedPlayerName + ' was killed by ' + assassinName, 'red.400');
+            await broadcast(killedPlayerName + ' was killed by ' + assassinName);
+        },
+        [handleOpenSznended, addLog, broadcast]
+    );
 
     // The players subscription above picks up the revive once
     // updateIsAliveForPlayer's write lands — no local array mutation needed.
-    const handlePlayerRevive = async (revivedPlayerName) => {
-        await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
-        await addLog(revivedPlayerName + ' was revived', 'blue.300');
-        await broadcast(revivedPlayerName + ' was revived');
-    };
+    const handlePlayerRevive = useCallback(
+        async (revivedPlayerName) => {
+            await updateIsAliveForPlayer(revivedPlayerName, true, roomID);
+            await addLog(revivedPlayerName + ' was revived', 'blue.300');
+            await broadcast(revivedPlayerName + ' was revived');
+        },
+        [roomID, addLog, broadcast]
+    );
 
     // TaskList (docs/improvements.md item 15) owns its own live subscription
     // to the tasks collection, so a new task shows up there without this
@@ -190,72 +230,96 @@ const GameMasterView = () => {
     // closes the creation modal (docs/superpowers/specs/2026-08-04-
     // mission-modal-ui-design.md — creation closes automatically on
     // success).
-    const handleNewTaskAdded = async (newTask) => {
-        setShowTaskCreationModal(false);
-        await addLog('Added new task: ' + newTask.title, 'yellow.400');
-        await broadcastMission({
-            title: newTask.title,
-            description: newTask.description,
-            taskType: newTask.taskType,
-            pointValue: newTask.pointValue,
-            maxCompletions: newTask.maxCompletions,
-        });
-    };
+    const handleNewTaskAdded = useCallback(
+        async (newTask) => {
+            setShowTaskCreationModal(false);
+            await addLog('Added new task: ' + newTask.title, 'yellow.400');
+            await broadcastMission({
+                title: newTask.title,
+                description: newTask.description,
+                taskType: newTask.taskType,
+                pointValue: newTask.pointValue,
+                maxCompletions: newTask.maxCompletions,
+            });
+        },
+        [addLog, broadcastMission]
+    );
 
-    const handleShowMissionCreation = () => {
+    const handleShowMissionCreation = useCallback(() => {
         setShowTaskCreationModal(true);
-    };
+    }, []);
 
-    const handleShowMissionList = () => {
+    const handleShowMissionList = useCallback(() => {
         setShowTaskListModal(true);
-    };
+    }, []);
 
-    const handleShowLeaderboardView = () => {
+    const handleShowLeaderboardView = useCallback(() => {
         setShowLeaderboardModal(true);
-    };
+    }, []);
 
     //updates completedTasks
-    const handleTaskCompleted = async (task) => {
-        setCompletedTasks((completedTasks) => [...completedTasks, task]);
-        await addLog('Completed task: ' + task, 'green.400');
-        await broadcast('Completed task: ' + task);
-    };
+    const handleTaskCompleted = useCallback(
+        async (task) => {
+            setCompletedTasks((completedTasks) => [...completedTasks, task]);
+            await addLog('Completed task: ' + task, 'green.400');
+            await broadcast('Completed task: ' + task);
+        },
+        [addLog, broadcast]
+    );
 
     //updates logList with remapped targets
-    const handleRemapping = async (log) => {
-        await addLog(log, 'blue.500');
-    };
+    const handleRemapping = useCallback(
+        async (log) => {
+            await addLog(log, 'blue.500');
+        },
+        [addLog]
+    );
 
-    // All three below used to feed RemapPlayerModal — a blocking popup
-    // that fired on every kill/revive/mission completion that reassigned
-    // targets, which the GM found "very annoying, not necessary" since
-    // every remap it announces is already logged to the GM log
-    // (handleRemapping, above). The popup and the state it displayed are
-    // gone; these three stay as no-ops rather than being removed outright,
-    // since ChatInput.js and PhotosDisplay.js still call all three from
-    // several call sites each — a deeper cleanup, not needed to fix this
-    // bug.
-    const handleAddNewTargets = () => {};
-    const handleAddNewAssassins = () => {};
-    const handleSetShowMessageToTrue = () => {};
-
-    // values for executionContext Provider
-    const executionContextProviderValues = {
-        handleKillPlayer,
-        handleAddNewAssassins,
-        handleAddNewTargets,
-        handleRemapping,
-        handlePlayerRevive,
-        handleTaskCompleted,
-        handleNewTaskAdded,
-        handleSetShowMessageToTrue,
-        handleShowLeaderboardView,
-        handleShowMissionCreation,
-        handleShowMissionList,
-        handleOpenSznstarted,
-        handleOpenSznended,
-        addLog,
-    };
+    // values for executionContext Provider — memoized so every consumer
+    // (ChatInput, PhotosDisplay, TaskList, ReconnectRequests, TaskAccordion,
+    // LeaderboardModal) only re-renders when one of these callbacks or
+    // `addLog` actually changes identity, not on every GameMasterView
+    // render. handleAddNewTargets/handleAddNewAssassins/
+    // handleSetShowMessageToTrue used to feed RemapPlayerModal — a blocking
+    // popup that fired on every kill/revive/mission completion that
+    // reassigned targets, which the GM found "very annoying, not
+    // necessary" since every remap it announces is already logged to the
+    // GM log (handleRemapping, above). The popup and the state it
+    // displayed are gone; these three stay as the shared module-scope
+    // `noop` rather than being removed outright, since ChatInput.js and
+    // PhotosDisplay.js still call all three from several call sites each —
+    // a deeper cleanup, not needed to fix this bug.
+    const executionContextProviderValues = useMemo(
+        () => ({
+            handleKillPlayer,
+            handleAddNewAssassins: noop,
+            handleAddNewTargets: noop,
+            handleRemapping,
+            handlePlayerRevive,
+            handleTaskCompleted,
+            handleNewTaskAdded,
+            handleSetShowMessageToTrue: noop,
+            handleShowLeaderboardView,
+            handleShowMissionCreation,
+            handleShowMissionList,
+            handleOpenSznstarted,
+            handleOpenSznended,
+            addLog,
+        }),
+        [
+            handleKillPlayer,
+            handleRemapping,
+            handlePlayerRevive,
+            handleTaskCompleted,
+            handleNewTaskAdded,
+            handleShowLeaderboardView,
+            handleShowMissionCreation,
+            handleShowMissionList,
+            handleOpenSznstarted,
+            handleOpenSznended,
+            addLog,
+        ]
+    );
 
     return (
         <gameContext.Provider value={{ roomID, players, isGameActive }}>
@@ -275,7 +339,7 @@ const GameMasterView = () => {
                     <LeaderboardModal
                         isOpen={showLeaderboardModal}
                         onClose={() => setShowLeaderboardModal(false)}
-                        standings={buildLeaderboardStandings(players)}
+                        standings={leaderboardStandings}
                     />
                 </executionContext.Provider>
 

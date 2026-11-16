@@ -1,5 +1,5 @@
 import { Box, Heading, Image, Text, Tooltip } from '@chakra-ui/react';
-import { useContext, useEffect, useState } from 'react';
+import { memo, useContext, useEffect, useState } from 'react';
 import { gameContext } from '../Contexts';
 import {
     addPlayerMessageForRoom,
@@ -26,7 +26,14 @@ import { completeMission } from '../completeMission';
 // override capability. `players` is the same live roster
 // GameMasterView.js already subscribes to, used here only for display
 // name resolution.
-const PhotosDisplay = ({ players = [] }) => {
+// Wrapped in memo: GameMasterView.js re-renders on every players/logs/room
+// snapshot tick and every unrelated UI state change (opening a modal), and
+// without this, PhotosDisplay re-rendered right along with it every time —
+// its own live subscriptions (unjudgedPhotos, missions below) already
+// drive its real updates, so a `players` prop that hasn't actually changed
+// identity (it's memoized in GameMasterView.js) shouldn't trigger anything
+// here.
+const PhotosDisplay = memo(({ players = [] }) => {
     const [unjudgedPhotos, setUnjudgedPhotos] = useState([]);
     // eslint-disable-next-line no-unused-vars
     const [judgedPhotos, setJudgedPhotos] = useState([]);
@@ -356,7 +363,7 @@ const PhotosDisplay = ({ players = [] }) => {
             </Box>
         </>
     );
-};
+});
 
 const styles = {
     photosContainer: {
